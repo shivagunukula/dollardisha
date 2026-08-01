@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: dollardisha
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: FMP_API_KEY
+        sync: false

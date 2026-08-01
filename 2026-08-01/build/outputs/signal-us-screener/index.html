@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="DollarDisha — a US stock research platform for Indian investors."><title>DollarDisha — US investing, made clearer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar"><a class="brand" href="#dashboard"><span class="mark">D</span> DollarDisha<span class="dot">.</span></a><p class="tagline">Your disha for US equities</p>
+      <nav><button class="nav active" data-page="dashboard"><i>⌂</i> Dashboard</button><button class="nav" data-page="screener"><i>⌕</i> Stock Screener</button><button class="nav" data-page="watchlist"><i>☆</i> Watchlist <b id="watch-count">0</b></button><button class="nav" data-page="calculator"><i>₹</i> US Investment Calc</button></nav>
+      <div class="sidebar-bottom"><div class="fx-card"><span>USD / INR</span><strong>₹83.54</strong><small class="positive">+0.08% today</small></div><button class="profile"><span>SK</span><div><b>Shiva Kumar</b><small>Free plan</small></div><em>⌄</em></button></div>
+    </aside>
+    <main>
+      <header class="mobile-head"><a class="brand" href="#dashboard"><span class="mark">D</span> DollarDisha<span class="dot">.</span></a><button id="menu">☰</button></header>
+      <header class="topbar"><div class="universal-search"><span>⌕</span><input id="global-search" placeholder="Search US stocks, e.g. NVDA, Apple"><kbd>⌘ K</kbd><div id="global-results" hidden></div></div><div class="top-actions"><button class="bell">♧<sup>2</sup></button><button class="upgrade">Upgrade <span>→</span></button></div></header>
+      <div id="content"></div>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
