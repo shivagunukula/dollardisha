@@ -25,28 +25,30 @@ function send(res, status, data, type = 'application/json; charset=utf-8') { res
 createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {
-    if (url.pathname === '/api/search') {
+    if (url.pathname === '/data/search' || url.pathname === '/api/search') {
       const query = url.searchParams.get('q')?.trim();
       if (!query || query.length > 50) return send(res, 400, { error:'Provide a company or ticker to search.' });
       return send(res, 200, await fmp('search-name', { query, limit: 8 }));
     }
-    if (url.pathname === '/api/company') {
+    if (url.pathname === '/data/company' || url.pathname === '/api/company') {
       const ticker = symbol(url.searchParams.get('symbol'));
       if (!ticker) return send(res, 400, { error:'Invalid ticker.' });
-      const [profile, quote, metrics, income] = await Promise.all([
+      const optional = path => fmp(path, { symbol:ticker, limit: 8 }).catch(() => []);
+      const [profile, quote, metrics, income, balance, cashflow, ratios] = await Promise.all([
         fmp('profile', { symbol:ticker }), fmp('quote', { symbol:ticker }),
         fmp('key-metrics-ttm', { symbol:ticker }), fmp('income-statement', { symbol:ticker, limit:4 })
+        , optional('balance-sheet-statement'), optional('cash-flow-statement'), optional('ratios-ttm')
       ]);
-      return send(res, 200, { profile: profile[0] || {}, quote: quote[0] || {}, metrics: metrics[0] || {}, income });
+      return send(res, 200, { profile: profile[0] || {}, quote: quote[0] || {}, metrics: metrics[0] || {}, income, balance, cashflow, ratios: ratios[0] || {} });
     }
-    if (url.pathname === '/api/market') {
+    if (url.pathname === '/data/market' || url.pathname === '/api/market') {
       // Broad-market ETFs are not available under every FMP plan. These liquid US equities
       // give the dashboard reliable live quotes while keeping its free-tier usage low.
       const tickers = ['NVDA', 'MSFT', 'AAPL', 'GOOGL'];
       const quotes = await Promise.all(tickers.map(ticker => fmp('quote', { symbol:ticker })));
       return send(res, 200, quotes.map(item => item[0] || {}));
     }
-    if (url.pathname === '/api/screener') {
+    if (url.pathname === '/data/screener' || url.pathname === '/api/screener') {
       const sector = url.searchParams.get('sector');
       const cap = url.searchParams.get('cap');
       const parameters = { limit: 500 };
@@ -63,7 +65,7 @@ createServer(async (req, res) => {
     const data = await readFile(file);
     return send(res, 200, data.toString(), mime[extname(file)] || 'application/octet-stream');
   } catch (error) {
-    if (url.pathname.startsWith('/api/')) return send(res, 502, { error:'Live data is temporarily unavailable.', detail:error.message });
+    if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/data/')) return send(res, 502, { error:'Live data is temporarily unavailable.', detail:error.message });
     return send(res, 404, 'Not found', 'text/plain; charset=utf-8');
   }
 }).listen(process.env.PORT || 3000, () => console.log('DollarDisha is running at http://localhost:3000'));
