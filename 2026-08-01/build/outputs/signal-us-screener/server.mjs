@@ -33,6 +33,40 @@ async function secSubmissions(cik) {
   if (!response.ok) throw new Error(`SEC returned ${response.status}`);
   return response.json();
 }
+let secTickers = { rows: null, expiresAt: 0 };
+async function secFactsForTicker(ticker) {
+  if (!secTickers.rows || Date.now() > secTickers.expiresAt) {
+    const response = await externalFetch('https://www.sec.gov/files/company_tickers.json', { headers: { 'User-Agent': 'DollarDisha/1.0 contact@dollardisha.in', Accept: 'application/json' } });
+    if (!response.ok) throw new Error(`SEC ticker directory returned ${response.status}`);
+    secTickers = { rows: Object.values(await response.json()), expiresAt: Date.now() + 24 * 60 * 60 * 1000 };
+  }
+  const company = secTickers.rows.find(item => String(item.ticker).toUpperCase() === ticker);
+  if (!company) return null;
+  const cik = String(company.cik_str).padStart(10, '0');
+  const response = await externalFetch(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`, { headers: { 'User-Agent': 'DollarDisha/1.0 contact@dollardisha.in', Accept: 'application/json' } });
+  if (!response.ok) throw new Error(`SEC company facts returned ${response.status}`);
+  return { company, facts: await response.json() };
+}
+function secMetric(facts, names, unit = 'USD') {
+  const gaap = facts?.facts?.['us-gaap'] || {};
+  for (const name of names) {
+    const rows = gaap[name]?.units?.[unit] || [];
+    const annual = rows.filter(row => row.form === '10-K' && row.fp === 'FY' && Number.isFinite(Number(row.val)) && row.fy).sort((a, b) => Number(b.fy) - Number(a.fy) || String(b.filed).localeCompare(String(a.filed)));
+    if (annual.length) return annual;
+  }
+  return [];
+}
+function annualStatement(facts, definition) {
+  const fields = Object.fromEntries(Object.entries(definition).map(([key, names]) => [key, secMetric(facts, names)]));
+  const years = [...new Set(Object.values(fields).flat().map(row => row.fy))].sort((a, b) => b - a).slice(0, 8);
+  return years.map(year => Object.fromEntries([['calendarYear', String(year)], ...Object.entries(fields).map(([key, rows]) => [key, rows.find(row => row.fy === year)?.val ?? null]) ]));
+}
+function secFinancials(facts) {
+  const income = annualStatement(facts, { revenue:['RevenueFromContractWithCustomerExcludingAssessedTax','SalesRevenueNet','Revenues'], grossProfit:['GrossProfit'], operatingIncome:['OperatingIncomeLoss'], netIncome:['NetIncomeLoss'], eps:['EarningsPerShareDiluted'] });
+  const balance = annualStatement(facts, { cashAndCashEquivalents:['CashAndCashEquivalentsAtCarryingValue','CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents'], totalAssets:['Assets'], totalLiabilities:['Liabilities'], totalStockholdersEquity:['StockholdersEquity','StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest'], totalDebt:['LongTermDebtCurrent','LongTermDebtNoncurrent'] });
+  const cashflow = annualStatement(facts, { operatingCashFlow:['NetCashProvidedByUsedInOperatingActivities'], capitalExpenditure:['PaymentsToAcquirePropertyPlantAndEquipment'], freeCashFlow:['NetCashProvidedByUsedInOperatingActivities'], netIncome:['NetIncomeLoss'] }).map(row => ({ ...row, freeCashFlow: Number.isFinite(Number(row.operatingCashFlow)) && Number.isFinite(Number(row.capitalExpenditure)) ? Number(row.operatingCashFlow) - Math.abs(Number(row.capitalExpenditure)) : null }));
+  return { income, balance, cashflow };
+}
 async function yahooQuote(ticker) {
   const response = await externalFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=1d&interval=1m`, {
     headers: { 'User-Agent': 'DollarDisha research app contact@dollardisha.in' }
@@ -209,14 +243,18 @@ createServer(async (req, res) => {
       const ticker = symbol(url.searchParams.get('symbol'));
       if (!ticker) return send(res, 400, { error:'Invalid ticker.' });
       const optional = path => fmp(path, { symbol:ticker, limit: 8 }).catch(() => []);
-      const [profile, quote, metrics, income, balance, cashflow, ratios] = await Promise.all([
+      const [profile, quote, metrics, income, balance, cashflow, ratios, secData] = await Promise.all([
         optional('profile'), liveQuote(ticker),
         optional('key-metrics-ttm'), optional('income-statement')
-        , optional('balance-sheet-statement'), optional('cash-flow-statement'), optional('ratios-ttm')
+        , optional('balance-sheet-statement'), optional('cash-flow-statement'), optional('ratios-ttm'), secFactsForTicker(ticker).catch(() => null)
       ]);
-      const fallbackProfile = { companyName: ticker, sector: 'US Equity', description: 'Latest available price is shown below. Detailed fundamentals are unavailable for this company right now.' };
-      await cacheCompany(ticker, profile[0] || fallbackProfile, quote, { income, balance, cashflow, ratios });
-      return send(res, 200, { profile: profile[0] || fallbackProfile, quote: quote || {}, metrics: metrics[0] || {}, income, balance, cashflow, ratios: ratios[0] || {} });
+      const secValues = secData ? secFinancials(secData.facts) : { income:[], balance:[], cashflow:[] };
+      const fallbackProfile = { companyName: secData?.facts?.entityName || secData?.company?.title || ticker, cik: secData?.company?.cik_str, sector: 'US Equity', description: secData ? 'Financial statement figures are sourced from this company’s SEC filings.' : 'Latest available price is shown below. Detailed fundamentals are unavailable for this company right now.' };
+      const finalIncome = income.length ? income : secValues.income;
+      const finalBalance = balance.length ? balance : secValues.balance;
+      const finalCashflow = cashflow.length ? cashflow : secValues.cashflow;
+      await cacheCompany(ticker, profile[0] || fallbackProfile, quote, { income:finalIncome, balance:finalBalance, cashflow:finalCashflow, ratios });
+      return send(res, 200, { profile: profile[0] || fallbackProfile, quote: quote || {}, metrics: metrics[0] || {}, income:finalIncome, balance:finalBalance, cashflow:finalCashflow, ratios: ratios[0] || {} });
     }
     if (url.pathname === '/data/chart') {
       const ticker = symbol(url.searchParams.get('symbol'));
@@ -240,8 +278,9 @@ createServer(async (req, res) => {
     if (url.pathname === '/data/filings') {
       const ticker = symbol(url.searchParams.get('symbol'));
       if (!ticker) return send(res, 400, { error:'Invalid ticker.' });
-      const profile = await fmp('profile', { symbol:ticker });
-      const cik = profile[0]?.cik;
+      const profile = await fmp('profile', { symbol:ticker }).catch(() => []);
+      const secData = await secFactsForTicker(ticker).catch(() => null);
+      const cik = profile[0]?.cik || secData?.company?.cik_str;
       if (!cik) return send(res, 404, { error:'No SEC identifier is available for this company.' });
       const submission = await secSubmissions(cik);
       const recent = submission.filings?.recent || {};
