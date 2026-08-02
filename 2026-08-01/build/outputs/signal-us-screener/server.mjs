@@ -164,7 +164,7 @@ createServer(async (req, res) => {
     }
     if (url.pathname === '/data/indices') {
       const indices = [
-        ['S&P 500', 'SPY'], ['Nasdaq-100', 'QQQ'], ['Dow Jones', 'DIA'], ['Russell 2000', 'IWM']
+        ['S&P 500 ETF', 'SPY'], ['Nasdaq-100 ETF', 'QQQ'], ['Dow Jones ETF', 'DIA'], ['Russell 2000 ETF', 'IWM']
       ];
       const quotes = await Promise.all(indices.map(([, ticker]) => liveQuote(ticker)));
       return send(res, 200, indices.map(([name], index) => ({ name, symbol: indices[index][1], ...quotes[index] })));

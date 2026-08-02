@@ -39,7 +39,7 @@ function dashboardView() {
 
 function marketsView() {
   return `<div class="page">${pageHeader('US MARKET INTELLIGENCE', 'Market scans', 'A fast starting point for new company research. These scans are not buy or sell signals.')}
-  <section class="index-grid" id="index-cards">${[['S&P 500', 'SPY'], ['Nasdaq-100', 'QQQ'], ['Dow Jones', 'DIA'], ['Russell 2000', 'IWM']].map(([name, ticker]) => `<article class="index-card" data-index="${ticker}"><span>${name}</span><strong>Loading…</strong><b>Latest available</b></article>`).join('')}</section>
+  <section class="index-grid" id="index-cards">${[['S&P 500 ETF', 'SPY'], ['Nasdaq-100 ETF', 'QQQ'], ['Dow Jones ETF', 'DIA'], ['Russell 2000 ETF', 'IWM']].map(([name, ticker]) => `<article class="index-card" data-index="${ticker}"><span>${name}</span><strong>Loading…</strong><b>Latest available ETF quote</b></article>`).join('')}</section>
   <section class="panel"><div class="panel-head"><div><h2>Discover companies</h2><p>Choose a view, then open a company for detailed research.</p></div><div><button class="link-button market-mode" data-mode="gainers">Top gainers</button><button class="link-button market-mode" data-mode="losers">Top losers</button><button class="link-button market-mode" data-mode="largest">Largest</button></div></div><div class="table-wrap"><table><thead><tr><th>Company</th><th>Price</th><th>Market cap</th><th>P/E</th><th>Today</th><th></th></tr></thead><tbody id="market-table"><tr><td colspan="6">Loading market scan…</td></tr></tbody></table></div></section></div>`;
 }
 
