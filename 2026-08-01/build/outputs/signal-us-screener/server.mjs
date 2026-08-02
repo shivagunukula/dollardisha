@@ -529,6 +529,60 @@ createServer(async (req, res) => {
         news: Array.isArray(news) ? news.slice(0, 10) : []
       });
     }
+    if (url.pathname === '/data/ownership') {
+      const ticker = symbol(url.searchParams.get('symbol'));
+      if (!ticker) return send(res, 400, { error:'Invalid ticker.' });
+      const optional = (path, parameters = {}) => fmp(path, { symbol:ticker, limit:100, ...parameters }).catch(() => []);
+      const [holderResponse, profileResponse, insiderResponse] = await Promise.all([
+        optional('institutional-holder'), optional('profile'), optional('insider-trading/search', { page:0 })
+      ]);
+      const holders = Array.isArray(holderResponse) ? holderResponse : [];
+      const profile = Array.isArray(profileResponse) ? profileResponse[0] || {} : {};
+      const number = (...values) => finiteValue(...values);
+      const periodDate = row => String(row.date || row.reportDate || row.filingDate || row.period || '').slice(0, 10);
+      const quarterLabel = date => { const year = Number(String(date).slice(0, 4)); const month = Number(String(date).slice(5, 7)); return year && month ? `${year} Q${Math.ceil(month / 3)}` : null; };
+      const buckets = new Map();
+      holders.forEach(row => {
+        const date = periodDate(row);
+        const period = quarterLabel(date);
+        if (!period) return;
+        const bucket = buckets.get(period) || { period, date, institutionalShares:0, reportedValue:0, holderCount:0, ownershipPercent:null };
+        const shares = number(row.shares, row.sharesHeld, row.position);
+        const value = number(row.value, row.marketValue, row.currentValue);
+        if (shares !== null) bucket.institutionalShares += shares;
+        if (value !== null) bucket.reportedValue += value;
+        bucket.holderCount += 1;
+        const ownership = number(row.ownershipPercent, row.sharesPercent, row.percentOfShares);
+        if (ownership !== null) bucket.ownershipPercent = bucket.ownershipPercent === null ? ownership : bucket.ownershipPercent + ownership;
+        buckets.set(period, bucket);
+      });
+      const quarterly = [...buckets.values()].sort((a, b) => String(b.date).localeCompare(String(a.date))).map(item => ({
+        ...item,
+        institutionalShares: item.institutionalShares || null,
+        reportedValue: item.reportedValue || null,
+        ownershipPercent: item.ownershipPercent
+      }));
+      const yearlyMap = new Map();
+      quarterly.forEach(item => { const year = String(item.period).slice(0, 4); if (!yearlyMap.has(year)) yearlyMap.set(year, { ...item, period: year }); });
+      const yearly = [...yearlyMap.values()].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      const insiders = Array.isArray(insiderResponse) ? insiderResponse : [];
+      const trades = insiders.slice(0, 20).map(row => ({
+        date: row.transactionDate || row.filingDate || row.date || null,
+        name: row.reportingName || row.reportingOwner || row.name || 'Insider',
+        type: row.transactionType || row.transactionTypeName || row.transactionCode || 'Reported transaction',
+        shares: number(row.securitiesTransacted, row.shares, row.securitiesOwned),
+        value: number(row.transactionValue, row.value)
+      }));
+      return send(res, 200, {
+        symbol:ticker,
+        quarterly,
+        yearly,
+        trades,
+        sharesOutstanding:number(profile.sharesOutstanding),
+        sharesFloat:number(profile.floatShares, profile.sharesFloat),
+        note:'Institutional snapshots and insider transactions are reported by providers and SEC filings; unavailable ownership percentages are left blank.'
+      });
+    }
     if (url.pathname === '/data/movers') {
       const optional = path => fmp(path, { limit:25 }).catch(() => []);
       const [gainers, losers, active] = await Promise.all([optional('biggest-gainers'), optional('biggest-losers'), optional('most-actives')]);

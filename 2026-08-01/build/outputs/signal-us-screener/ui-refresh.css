@@ -1516,3 +1516,72 @@ html[data-theme="light"] .auth-profile-note b { color: #17231f !important; }
 
 html[data-theme="light"] .filings-source-note { color: #6f817a !important; }
 html[data-theme="light"] .filings-inline strong { color: #147b63 !important; }
+
+.ownership-panel { overflow: hidden; }
+.ownership-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 16px 14px;
+  border-bottom: 1px solid var(--dd-line-soft);
+}
+.ownership-switch { display: flex; gap: 3px; }
+.ownership-switch button,
+.ownership-trades {
+  border: 1px solid var(--dd-line);
+  border-radius: 7px;
+  background: var(--dd-surface-2);
+  color: var(--dd-muted);
+  padding: 7px 11px;
+  font: 600 10px Inter, Arial, sans-serif;
+  cursor: pointer;
+}
+.ownership-switch button.active,
+.ownership-switch button:hover,
+.ownership-trades.active,
+.ownership-trades:hover {
+  border-color: var(--dd-accent);
+  background: var(--dd-accent-soft);
+  color: var(--dd-accent);
+}
+.ownership-trades span {
+  display: inline-grid;
+  min-width: 17px;
+  min-height: 17px;
+  margin-left: 4px;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--dd-accent-soft);
+  color: var(--dd-accent);
+  font-size: 9px;
+}
+.ownership-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid var(--dd-line-soft);
+}
+.ownership-summary > div { padding: 13px 16px; border-right: 1px solid var(--dd-line-soft); }
+.ownership-summary > div:last-child { border-right: 0; }
+.ownership-summary span,
+.ownership-summary b { display: block; }
+.ownership-summary span { color: var(--dd-muted); font-size: 10px; }
+.ownership-summary b { margin-top: 5px; color: var(--dd-text); font-size: 13px; }
+.ownership-table-wrap { padding: 0 16px; }
+.ownership-table { min-width: 650px; }
+.ownership-table th,
+.ownership-table td { white-space: nowrap; }
+.ownership-table td:nth-child(2),
+.ownership-table td:nth-child(3),
+.ownership-table td:nth-child(4),
+.ownership-table td:nth-child(5) { text-align: right; }
+.ownership-note { margin: 0; padding: 12px 16px 15px; color: var(--dd-muted); font-size: 10px; line-height: 1.5; }
+@media (max-width: 700px) {
+  .ownership-toolbar { align-items: stretch; flex-direction: column; }
+  .ownership-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ownership-summary > div:nth-child(2) { border-right: 0; }
+}
+@media (max-width: 380px) {
+  .ownership-summary { grid-template-columns: 1fr; }
+  .ownership-summary > div { border-right: 0; }
+}

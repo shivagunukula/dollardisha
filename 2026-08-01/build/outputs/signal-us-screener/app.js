@@ -556,7 +556,7 @@ function companyView(ticker) {
       <div><p class="crumb">US EQUITY RESEARCH</p><h1 class="page-title" id="company-title">${escapeHtml(ticker)}</h1><p class="sub" id="company-subtitle">${escapeHtml(ticker)} · Loading company research…</p></div>
       <button class="solid-btn ${watchlist.includes(ticker) ? 'saved' : ''}" data-watch="${ticker}">${watchlist.includes(ticker) ? 'Following' : 'Follow'}</button>
     </div>
-    <nav class="company-tabs"><a href="#overview">Overview</a><a href="#chart">Chart</a><a href="#strengths">Pros &amp; cons</a><a href="#quarterly">Quarterly</a><a href="#financials">Financials</a><a href="#peers">Peers</a><a href="#intelligence">Intelligence</a><a href="#updates">Updates</a><a href="#documents">Filings</a></nav>
+    <nav class="company-tabs"><a href="#overview">Overview</a><a href="#chart">Chart</a><a href="#strengths">Pros &amp; cons</a><a href="#quarterly">Quarterly</a><a href="#ownership">Shareholding</a><a href="#financials">Financials</a><a href="#peers">Peers</a><a href="#intelligence">Intelligence</a><a href="#updates">Updates</a><a href="#documents">Filings</a></nav>
     <div id="overview" class="company-overview-stack">
       <section class="panel company-summary company-research-card">
         <div class="summary-main ratio-board">
@@ -586,6 +586,7 @@ function companyView(ticker) {
       <div id="company-signals" class="company-signals-loading">Analysing the latest reported figures...</div>
     </section>
     <section id="quarterly" class="panel financial-panel quarterly-panel"><div class="panel-head"><div><h2>Quarterly results</h2><p>USD millions except per-share data · latest reported quarters</p></div><span class="quarterly-source">Reported data</span></div><div id="company-quarterly"><p class="data-empty">Loading quarterly results…</p></div></section>
+    <section id="ownership" class="panel ownership-panel"><div class="panel-head"><div><h2>Shareholding pattern</h2><p>Institutional ownership and insider activity by reported period</p></div><span class="quarterly-source">Quarterly &amp; yearly</span></div><div id="company-ownership"><p class="data-empty">Loading shareholding updatesâ€¦</p></div></section>
     <div id="financials" class="financial-stack"></div>
     <section id="peers" class="panel documents-panel"><div class="panel-head"><div><h2>Peer comparison</h2><p>Companies in the same sector and industry</p></div></div><div id="company-peers" class="data-empty">Peer data is loading…</div></section>
     <section id="intelligence" class="research-grid intelligence-grid"><div class="panel"><div class="panel-head"><div><h2>Analyst & financial strength</h2><p>Consensus, financial scores and owner earnings</p></div></div><div id="company-intel" class="data-empty">Loading analyst and financial-strength data…</div></div><div class="panel"><div class="panel-head"><div><h2>Company leadership</h2><p>Executives reported by the provider</p></div></div><div id="company-executives" class="data-empty">Loading executive data…</div></div></section>
@@ -721,12 +722,31 @@ function renderCompanySignals(holder, data) {
   </div><p class="signals-note">Automatically generated from reported financial statements and ratios using fixed research rules. For education only, not investment advice.</p>`;
 }
 
+function renderOwnership(holder, data) {
+  if (!holder) return;
+  const state = { period: 'quarterly', view: 'snapshots' };
+  const formatPercent = value => Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)}%` : '—';
+  const formatShares = value => Number.isFinite(Number(value)) ? whole(value) : '—';
+  const draw = () => {
+    const rows = Array.isArray(data[state.period]) ? data[state.period] : [];
+    const trades = Array.isArray(data.trades) ? data.trades : [];
+    const latest = rows[0] || {};
+    const snapshotTable = rows.length ? `<div class="table-wrap ownership-table-wrap"><table class="ownership-table"><thead><tr><th>Period</th><th>Institutional shares</th><th>Reported value</th><th>Holders</th><th>Ownership %</th></tr></thead><tbody>${rows.map(row => `<tr><td>${escapeHtml(row.period || row.date || '—')}</td><td>${formatShares(row.institutionalShares)}</td><td>${usd(row.reportedValue)}</td><td>${whole(row.holderCount)}</td><td>${formatPercent(row.ownershipPercent)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="data-empty">No institutional ownership snapshots were returned for this company.</p>';
+    const tradeTable = trades.length ? `<div class="table-wrap ownership-table-wrap"><table class="ownership-table"><thead><tr><th>Date</th><th>Insider</th><th>Transaction</th><th>Shares</th><th>Value</th></tr></thead><tbody>${trades.map(row => `<tr><td>${escapeHtml(row.date || '—')}</td><td>${escapeHtml(row.name || 'Insider')}</td><td>${escapeHtml(row.type || 'Reported transaction')}</td><td>${formatShares(row.shares)}</td><td>${usd(row.value)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="data-empty">No recent insider transaction records were returned for this company.</p>';
+    holder.innerHTML = `<div class="ownership-toolbar"><div class="ownership-switch"><button class="${state.period === 'quarterly' ? 'active' : ''}" data-ownership-period="quarterly">Quarterly</button><button class="${state.period === 'yearly' ? 'active' : ''}" data-ownership-period="yearly">Yearly</button></div><button class="ownership-trades ${state.view === 'trades' ? 'active' : ''}" data-ownership-view="trades">Trades <span>${trades.length}</span></button></div><div class="ownership-summary"><div><span>Institutional shares</span><b>${formatShares(latest.institutionalShares)}</b></div><div><span>Reported value</span><b>${usd(latest.reportedValue)}</b></div><div><span>Ownership reported</span><b>${formatPercent(latest.ownershipPercent)}</b></div><div><span>Holder count</span><b>${whole(latest.holderCount)}</b></div></div>${state.view === 'trades' ? tradeTable : snapshotTable}<p class="ownership-note">Institutional snapshots are grouped by reported period. Ownership percentages are shown only when explicitly reported by the provider; no estimates are invented.</p>`;
+    holder.querySelectorAll('[data-ownership-period]').forEach(button => button.onclick = () => { state.period = button.dataset.ownershipPeriod; state.view = 'snapshots'; draw(); });
+    holder.querySelector('[data-ownership-view]')?.addEventListener('click', () => { state.view = state.view === 'trades' ? 'snapshots' : 'trades'; draw(); });
+  };
+  draw();
+}
+
 hydrateCompanyExtras = function(ticker) {
   originalHydrateCompanyExtras(ticker);
   const holder = $('#company-ratios');
   const quarterlyHolder = $('#company-quarterly');
   const signalsHolder = $('#company-signals');
-  if (!holder && !quarterlyHolder && !signalsHolder) return;
+  const ownershipHolder = $('#company-ownership');
+  if (!holder && !quarterlyHolder && !signalsHolder && !ownershipHolder) return;
   getJson(`/data/company?symbol=${encodeURIComponent(ticker)}`)
     .then(data => {
       if (holder) renderFilteredRatioExplorer(holder, data.ratios || {});
@@ -738,6 +758,7 @@ hydrateCompanyExtras = function(ticker) {
       if (quarterlyHolder) quarterlyHolder.innerHTML = '<p class="data-empty">Quarterly results are temporarily unavailable for this company.</p>';
       if (signalsHolder) signalsHolder.innerHTML = '<p class="signal-empty">Pros and cons are temporarily unavailable because reported company data could not be loaded.</p>';
     });
+  if (ownershipHolder) getJson(`/data/ownership?symbol=${encodeURIComponent(ticker)}`).then(data => renderOwnership(ownershipHolder, data)).catch(() => { ownershipHolder.innerHTML = '<p class="data-empty">Shareholding data is temporarily unavailable for this company.</p>'; });
 };
 
 document.head.insertAdjacentHTML('beforeend', `<style>
