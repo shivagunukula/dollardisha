@@ -264,6 +264,17 @@ createServer(async (req, res) => {
       const points = [22, 130, 260, 780, 1300, 2600].includes(requested) ? requested : 260;
       return send(res, 200, { symbol:ticker, values:await priceHistory(ticker, points) });
     }
+    if (url.pathname === '/data/peers') {
+      const ticker = symbol(url.searchParams.get('symbol'));
+      if (!ticker) return send(res, 400, { error:'Invalid ticker.' });
+      const peerData = await fmp('stock-peers', { symbol:ticker });
+      const peerList = Array.isArray(peerData) ? (peerData[0]?.peersList || []) : (peerData?.peersList || []);
+      const rows = await Promise.all(peerList.filter(symbol).filter(item => item !== ticker).slice(0, 6).map(async peer => {
+        const [profile, quote, ratios] = await Promise.all([fmp('profile', { symbol:peer }).catch(() => []), liveQuote(peer).catch(() => ({})), fmp('ratios-ttm', { symbol:peer }).catch(() => [])]);
+        return { symbol:peer, companyName:profile[0]?.companyName || peer, sector:profile[0]?.sector, marketCap:profile[0]?.mktCap, price:quote.price, change:quote.changesPercentage, pe:ratios[0]?.peRatioTTM };
+      }));
+      return send(res, 200, rows);
+    }
     if (url.pathname === '/data/market' || url.pathname === '/api/market') {
       // Broad-market ETFs are not available under every FMP plan. These liquid US equities
       // give the dashboard reliable live quotes while keeping its free-tier usage low.
