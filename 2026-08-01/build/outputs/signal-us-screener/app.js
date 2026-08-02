@@ -1060,6 +1060,53 @@ async function setupAuth() {
   };
 }
 
+// Chart enhancement: expose calculated moving averages and reported earnings
+// beside the graph. The provider's daily history is the source of truth for
+// both DMA lines and the values shown in this strip.
+var companyChartMetrics = { ticker:null, pe:null, eps:null, loading:false };
+function chartMetricValue(value, suffix) { return Number.isFinite(Number(value)) ? `${Number(value).toLocaleString('en-US', { maximumFractionDigits:2 })}${suffix || ''}` : 'Unavailable'; }
+function hydrateChartMetrics(ticker) {
+  if (companyChartMetrics.ticker === ticker || companyChartMetrics.loading) return;
+  companyChartMetrics = { ticker, pe:null, eps:null, loading:true };
+  getJson(`/data/company?symbol=${encodeURIComponent(ticker)}`).then(data => {
+    const ratios = data.ratios || {};
+    const latest = (data.quarterlyIncome || [])[0] || (data.income || [])[0] || {};
+    companyChartMetrics.pe = ratios.peRatioTTM;
+    companyChartMetrics.eps = latest.epsdiluted ?? latest.epsDiluted ?? latest.eps;
+    companyChartMetrics.loading = false;
+    const holder = $('#company-chart');
+    if (!holder || page !== ticker) return;
+    const pe = holder.querySelector('[data-chart-stat="pe"]');
+    const eps = holder.querySelector('[data-chart-stat="eps"]');
+    if (pe) pe.textContent = chartMetricValue(companyChartMetrics.pe, 'x');
+    if (eps) eps.textContent = chartMetricValue(companyChartMetrics.eps, ' USD');
+  }).catch(() => { companyChartMetrics.loading = false; });
+}
+function drawCompanyChart(values) {
+  if (!values.length) return '<p class="data-empty">Price history is unavailable.</p>';
+  hydrateChartMetrics(page);
+  const closes = values.map(item => Number(item.close));
+  const ma50 = movingAverage(closes, 50);
+  const ma200 = movingAverage(closes, 200);
+  const latest50 = ma50[ma50.length - 1];
+  const latest200 = ma200[ma200.length - 1];
+  const max = Math.max(...closes); const min = Math.min(...closes);
+  const scaleX = index => 28 + (index / Math.max(values.length - 1, 1)) * 744;
+  const scaleY = value => 174 - ((value - min) / Math.max(max - min, 0.01)) * 135;
+  const pathFor = series => series.map((value, index) => value == null ? '' : `${index && series[index - 1] != null ? 'L' : 'M'} ${scaleX(index).toFixed(1)} ${scaleY(value).toFixed(1)}`).join(' ');
+  const maxVolume = Math.max(...values.map(item => Number(item.volume || 0)), 1);
+  const bars = companyChartOptions.volume ? values.map((item, index) => `<rect x="${scaleX(index) - 1.2}" y="${(174 - (Number(item.volume || 0) / maxVolume) * 42).toFixed(1)}" width="2.4" height="${((Number(item.volume || 0) / maxVolume) * 42).toFixed(1)}"/>`).join('') : '';
+  setTimeout(() => document.querySelectorAll('[data-chart-points],[data-chart-toggle]').forEach(button => button.onclick = async () => {
+    if (button.dataset.chartPoints) companyChartOptions.points = Number(button.dataset.chartPoints);
+    if (button.dataset.chartToggle) companyChartOptions[button.dataset.chartToggle] = !companyChartOptions[button.dataset.chartToggle];
+    const holder = $('#company-chart'); holder.innerHTML = '<p class="data-empty">Loading chart…</p>';
+    try { const chart = await getJson(`/data/chart?symbol=${encodeURIComponent(page)}&points=${companyChartOptions.points}`); holder.innerHTML = drawCompanyChart(chart.values || []); }
+    catch { holder.innerHTML = '<p class="data-empty">Price history is unavailable.</p>'; }
+  }), 0);
+  const stats = [['Latest close', chartMetricValue(closes[closes.length - 1], ' USD'), ''], ['50 DMA', chartMetricValue(latest50, ' USD'), ''], ['200 DMA', chartMetricValue(latest200, ' USD'), ''], ['P/E (TTM)', chartMetricValue(companyChartMetrics.pe, 'x'), 'pe'], ['EPS (latest)', chartMetricValue(companyChartMetrics.eps, ' USD'), 'eps']];
+  return `<div class="chart-live-stats">${stats.map(([label,value,key]) => `<div><span>${label}</span><b${key ? ` data-chart-stat="${key}"` : ''}>${value}</b></div>`).join('')}</div><p class="chart-data-note">Moving averages use the latest daily closes from the live market feed. P/E is TTM; EPS is the latest reported figure.</p><div class="chart-controls"><div>${[[22,'1M'],[130,'6M'],[260,'1Y'],[780,'3Y'],[1300,'5Y'],[2600,'10Y']].map(([points,label]) => `<button class="${companyChartOptions.points === points ? 'selected' : ''}" data-chart-points="${points}">${label}</button>`).join('')}</div><div><button class="${companyChartOptions.ma50 ? 'selected' : ''}" data-chart-toggle="ma50">50 DMA</button><button class="${companyChartOptions.ma200 ? 'selected' : ''}" data-chart-toggle="ma200">200 DMA</button><button class="${companyChartOptions.volume ? 'selected' : ''}" data-chart-toggle="volume">Volume</button></div></div><svg viewBox="0 0 800 200" role="img" aria-label="Historical price, moving averages and volume chart"><path class="chart-grid" d="M28 30H772M28 78H772M28 126H772M28 174H772"/><g class="chart-volume">${bars}</g><path class="chart-line" d="${pathFor(closes)}"/>${companyChartOptions.ma50 ? `<path class="chart-ma50" d="${pathFor(ma50)}"/>` : ''}${companyChartOptions.ma200 ? `<path class="chart-ma200" d="${pathFor(ma200)}"/>` : ''}<text x="28" y="193">${escapeHtml(values[0].date)}</text><text x="676" y="193">${escapeHtml(values[values.length - 1].date)}</text><text x="720" y="30">${max.toFixed(2)}</text><text x="720" y="174">${min.toFixed(2)}</text></svg><div class="chart-legend"><span class="legend-price">Price</span>${companyChartOptions.ma50 ? '<span class="legend-ma50">50 DMA</span>' : ''}${companyChartOptions.ma200 ? '<span class="legend-ma200">200 DMA</span>' : ''}${companyChartOptions.volume ? '<span class="legend-volume">Volume</span>' : ''}</div>`;
+}
+
 setupTheme();
 setupSearch();
 render();
