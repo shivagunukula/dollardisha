@@ -63,6 +63,24 @@ async function twelveDataQuote(ticker) {
     volume: Number(data.volume), provider: 'twelve-data'
   };
 }
+async function priceHistory(ticker) {
+  if (twelveDataKey) {
+    const url = new URL('https://api.twelvedata.com/time_series');
+    url.searchParams.set('symbol', ticker);
+    url.searchParams.set('interval', '1day');
+    url.searchParams.set('outputsize', '260');
+    url.searchParams.set('apikey', twelveDataKey);
+    const response = await externalFetch(url, { headers: { 'User-Agent': 'DollarDisha research app contact@dollardisha.in' } });
+    const data = await response.json();
+    if (response.ok && data.status !== 'error' && Array.isArray(data.values)) return data.values.slice().reverse().map(item => ({ date:item.datetime, close:Number(item.close), volume:Number(item.volume || 0) }));
+  }
+  const response = await externalFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=1y&interval=1d`, { headers: { 'User-Agent': 'DollarDisha research app contact@dollardisha.in' } });
+  if (!response.ok) throw new Error('Historical price data is unavailable');
+  const data = (await response.json()).chart?.result?.[0];
+  const quote = data?.indicators?.quote?.[0];
+  if (!data?.timestamp || !quote?.close) throw new Error('Historical price data is unavailable');
+  return data.timestamp.map((timestamp, index) => ({ date:new Date(timestamp * 1000).toISOString().slice(0, 10), close:Number(quote.close[index]), volume:Number(quote.volume[index] || 0) })).filter(item => Number.isFinite(item.close));
+}
 async function nasdaqQuote(ticker) {
   const fetchQuote = async assetclass => {
     const response = await externalFetch(`https://api.nasdaq.com/api/quote/${encodeURIComponent(ticker.toLowerCase())}/info?assetclass=${assetclass}`, {
@@ -199,6 +217,11 @@ createServer(async (req, res) => {
       const fallbackProfile = { companyName: ticker, sector: 'US Equity', description: 'Latest available price is shown below. Detailed fundamentals are unavailable for this company right now.' };
       await cacheCompany(ticker, profile[0] || fallbackProfile, quote, { income, balance, cashflow, ratios });
       return send(res, 200, { profile: profile[0] || fallbackProfile, quote: quote || {}, metrics: metrics[0] || {}, income, balance, cashflow, ratios: ratios[0] || {} });
+    }
+    if (url.pathname === '/data/chart') {
+      const ticker = symbol(url.searchParams.get('symbol'));
+      if (!ticker) return send(res, 400, { error:'Invalid ticker.' });
+      return send(res, 200, { symbol:ticker, values:await priceHistory(ticker) });
     }
     if (url.pathname === '/data/market' || url.pathname === '/api/market') {
       // Broad-market ETFs are not available under every FMP plan. These liquid US equities
