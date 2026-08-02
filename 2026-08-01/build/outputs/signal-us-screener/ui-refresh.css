@@ -38,10 +38,18 @@ body {
   padding-left: 28px !important;
   padding-right: 28px !important;
 }
-.header-inner { height: 70px !important; gap: 16px !important; }
+.header-inner { height: 76px !important; gap: 18px !important; }
 .secondary-nav { height: 38px !important; }
+.brand { gap: 12px !important; min-width: 252px; }
+.brand-word { align-items: baseline; column-gap: 4px !important; }
 .brand-word strong,
-.brand-word em { font-size: 19px !important; }
+.brand-word em { font-size: 22px !important; letter-spacing: -.035em; }
+.brand-word strong { color: #f6f9fc !important; }
+.brand-word small {
+  margin-top: 6px !important;
+  font-size: 7.5px !important;
+  letter-spacing: .19em !important;
+}
 .universal-search {
   width: min(390px, 34vw) !important;
   height: 39px !important;
@@ -298,17 +306,19 @@ tbody tr:nth-child(even) td { background: rgba(255, 255, 255, .012); }
 .mark {
   width: 46px !important;
   height: 46px !important;
-  padding: 2px !important;
+  flex: 0 0 46px;
+  padding: 0 !important;
   overflow: hidden;
-  background: transparent !important;
-  box-shadow: none !important;
-  border-radius: 12px !important;
+  background: #071426 !important;
+  border: 1px solid rgba(91, 225, 184, .26);
+  box-shadow: 0 10px 28px rgba(20, 190, 144, .18) !important;
+  border-radius: 14px !important;
 }
 .mark img {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
 }
 .brand-word em,
 .link-button,
