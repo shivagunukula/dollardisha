@@ -1,22 +1,35 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="DollarDisha — a US stock research platform for Indian investors."><title>DollarDisha — US investing, made clearer</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="styles.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="DollarDisha — US stock research for Indian investors.">
+  <title>DollarDisha — US Stock Research</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Libre+Baskerville:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app-shell">
-    <aside class="sidebar"><a class="brand" href="#dashboard"><span class="mark">D</span> DollarDisha<span class="dot">.</span></a><p class="tagline">Your disha for US equities</p>
-      <nav><button class="nav active" data-page="dashboard"><i>⌂</i> Dashboard</button><button class="nav" data-page="markets"><i>◫</i> Market Scans</button><button class="nav" data-page="screener"><i>⌕</i> Stock Screener</button><button class="nav" data-page="indexlab"><i>◉</i> Custom Index</button><button class="nav" data-page="research"><i>▤</i> Research Hub</button><button class="nav" data-page="compare"><i>⇄</i> Compare companies</button><button class="nav" data-page="watchlist"><i>☆</i> Watchlist <b id="watch-count">0</b></button><button class="nav" data-page="saved"><i>▣</i> Saved screens</button><button class="nav" data-page="calculator"><i>₹</i> US Investment Calc</button></nav>
-      <div class="sidebar-bottom"><div class="fx-card"><span>USD / INR</span><strong>₹83.54</strong><small class="positive">+0.08% today</small></div><button class="profile"><span>SK</span><div><b>Shiva Kumar</b><small>Free plan</small></div><em>⌄</em></button></div>
-    </aside>
-    <main>
-      <header class="mobile-head"><a class="brand" href="#dashboard"><span class="mark">D</span> DollarDisha<span class="dot">.</span></a><button id="menu">☰</button></header>
-      <header class="topbar"><div class="universal-search"><span>⌕</span><input id="global-search" placeholder="Search US stocks, e.g. NVDA, Apple"><kbd>⌘ K</kbd><div id="global-results" hidden></div></div><div class="top-actions"><button class="bell">♧<sup>2</sup></button><button class="upgrade">Upgrade <span>→</span></button></div></header>
-      <div id="content"></div>
-    </main>
-  </div>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="#dashboard"><span class="mark">D</span><span>DollarDisha</span></a>
+      <div class="universal-search"><span>⌕</span><input id="global-search" placeholder="Search for a US company, e.g. Apple, NVDA"><div id="global-results" hidden></div></div>
+      <nav class="primary-nav" aria-label="Primary navigation">
+        <button class="nav active" data-page="dashboard">Home</button>
+        <button class="nav" data-page="screener">Screens</button>
+        <button class="nav" data-page="markets">Market</button>
+        <button class="nav" data-page="research">Research</button>
+        <button class="nav" data-page="watchlist">Watchlist <b id="watch-count">0</b></button>
+      </nav>
+    </div>
+    <div class="secondary-nav">
+      <div><button class="nav" data-page="compare">Compare companies</button><button class="nav" data-page="indexlab">Custom index</button></div>
+      <span>US equity research for Indian investors · Data for education, not investment advice.</span>
+    </div>
+  </header>
+  <main id="content"></main>
+  <footer class="site-footer"><div>© 2026 DollarDisha · US stock research, made simpler.</div><div>For research and education only. Not investment advice.</div></footer>
   <script src="app.js"></script>
 </body>
 </html>
