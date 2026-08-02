@@ -25,13 +25,15 @@ let authMode = 'login';
 
 function watchButton(ticker) { return `<button class="watch-toggle ${watchlist.includes(ticker) ? 'saved' : ''}" data-watch="${ticker}" title="Add to watchlist">${watchlist.includes(ticker) ? '★' : '☆'}</button>`; }
 function row(stock) {
-  const rawChange = stock.change ?? stock.changesPercentage;
+  const rawChange = stock.change ?? stock.changesPercentage ?? stock.changePercentage;
   const hasChange = Number.isFinite(Number(rawChange));
   const change = Number(rawChange || 0);
   const ticker = stock.symbol || stock.ticker;
   const name = stock.companyName || stock.name || ticker;
-  const cap = stock.marketCap || (stock.cap ? stock.cap * 1e9 : 0);
-  return `<tr class="company-row" data-stock="${ticker}"><td class="company">${escapeHtml(name)}<span class="ticker">${ticker}</span></td><td>${stock.price ? `$${Number(stock.price).toFixed(2)}` : '—'}</td><td>${money(cap)}</td><td>${stock.pe ? `${Number(stock.pe).toFixed(1)}x` : '—'}</td><td class="${hasChange ? (change >= 0 ? 'positive' : 'down') : ''}">${hasChange ? percent(change) : '—'}</td><td>${watchButton(ticker)}</td></tr>`;
+  const price = scanNumber(stock.price, stock.close);
+  const cap = scanNumber(stock.marketCap, stock.mktCap, stock.cap ? stock.cap * 1e9 : null);
+  const pe = scanNumber(stock.pe, stock.peRatioTTM, stock.priceToEarningsRatioTTM);
+  return `<tr class="company-row" data-stock="${ticker}"><td class="company">${escapeHtml(name)}<span class="ticker">${escapeHtml(ticker)}</span></td><td>${price !== null ? `$${Number(price).toFixed(2)}` : 'Quote unavailable'}</td><td>${cap !== null ? money(cap) : 'Not reported'}</td><td>${pe !== null && Number(pe) > 0 ? `${Number(pe).toFixed(1)}x` : 'N/M'}</td><td class="${hasChange ? (change >= 0 ? 'positive' : 'down') : ''}">${hasChange ? percent(change) : 'Not reported'}</td><td>${watchButton(ticker)}</td></tr>`;
 }
 const scanNumber = (...values) => values.find(value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))) ?? null;
 const scanPercent = value => {
@@ -62,7 +64,7 @@ function dashboardView() {
 function marketsView() {
   return `<div class="page">${pageHeader('US MARKET INTELLIGENCE', 'Market scans', 'A fast starting point for new company research. These scans are not buy or sell signals.')}
   <section class="index-grid" id="index-cards">${[['S&P 500', '^GSPC'], ['Nasdaq Composite', '^IXIC'], ['Dow Jones Industrial Average', '^DJI'], ['Russell 2000', '^RUT']].map(([name, ticker]) => `<article class="index-card" data-index="${ticker}"><span>${name}</span><strong>Loading…</strong><b>Latest available index level</b></article>`).join('')}</section>
-  <section class="panel"><div class="panel-head"><div><h2>Discover companies</h2><p>Choose a view, then open a company for detailed research.</p></div><div><button class="link-button market-mode" data-mode="gainers">Top gainers</button><button class="link-button market-mode" data-mode="losers">Top losers</button><button class="link-button market-mode" data-mode="largest">Largest</button></div></div><div class="table-wrap"><table><thead><tr><th>Company</th><th>Price</th><th>Market cap</th><th>P/E</th><th>Today</th><th></th></tr></thead><tbody id="market-table"><tr><td colspan="6">Loading market scan…</td></tr></tbody></table></div></section></div>`;
+  <section class="panel"><div class="panel-head"><div><h2>Discover companies</h2><p id="market-scan-status" role="status" aria-live="polite">Loading live gainers…</p></div><div><button class="link-button market-mode selected" data-mode="gainers">Top gainers</button><button class="link-button market-mode" data-mode="losers">Top losers</button><button class="link-button market-mode" data-mode="largest">Largest</button></div></div><div class="table-wrap"><table><thead><tr><th>Company</th><th>Price</th><th>Market cap</th><th>P/E</th><th>Today</th><th></th></tr></thead><tbody id="market-table"><tr><td colspan="6">Loading live market scan…</td></tr></tbody></table></div></section></div>`;
 }
 
 function screenerView() {
@@ -237,18 +239,72 @@ async function hydrateWatchlist() {
   }
 }
 async function hydrateDashboard() { try { const quotes = await getJson('/data/market'); document.querySelectorAll('#market-cards .market-card').forEach((card, index) => { const quote = quotes[index]; if (!quote) return; card.querySelector('strong').textContent = quote.price ? `$${Number(quote.price).toFixed(2)}` : '—'; const rawChange = quote.changesPercentage; const hasChange = Number.isFinite(Number(rawChange)); const change = Number(rawChange || 0); card.classList.toggle('gain', hasChange && change >= 0); card.classList.toggle('loss', hasChange && change < 0); const note = card.querySelector('b'); note.textContent = hasChange ? `${percent(change)} today` : 'Latest quote available'; note.className = hasChange ? (change >= 0 ? 'positive' : 'down') : ''; }); } catch { document.querySelectorAll('#market-cards .market-card').forEach((card) => { card.classList.remove('gain', 'loss'); card.querySelector('strong').textContent = 'Unavailable'; card.querySelector('b').textContent = 'Live quote unavailable'; }); } }
-async function setupMarkets() { let universe = stocks; const draw = (mode) => { const list = [...universe].sort((a, b) => mode === 'largest' ? Number(b.marketCap || b.cap * 1e9 || 0) - Number(a.marketCap || a.cap * 1e9 || 0) : mode === 'losers' ? Number(a.change || 0) - Number(b.change || 0) : Number(b.change || 0) - Number(a.change || 0)); $('#market-table').innerHTML = list.slice(0, 20).map(row).join('') || '<tr><td colspan="6">No results.</td></tr>'; wireCommon(); };
-  document.querySelectorAll('.market-mode').forEach((button) => button.onclick = () => draw(button.dataset.mode));
-  try { const values = await Promise.all([getJson('/data/indices'), getJson('/data/screener?cap=all&sector=all')]); const indices = values[0]; universe = Array.isArray(values[1]) ? values[1] : stocks; indices.forEach((quote) => { const card = document.querySelector(`[data-index="${quote.symbol}"]`); if (!card) return; card.querySelector('strong').textContent = quote.price ? Number(quote.price).toLocaleString('en-US',{maximumFractionDigits:2}) : '—'; const change = Number(quote.changesPercentage || 0); const note = card.querySelector('b'); note.textContent = `${percent(change)} today`; note.className = change >= 0 ? 'positive' : 'down'; }); } catch { universe = stocks; document.querySelectorAll('#index-cards .index-card').forEach(card=>{card.querySelector('strong').textContent='Index unavailable';card.querySelector('b').textContent='Live index feed unavailable'}); }
-  draw('gainers');
+async function setupMarkets() {
+  const scanCache = new Map();
+  const status = () => $('#market-scan-status');
+  const renderIndices = rows => {
+    (rows || []).forEach(quote => {
+      const card = document.querySelector(`[data-index="${quote.symbol}"]`);
+      if (!card) return;
+      const price = scanNumber(quote.price);
+      const rawChange = scanNumber(quote.changesPercentage, quote.changePercentage);
+      card.querySelector('strong').textContent = price !== null ? Number(price).toLocaleString('en-US', { maximumFractionDigits:2 }) : 'Quote unavailable';
+      const note = card.querySelector('b');
+      note.textContent = rawChange !== null ? `${percent(rawChange)} today` : 'Daily change not reported';
+      note.className = rawChange === null ? '' : Number(rawChange) >= 0 ? 'positive' : 'down';
+    });
+  };
+  const loadMode = async mode => {
+    document.querySelectorAll('.market-mode').forEach(button => button.classList.toggle('selected', button.dataset.mode === mode));
+    const holder = $('#market-table');
+    if (!holder) return;
+    holder.innerHTML = `<tr><td colspan="6">Loading live ${mode === 'largest' ? 'large-cap companies' : mode}…</td></tr>`;
+    if (status()) status().textContent = `Updating ${mode === 'largest' ? 'largest US companies' : `top ${mode}`}…`;
+    try {
+      const rows = scanCache.has(mode) ? scanCache.get(mode) : await getJson(`/data/market-scan?mode=${mode}`, 60000);
+      if (!Array.isArray(rows)) throw new Error('Invalid market scan response');
+      scanCache.set(mode, rows);
+      holder.innerHTML = rows.length ? rows.map(row).join('') : '<tr><td colspan="6">No companies were returned for this scan.</td></tr>';
+      if (status()) status().textContent = `${rows.length} companies · live quotes and latest reported fundamentals`;
+      wireCommon();
+    } catch {
+      holder.innerHTML = '<tr><td colspan="6">The live scan could not load. Select the scan again to retry.</td></tr>';
+      if (status()) status().textContent = 'Live market data is temporarily unavailable.';
+    }
+  };
+  document.querySelectorAll('.market-mode').forEach(button => button.onclick = () => loadMode(button.dataset.mode));
+  getJson('/data/indices', 45000).then(renderIndices).catch(() => {
+    document.querySelectorAll('#index-cards .index-card').forEach(card => {
+      card.querySelector('strong').textContent = 'Quote unavailable';
+      card.querySelector('b').textContent = 'Select refresh to try again';
+    });
+  });
+  await loadMode('gainers');
 }
 function setupScreener() {
   let universe = [];
   let results = [];
+  const metricSymbols = new Set();
+  let metricRequest = 0;
   const value = id => $(`#${id}`).value;
   const inCapBand = (cap, band) => band === 'all' || (band === 'mega' && cap >= 2e11) || (band === 'large' && cap >= 1e10 && cap < 2e11) || (band === 'mid' && cap >= 2e9 && cap < 1e10) || (band === 'small' && cap >= 3e8 && cap < 2e9) || (band === 'micro' && cap < 3e8);
   const inPriceBand = (price, band) => band === 'all' || (band === 'under10' && price < 10) || (band === '10to50' && price >= 10 && price < 50) || (band === '50to200' && price >= 50 && price <= 200) || (band === 'over200' && price > 200);
-  const draw = () => {
+  const enrichVisible = async list => {
+    const tickers = list.slice(0, 60).map(stock => stock.symbol || stock.ticker).filter(ticker => ticker && !metricSymbols.has(ticker));
+    if (!tickers.length) return;
+    tickers.forEach(ticker => metricSymbols.add(ticker));
+    const request = ++metricRequest;
+    try {
+      const metricRows = await getJson(`/data/screener-metrics?symbols=${encodeURIComponent(tickers.join(','))}`, 45000);
+      if (request !== metricRequest || !Array.isArray(metricRows)) return;
+      const metricsBySymbol = new Map(metricRows.map(item => [String(item.symbol || '').toUpperCase(), item]));
+      universe = universe.map(stock => ({ ...stock, ...(metricsBySymbol.get(String(stock.symbol || stock.ticker || '').toUpperCase()) || {}) }));
+      draw(true);
+    } catch {
+      tickers.forEach(ticker => metricSymbols.delete(ticker));
+    }
+  };
+  const draw = (skipEnrichment = false) => {
     const search = value('screen-search').trim().toUpperCase();
     const sector = value('screen-sector');
     const exchange = value('screen-exchange');
@@ -288,22 +344,21 @@ function setupScreener() {
       name: (a, b) => String(a.companyName || a.name || '').localeCompare(String(b.companyName || b.name || ''))
     };
     results.sort(sorter[sort] || sorter.cap);
-    $('#screen-count').textContent = `${results.length.toLocaleString()} matches · ${universe.length.toLocaleString()} active US stocks`;
-    $('#screen-table').innerHTML = results.slice(0, 500).map(screenerRow).join('') || '<tr><td colspan="8">No active US stocks match these filters. Try clearing one or two filters.</td></tr>';
+    $('#screen-count').textContent = `${results.length.toLocaleString()} matches · showing up to 60 detailed rows from ${universe.length.toLocaleString()} active US stocks`;
+    $('#screen-table').innerHTML = results.slice(0, 60).map(screenerRow).join('') || '<tr><td colspan="8">No active US stocks match these filters. Try clearing one or two filters.</td></tr>';
     wireCommon();
+    if (!skipEnrichment) enrichVisible(results);
   };
   const load = async force => {
     $('#screen-count').textContent = force ? 'Refreshing the US stock directory…' : 'Loading active US stocks…';
     try {
       const data = await getJson(`/data/screener${force ? `?refresh=${Date.now()}` : ''}`, 25000);
       universe = Array.isArray(data) ? data : stocks;
-      const needsRatioFallback = !universe.some(stock => scanNumber(stock.pe, stock.peRatioTTM, stock.returnOnEquityTTM) !== null);
-      if (needsRatioFallback) {
-        const symbols = [...universe].sort((a, b) => Number(b.marketCap || 0) - Number(a.marketCap || 0)).slice(0, 60).map(stock => stock.symbol || stock.ticker).filter(Boolean);
-        const metricRows = await getJson(`/data/screener-metrics?symbols=${encodeURIComponent(symbols.join(','))}`, 25000).catch(() => []);
-        const metricsBySymbol = new Map(metricRows.map(item => [item.symbol, item]));
-        universe = universe.map(stock => ({ ...stock, ...(metricsBySymbol.get(stock.symbol || stock.ticker) || {}) }));
-      }
+      const symbols = [...universe].sort((a, b) => Number(b.marketCap || 0) - Number(a.marketCap || 0)).slice(0, 60).map(stock => stock.symbol || stock.ticker).filter(Boolean);
+      symbols.forEach(ticker => metricSymbols.add(ticker));
+      const metricRows = await getJson(`/data/screener-metrics?symbols=${encodeURIComponent(symbols.join(','))}`, 45000).catch(() => []);
+      const metricsBySymbol = new Map(metricRows.map(item => [String(item.symbol || '').toUpperCase(), item]));
+      universe = universe.map(stock => ({ ...stock, ...(metricsBySymbol.get(String(stock.symbol || stock.ticker || '').toUpperCase()) || {}) }));
       const ratioCount = universe.filter(stock => scanNumber(stock.pe, stock.peRatioTTM, stock.returnOnEquityTTM) !== null).length;
       $('#screen-data-note').textContent = `Funds and ETFs are excluded. TTM valuation or quality data is loaded for ${ratioCount.toLocaleString()} companies in this scan; open any company for its complete ratios.`;
     } catch {
@@ -546,6 +601,83 @@ document.head.insertAdjacentHTML('beforeend', `<style>
   @media(max-width:1100px){.overview-ratios .ratio-explorer{grid-template-columns:repeat(2,minmax(0,1fr))}.ratio-filter-bar{align-items:flex-start;flex-direction:column}.ratio-filter-actions{width:100%}.ratio-search{flex:1}}
   @media(max-width:650px){.overview-ratios .ratio-explorer{grid-template-columns:1fr}.ratio-filter-actions{align-items:flex-start;flex-direction:column}.ratio-search{box-sizing:border-box;width:100%}}
 </style>`);
+
+// Final live-data views. These override the early static prototypes above so
+// every rendered summary uses the same server-normalised market data.
+function dashboardView() {
+  const saved = watchlist.slice(0, 3).map(ticker => `<div class="idea company-row" data-stock="${escapeHtml(ticker)}" data-dashboard-watch="${escapeHtml(ticker)}"><div class="avatar">${escapeHtml(ticker.slice(0, 2))}</div><div><b>${escapeHtml(ticker)}</b><small>Loading company and live price…</small></div><strong>Loading…</strong></div>`).join('');
+  return `<div class="page"><section class="panel dashboard-hero"><p class="crumb">DOLLARDISHA TERMINAL · US EQUITIES</p><div><h1 class="page-title">Research US markets with <span>clarity.</span></h1><p class="sub">Live prices, deep company financials, SEC filings and market intelligence — built for Indian investors studying US equities.</p><div class="hero-actions"><button class="solid-btn" data-page="screener">Explore US stocks</button><button class="link-button" data-page="markets">View market pulse →</button></div></div><div class="hero-proof"><div><b>US</b><small>Equity coverage</small></div><div><b>Live</b><small>Quotes & charts</small></div><div><b>SEC</b><small>Official filings</small></div></div></section><div class="section-header"><div><p class="crumb">MARKET PULSE</p><h2>Major US stocks</h2></div><button class="link-button" data-page="markets">See full market →</button></div><section class="market-grid" id="market-cards">${['NVDA','MSFT','AAPL','GOOGL'].map(ticker => `<div class="market-card" data-market-ticker="${ticker}"><span>${ticker}</span><strong>Loading…</strong><b>Latest available quote</b></div>`).join('')}</section><section class="dashboard-grid"><div class="panel"><div class="panel-head"><div><h2>Research workflow</h2><p>Start with a question. Build your decision with evidence.</p></div></div><div class="workflow"><button data-page="screener"><b>1</b><span>Screen stocks<small>Filter the US equity universe</small></span></button><button data-page="markets"><b>2</b><span>Read market pulse<small>See leaders, laggards and indices</small></span></button><button data-page="research"><b>3</b><span>Study the filings<small>Open official SEC documents</small></span></button></div></div><div class="panel"><div class="panel-head"><div><h2>Your watchlist</h2><p>${watchlist.length ? `${watchlist.length} saved companies · live values` : 'No companies saved yet'}</p></div><button class="link-button" data-page="watchlist">Open</button></div>${saved || '<div class="watch-empty"><b>Your research list is waiting</b>Add companies from Market Scans or the Stock Screener.</div>'}</div></section></div>`;
+}
+
+async function hydrateDashboard() {
+  const quoteTask = getJson('/data/market', 45000).then(quotes => {
+    const byTicker = new Map((quotes || []).map(quote => [String(quote.symbol || '').toUpperCase(), quote]));
+    document.querySelectorAll('#market-cards .market-card').forEach(card => {
+      const quote = byTicker.get(card.dataset.marketTicker) || {};
+      const price = scanNumber(quote.price);
+      const change = scanNumber(quote.changesPercentage, quote.changePercentage);
+      card.querySelector('strong').textContent = price !== null ? `$${Number(price).toFixed(2)}` : 'Quote unavailable';
+      card.classList.toggle('gain', change !== null && Number(change) >= 0);
+      card.classList.toggle('loss', change !== null && Number(change) < 0);
+      const note = card.querySelector('b');
+      note.textContent = change !== null ? `${percent(change)} today` : 'Daily change not reported';
+      note.className = change === null ? '' : Number(change) >= 0 ? 'positive' : 'down';
+    });
+  }).catch(() => document.querySelectorAll('#market-cards .market-card').forEach(card => {
+    card.querySelector('strong').textContent = 'Quote unavailable';
+    card.querySelector('b').textContent = 'Live feed is retrying';
+  }));
+  const watchTask = watchlist.length ? getJson(`/data/watchlist?symbols=${encodeURIComponent(watchlist.slice(0, 3).join(','))}`, 45000).then(rows => {
+    const byTicker = new Map((rows || []).map(item => [String(item.symbol || item.ticker || '').toUpperCase(), item]));
+    document.querySelectorAll('[data-dashboard-watch]').forEach(card => {
+      const item = byTicker.get(card.dataset.dashboardWatch) || {};
+      card.querySelector('b').textContent = item.companyName || item.name || card.dataset.dashboardWatch;
+      card.querySelector('small').textContent = scanNumber(item.price) !== null ? `${card.dataset.dashboardWatch} · $${Number(item.price).toFixed(2)}` : `${card.dataset.dashboardWatch} · Quote unavailable`;
+      const change = scanNumber(item.change, item.changesPercentage, item.changePercentage);
+      const value = card.querySelector('strong');
+      value.textContent = change !== null ? percent(change) : 'Not reported';
+      value.className = change === null ? '' : Number(change) >= 0 ? 'positive' : 'down';
+    });
+  }).catch(() => document.querySelectorAll('[data-dashboard-watch] strong').forEach(value => { value.textContent = 'Retry'; })) : Promise.resolve();
+  await Promise.allSettled([quoteTask, watchTask]);
+}
+
+function indexView() {
+  const equal = basket.symbols.length ? (100 / basket.symbols.length).toFixed(1) : '0.0';
+  const placeholders = basket.symbols.map(ticker => `<tr><td class="company">${escapeHtml(ticker)}<span class="ticker">Loading company…</span></td><td colspan="3">Loading live values…</td><td>${equal}%</td><td><button data-remove-basket="${escapeHtml(ticker)}">Remove</button></td></tr>`).join('');
+  return `<div class="page">${pageHeader('BUILD YOUR OWN BENCHMARK', 'Custom Index', 'Create a personal US-stock basket and monitor every holding with live market data.')}<section class="index-hero"><div><span>YOUR INDEX</span><h2>${escapeHtml(basket.name)}</h2><p>${basket.symbols.length} companies · Equal weight <b>${equal}%</b> each</p></div><div class="index-actions"><input id="basket-ticker" maxlength="10" placeholder="Add ticker, e.g. TSLA"><button id="basket-add" class="solid-btn">Add company</button></div></section><section class="index-lab-grid"><div class="panel"><div class="panel-head"><div><h2>Index holdings</h2><p id="basket-status">${basket.symbols.length ? 'Loading live holding values…' : 'Add tickers you want to study together.'}</p></div><button id="basket-rename" class="link-button">Rename</button></div><div class="table-wrap"><table><thead><tr><th>Company</th><th>Live price</th><th>Market cap</th><th>Today</th><th>Weight</th><th></th></tr></thead><tbody id="basket-body">${placeholders || '<tr><td colspan="6">Add a ticker above to create your index.</td></tr>'}</tbody></table></div></div><aside class="panel"><div class="panel-head"><div><h2>How to use it</h2><p>A research tool, not a portfolio tracker</p></div></div><div class="callout"><b>Compare ideas consistently</b>Build a theme, watchlist or personal benchmark, then review its holdings against broad US indices.</div></aside></section></div>`;
+}
+
+function setupIndex() {
+  const save = () => localStorage.setItem('dd-custom-index', JSON.stringify(basket));
+  const wireRemovals = () => document.querySelectorAll('[data-remove-basket]').forEach(button => button.onclick = event => {
+    event.stopPropagation();
+    basket.symbols = basket.symbols.filter(ticker => ticker !== button.dataset.removeBasket);
+    save();
+    render();
+  });
+  $('#basket-add').onclick = () => {
+    const ticker = $('#basket-ticker').value.trim().toUpperCase();
+    if (/^[A-Z.]{1,10}$/.test(ticker) && !basket.symbols.includes(ticker)) { basket.symbols.push(ticker); save(); render(); }
+  };
+  $('#basket-rename').onclick = () => { const name = prompt('Name your index', basket.name); if (name?.trim()) { basket.name = name.trim(); save(); render(); } };
+  wireRemovals();
+  if (!basket.symbols.length) return;
+  getJson(`/data/watchlist?symbols=${encodeURIComponent(basket.symbols.slice(0, 30).join(','))}`, 45000).then(rows => {
+    const holder = $('#basket-body');
+    if (!holder || page !== 'indexlab') return;
+    const equal = (100 / basket.symbols.length).toFixed(1);
+    const byTicker = new Map((rows || []).map(item => [String(item.symbol || item.ticker || '').toUpperCase(), item]));
+    holder.innerHTML = basket.symbols.map(ticker => {
+      const item = byTicker.get(ticker) || { symbol:ticker, companyName:ticker };
+      const change = scanNumber(item.change, item.changesPercentage, item.changePercentage);
+      return `<tr class="company-row" data-stock="${escapeHtml(ticker)}"><td class="company">${escapeHtml(item.companyName || ticker)}<span class="ticker">${escapeHtml(ticker)}</span></td><td>${scanNumber(item.price) !== null ? `$${Number(item.price).toFixed(2)}` : 'Quote unavailable'}</td><td>${scanNumber(item.marketCap) !== null ? money(item.marketCap) : 'Not reported'}</td><td class="${change === null ? '' : Number(change) >= 0 ? 'positive' : 'down'}">${change !== null ? percent(change) : 'Not reported'}</td><td>${equal}%</td><td><button data-remove-basket="${escapeHtml(ticker)}">Remove</button></td></tr>`;
+    }).join('');
+    $('#basket-status').textContent = `Live values updated ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}`;
+    wireCommon();
+    wireRemovals();
+  }).catch(() => { const status = $('#basket-status'); if (status) status.textContent = 'Live holding values could not load. Reopen this page to retry.'; });
+}
 
 function setAuthMessage(message = '', kind = '') {
   const holder = $('#auth-message');

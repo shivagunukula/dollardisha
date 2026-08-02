@@ -123,6 +123,30 @@ body {
   border-radius: 8px;
   text-decoration: none;
 }
+.dashboard-hero {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 18px;
+  padding: 30px;
+  background:
+    radial-gradient(circle at 92% 5%, rgba(99,124,255,.24), transparent 34%),
+    linear-gradient(145deg, #141e35, #0e1628) !important;
+}
+.dashboard-hero > div:first-of-type { max-width: 690px; }
+.dashboard-hero .page-title { margin: 6px 0 12px; font-size: clamp(30px, 4vw, 42px) !important; line-height: 1.12; }
+.dashboard-hero .page-title span { color: #9eafff; }
+.dashboard-hero .sub { max-width: 580px; font-size: 14px !important; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 20px; }
+.hero-proof { display: grid; grid-template-columns: repeat(3, minmax(105px, 1fr)); gap: 10px; max-width: 500px; margin-top: 26px; }
+.hero-proof b, .hero-proof small { display: block; }
+.hero-proof b { font-size: 18px; }
+.hero-proof small { margin-top: 3px; color: var(--dd-muted); }
+.market-mode.selected {
+  border-color: rgba(111,232,208,.55) !important;
+  background: rgba(74,209,181,.12) !important;
+  color: var(--dd-aqua) !important;
+}
+.idea.company-row strong { margin-left: auto; white-space: nowrap; }
 .solid-btn {
   min-height: 35px;
   border-radius: 8px !important;

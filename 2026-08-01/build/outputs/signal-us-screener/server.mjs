@@ -28,13 +28,38 @@ const mime = {
   '.jpeg':'image/jpeg'
 };
 const symbol = value => /^[A-Z.]{1,10}$/.test(String(value || '').toUpperCase()) ? String(value).toUpperCase() : null;
-const externalFetch = (url, options = {}) => fetch(url, { ...options, signal: AbortSignal.timeout(6000) });
+const externalFetch = (url, options = {}) => fetch(url, { ...options, signal: AbortSignal.timeout(10000) });
 const finiteValue = (...values) => values.find(value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))) ?? null;
 const safeDivide = (numerator, denominator) => {
   if (numerator === null || numerator === undefined || numerator === '' || denominator === null || denominator === undefined || denominator === '') return null;
   const top = Number(numerator);
   const bottom = Number(denominator);
   return Number.isFinite(top) && Number.isFinite(bottom) && bottom !== 0 ? top / bottom : null;
+};
+const normalizeQuote = (ticker, value = {}) => {
+  const price = finiteValue(value.price, value.close, value.lastSalePrice);
+  const previousClose = finiteValue(value.previousClose, value.previous_close);
+  const changesPercentage = finiteValue(
+    value.changesPercentage,
+    value.changePercentage,
+    value.percentChange,
+    value.percent_change,
+    safeDivide(price !== null && previousClose !== null ? price - previousClose : null, previousClose) !== null
+      ? safeDivide(price - previousClose, previousClose) * 100
+      : null
+  );
+  return {
+    ...value,
+    symbol:ticker,
+    price,
+    previousClose,
+    changesPercentage,
+    changePercentage:changesPercentage,
+    dayHigh:finiteValue(value.dayHigh, value.high),
+    dayLow:finiteValue(value.dayLow, value.low),
+    volume:finiteValue(value.volume),
+    marketCap:finiteValue(value.marketCap, value.mktCap)
+  };
 };
 
 async function fmp(path, parameters = {}) {
@@ -201,19 +226,19 @@ async function twelveStockSearch(query) {
 }
 async function liveQuote(ticker) {
   if (twelveDataKey) {
-    try { return await twelveDataQuote(ticker); }
+    try { return normalizeQuote(ticker, await twelveDataQuote(ticker)); }
     catch (error) { console.warn(`Twelve Data quote unavailable for ${ticker}: ${error.message}`); }
   }
   try {
     const rows = await fmp('quote', { symbol: ticker });
-    if (rows[0]?.price) return rows[0];
+    if (rows[0]?.price) return normalizeQuote(ticker, rows[0]);
     throw new Error('FMP returned no quote');
   } catch (error) {
     console.warn(`FMP quote unavailable for ${ticker}: ${error.message}`);
-    try { return await yahooQuote(ticker); }
+    try { return normalizeQuote(ticker, await yahooQuote(ticker)); }
     catch (yahooError) {
       console.warn(`Yahoo quote unavailable for ${ticker}: ${yahooError.message}`);
-      try { return await nasdaqQuote(ticker); }
+      try { return normalizeQuote(ticker, await nasdaqQuote(ticker)); }
       catch (nasdaqError) {
         console.warn(`Nasdaq quote unavailable for ${ticker}: ${nasdaqError.message}`);
         throw nasdaqError;
@@ -224,12 +249,72 @@ async function liveQuote(ticker) {
 async function liveIndex(symbol) {
   try {
     const rows = await fmp('quote', { symbol });
-    if (rows[0]?.price) return rows[0];
+    if (rows[0]?.price) return normalizeQuote(symbol, rows[0]);
     throw new Error('FMP returned no index quote');
   } catch (error) {
     console.warn(`FMP index unavailable for ${symbol}: ${error.message}`);
-    return yahooQuote(symbol);
+    return normalizeQuote(symbol, await yahooQuote(symbol));
   }
+}
+const marketScanCache = new Map();
+async function marketScan(mode) {
+  const cached = marketScanCache.get(mode);
+  if (cached && Date.now() < cached.expiresAt) return cached.rows;
+  let source = [];
+  if (mode === 'largest') {
+    const parameters = { limit:100, isEtf:false, isFund:false, isActivelyTrading:true };
+    const exchanges = ['NASDAQ', 'NYSE', 'AMEX'];
+    source = (await Promise.all(exchanges.map(exchange => fmp('company-screener', { ...parameters, exchange }).catch(() => []))))
+      .flat()
+      .sort((a, b) => Number(b.marketCap || 0) - Number(a.marketCap || 0));
+  } else {
+    const endpoint = mode === 'losers' ? 'biggest-losers' : mode === 'active' ? 'most-actives' : 'biggest-gainers';
+    source = await fmp(endpoint, { limit:30 }).catch(() => []);
+  }
+  const seen = new Set();
+  const seeds = source.filter(item => {
+    const ticker = symbol(item.symbol);
+    if (!ticker || seen.has(ticker)) return false;
+    seen.add(ticker);
+    return true;
+  }).slice(0, 20);
+  const rows = await Promise.all(seeds.map(async seed => {
+    const ticker = symbol(seed.symbol);
+    const seedQuote = normalizeQuote(ticker, seed);
+    const needsQuote = finiteValue(seedQuote.price) === null || finiteValue(seedQuote.changesPercentage) === null;
+    const needsProfile = !seed.companyName && !seed.name || finiteValue(seed.marketCap, seed.mktCap) === null || !seed.sector;
+    const [quote, ratioRows, profileRows] = await Promise.all([
+      needsQuote ? liveQuote(ticker).catch(() => seedQuote) : Promise.resolve(seedQuote),
+      fmp('ratios-ttm', { symbol:ticker }).catch(() => []),
+      needsProfile ? fmp('profile', { symbol:ticker }).catch(() => []) : Promise.resolve([])
+    ]);
+    const ratios = ratioRows[0] || {};
+    const profile = profileRows[0] || seed;
+    const eps = finiteValue(ratios.netIncomePerShareTTM, quote.eps, seed.eps);
+    const pe = finiteValue(
+      seed.pe,
+      ratios.peRatioTTM,
+      ratios.priceToEarningsRatioTTM,
+      ratios.priceEarningsRatioTTM,
+      quote.pe,
+      quote.priceEarningsRatio,
+      safeDivide(quote.price, eps)
+    );
+    return {
+      symbol:ticker,
+      companyName:profile.companyName || profile.name || seed.companyName || seed.name || ticker,
+      price:finiteValue(quote.price, seed.price),
+      marketCap:finiteValue(quote.marketCap, profile.mktCap, profile.marketCap, seed.marketCap),
+      pe,
+      change:finiteValue(quote.changesPercentage, seed.changesPercentage, seed.changePercentage, seed.change),
+      changesPercentage:finiteValue(quote.changesPercentage, seed.changesPercentage, seed.changePercentage, seed.change),
+      volume:finiteValue(quote.volume, seed.volume),
+      sector:profile.sector || seed.sector || null,
+      industry:profile.industry || seed.industry || null
+    };
+  }));
+  marketScanCache.set(mode, { rows, expiresAt:Date.now() + 2 * 60 * 1000 });
+  return rows;
 }
 async function database(path, { method = 'GET', body, prefer } = {}) {
   if (!supabaseUrl || !supabaseKey) return null;
@@ -449,6 +534,10 @@ createServer(async (req, res) => {
       const [gainers, losers, active] = await Promise.all([optional('biggest-gainers'), optional('biggest-losers'), optional('most-actives')]);
       return send(res, 200, { gainers, losers, active });
     }
+    if (url.pathname === '/data/market-scan') {
+      const mode = ['gainers', 'losers', 'largest', 'active'].includes(url.searchParams.get('mode')) ? url.searchParams.get('mode') : 'gainers';
+      return send(res, 200, await marketScan(mode));
+    }
     if (url.pathname === '/data/calendar') {
       const optional = path => fmp(path, { limit:30 }).catch(() => []);
       const [earnings, dividends, ipos] = await Promise.all([optional('earnings-calendar'), optional('dividends-calendar'), optional('ipos-calendar')]);
@@ -462,8 +551,8 @@ createServer(async (req, res) => {
           fmp('quote', { symbol:ticker }).catch(() => []),
           fmp('ratios-ttm', { symbol:ticker }).catch(() => [])
         ]);
-        let quote = quoteRows[0] || {};
-        if (!finiteValue(quote.price)) quote = { ...quote, ...await liveQuote(ticker).catch(() => ({})) };
+        let quote = normalizeQuote(ticker, quoteRows[0] || {});
+        if (!finiteValue(quote.price)) quote = normalizeQuote(ticker, { ...quote, ...await liveQuote(ticker).catch(() => ({})) });
         let profile = {};
         if (!quote.name || !finiteValue(quote.marketCap)) profile = (await fmp('profile', { symbol:ticker }).catch(() => []))[0] || {};
         const ratios = ratioRows[0] || {};
@@ -475,6 +564,7 @@ createServer(async (req, res) => {
           marketCap:finiteValue(quote.marketCap, profile.mktCap, profile.marketCap),
           pe:finiteValue(ratios.peRatioTTM, ratios.priceToEarningsRatioTTM, quote.pe, quote.priceEarningsRatio, safeDivide(quote.price, eps)),
           change:finiteValue(quote.changesPercentage, quote.changePercentage),
+          changesPercentage:finiteValue(quote.changesPercentage, quote.changePercentage),
           sector:profile.sector || null
         };
       }));
@@ -484,14 +574,14 @@ createServer(async (req, res) => {
       // Broad-market ETFs are not available under every FMP plan. These liquid US equities
       // give the dashboard reliable live quotes while keeping its free-tier usage low.
       const tickers = ['NVDA', 'MSFT', 'AAPL', 'GOOGL'];
-      const quotes = await Promise.all(tickers.map(liveQuote));
+      const quotes = await Promise.all(tickers.map(ticker => liveQuote(ticker).catch(() => normalizeQuote(ticker))));
       return send(res, 200, quotes);
     }
     if (url.pathname === '/data/indices') {
       const indices = [
         ['S&P 500', '^GSPC'], ['Nasdaq Composite', '^IXIC'], ['Dow Jones Industrial Average', '^DJI'], ['Russell 2000', '^RUT']
       ];
-      const quotes = await Promise.all(indices.map(([, ticker]) => liveIndex(ticker)));
+      const quotes = await Promise.all(indices.map(([, ticker]) => liveIndex(ticker).catch(() => normalizeQuote(ticker))));
       return send(res, 200, indices.map(([name], index) => ({ name, symbol: indices[index][1], ...quotes[index] })));
     }
     if (url.pathname === '/data/filings') {
