@@ -10,11 +10,12 @@ const env = Object.fromEntries(configText.split(/\r?\n/).filter(Boolean).map(lin
 const key = process.env.FMP_API_KEY || env.FMP_API_KEY;
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SECRET_KEY;
-if (!key) throw new Error('FMP_API_KEY is missing. Add it as an environment variable before starting DollarDisha.');
+if (!key) console.warn('FMP_API_KEY is not configured. DollarDisha will use its quote fallback where available.');
 const mime = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.json':'application/json; charset=utf-8' };
 const symbol = value => /^[A-Z.]{1,10}$/.test(String(value || '').toUpperCase()) ? String(value).toUpperCase() : null;
 
 async function fmp(path, parameters = {}) {
+  if (!key) throw new Error('FMP_API_KEY is not configured');
   const url = new URL(`https://financialmodelingprep.com/stable/${path}`);
   Object.entries(parameters).forEach(([name, value]) => url.searchParams.set(name, value));
   url.searchParams.set('apikey', key);
@@ -29,6 +30,32 @@ async function secSubmissions(cik) {
   });
   if (!response.ok) throw new Error(`SEC returned ${response.status}`);
   return response.json();
+}
+async function yahooQuote(ticker) {
+  const response = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=1d&interval=1m`, {
+    headers: { 'User-Agent': 'DollarDisha research app contact@dollardisha.in' }
+  });
+  if (!response.ok) throw new Error(`Fallback quote provider returned ${response.status}`);
+  const meta = (await response.json()).chart?.result?.[0]?.meta;
+  if (!meta) throw new Error('Fallback quote provider returned no quote');
+  const price = Number(meta.regularMarketPrice ?? meta.previousClose);
+  const previousClose = Number(meta.previousClose ?? meta.chartPreviousClose);
+  return {
+    symbol: ticker, price, previousClose,
+    changesPercentage: Number(meta.regularMarketChangePercent ?? (previousClose ? ((price - previousClose) / previousClose) * 100 : 0)),
+    dayHigh: meta.regularMarketDayHigh, dayLow: meta.regularMarketDayLow,
+    volume: meta.regularMarketVolume, provider: 'fallback'
+  };
+}
+async function liveQuote(ticker) {
+  try {
+    const rows = await fmp('quote', { symbol: ticker });
+    if (rows[0]?.price) return rows[0];
+    throw new Error('FMP returned no quote');
+  } catch (error) {
+    console.warn(`FMP quote unavailable for ${ticker}: ${error.message}`);
+    return yahooQuote(ticker);
+  }
 }
 async function database(path, { method = 'GET', body, prefer } = {}) {
   if (!supabaseUrl || !supabaseKey) return null;
@@ -90,26 +117,26 @@ createServer(async (req, res) => {
       if (!ticker) return send(res, 400, { error:'Invalid ticker.' });
       const optional = path => fmp(path, { symbol:ticker, limit: 8 }).catch(() => []);
       const [profile, quote, metrics, income, balance, cashflow, ratios] = await Promise.all([
-        fmp('profile', { symbol:ticker }), fmp('quote', { symbol:ticker }),
+        fmp('profile', { symbol:ticker }), liveQuote(ticker),
         fmp('key-metrics-ttm', { symbol:ticker }), fmp('income-statement', { symbol:ticker, limit:4 })
         , optional('balance-sheet-statement'), optional('cash-flow-statement'), optional('ratios-ttm')
       ]);
-      await cacheCompany(ticker, profile[0], quote[0], { income, balance, cashflow, ratios });
-      return send(res, 200, { profile: profile[0] || {}, quote: quote[0] || {}, metrics: metrics[0] || {}, income, balance, cashflow, ratios: ratios[0] || {} });
+      await cacheCompany(ticker, profile[0], quote, { income, balance, cashflow, ratios });
+      return send(res, 200, { profile: profile[0] || {}, quote: quote || {}, metrics: metrics[0] || {}, income, balance, cashflow, ratios: ratios[0] || {} });
     }
     if (url.pathname === '/data/market' || url.pathname === '/api/market') {
       // Broad-market ETFs are not available under every FMP plan. These liquid US equities
       // give the dashboard reliable live quotes while keeping its free-tier usage low.
       const tickers = ['NVDA', 'MSFT', 'AAPL', 'GOOGL'];
-      const quotes = await Promise.all(tickers.map(ticker => fmp('quote', { symbol:ticker })));
-      return send(res, 200, quotes.map(item => item[0] || {}));
+      const quotes = await Promise.all(tickers.map(liveQuote));
+      return send(res, 200, quotes);
     }
     if (url.pathname === '/data/indices') {
       const indices = [
         ['S&P 500', 'SPY'], ['Nasdaq-100', 'QQQ'], ['Dow Jones', 'DIA'], ['Russell 2000', 'IWM']
       ];
-      const quotes = await Promise.all(indices.map(([, ticker]) => fmp('quote', { symbol:ticker })));
-      return send(res, 200, indices.map(([name], index) => ({ name, symbol: indices[index][1], ...(quotes[index][0] || {}) })));
+      const quotes = await Promise.all(indices.map(([, ticker]) => liveQuote(ticker)));
+      return send(res, 200, indices.map(([name], index) => ({ name, symbol: indices[index][1], ...quotes[index] })));
     }
     if (url.pathname === '/data/filings') {
       const ticker = symbol(url.searchParams.get('symbol'));
