@@ -344,13 +344,46 @@ createServer(async (req, res) => {
     if (url.pathname === '/data/peers') {
       const ticker = symbol(url.searchParams.get('symbol'));
       if (!ticker) return send(res, 400, { error:'Invalid ticker.' });
-      const peerData = await fmp('stock-peers', { symbol:ticker });
-      const peerList = Array.isArray(peerData) ? (peerData[0]?.peersList || []) : (peerData?.peersList || []);
-      const rows = await Promise.all(peerList.filter(symbol).filter(item => item !== ticker).slice(0, 6).map(async peer => {
+      const [peerData, targetProfiles] = await Promise.all([
+        fmp('stock-peers', { symbol:ticker }).catch(error => { console.warn(`FMP peers unavailable for ${ticker}: ${error.message}`); return []; }),
+        fmp('profile', { symbol:ticker }).catch(() => [])
+      ]);
+      const targetProfile = targetProfiles[0] || {};
+      const peerPayload = Array.isArray(peerData) ? peerData[0] : peerData;
+      let peerList = Array.isArray(peerPayload?.peersList) ? peerPayload.peersList : [];
+      let screenerRows = [];
+
+      // The direct peer endpoint can legitimately return no rows for smaller
+      // companies. Build a second provider-backed peer set from the same
+      // industry (or sector) so the comparison section is still useful.
+      if (!peerList.length && (targetProfile.industry || targetProfile.sector)) {
+        const filters = { limit:20, isActivelyTrading:true };
+        if (targetProfile.industry) filters.industry = targetProfile.industry;
+        else filters.sector = targetProfile.sector;
+        if (targetProfile.exchangeShortName) filters.exchange = targetProfile.exchangeShortName;
+        screenerRows = await fmp('company-screener', filters).catch(error => { console.warn(`FMP peer screener unavailable for ${ticker}: ${error.message}`); return []; });
+        peerList = screenerRows.map(row => row.symbol);
+      }
+
+      const screenedBySymbol = new Map(screenerRows.map(row => [symbol(row.symbol), row]));
+      const peerSymbols = [...new Set(peerList.map(symbol).filter(Boolean))].filter(item => item !== ticker).slice(0, 8);
+      const rows = await Promise.all(peerSymbols.map(async peer => {
+        const screened = screenedBySymbol.get(peer) || {};
         const [profile, quote, ratios] = await Promise.all([fmp('profile', { symbol:peer }).catch(() => []), liveQuote(peer).catch(() => ({})), fmp('ratios-ttm', { symbol:peer }).catch(() => [])]);
+        const peerProfile = profile[0] || screened;
         const peerRatios = ratios[0] || {};
-        const pe = peerRatios.peRatioTTM ?? peerRatios.priceToEarningsRatioTTM ?? peerRatios.priceEarningsRatioTTM ?? quote.pe ?? quote.priceEarningsRatio ?? null;
-        return { symbol:peer, companyName:profile[0]?.companyName || peer, sector:profile[0]?.sector, marketCap:profile[0]?.mktCap, price:quote.price, change:quote.changesPercentage, pe };
+        const peerEps = finiteValue(peerRatios.netIncomePerShareTTM);
+        const pe = finiteValue(peerRatios.peRatioTTM, peerRatios.priceToEarningsRatioTTM, peerRatios.priceEarningsRatioTTM, quote.pe, quote.priceEarningsRatio, safeDivide(quote.price, peerEps));
+        return {
+          symbol:peer,
+          companyName:peerProfile.companyName || peerProfile.name || peer,
+          sector:peerProfile.sector || targetProfile.sector || null,
+          industry:peerProfile.industry || targetProfile.industry || null,
+          marketCap:finiteValue(peerProfile.mktCap, peerProfile.marketCap, quote.marketCap),
+          price:finiteValue(quote.price, screened.price),
+          change:finiteValue(quote.changesPercentage, quote.changePercentage, screened.change),
+          pe
+        };
       }));
       return send(res, 200, rows);
     }
