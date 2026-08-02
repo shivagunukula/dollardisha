@@ -506,7 +506,7 @@ function companyView(ticker) {
       <div><p class="crumb">US EQUITY RESEARCH</p><h1 class="page-title" id="company-title">${escapeHtml(ticker)}</h1><p class="sub" id="company-subtitle">${escapeHtml(ticker)} · Loading company research…</p></div>
       <button class="solid-btn ${watchlist.includes(ticker) ? 'saved' : ''}" data-watch="${ticker}">${watchlist.includes(ticker) ? 'Following' : 'Follow'}</button>
     </div>
-    <nav class="company-tabs"><a href="#overview">Overview</a><a href="#chart">Chart</a><a href="#quarterly">Quarterly</a><a href="#financials">Financials</a><a href="#peers">Peers</a><a href="#intelligence">Intelligence</a><a href="#updates">Updates</a><a href="#documents">Filings</a></nav>
+    <nav class="company-tabs"><a href="#overview">Overview</a><a href="#chart">Chart</a><a href="#strengths">Pros &amp; cons</a><a href="#quarterly">Quarterly</a><a href="#financials">Financials</a><a href="#peers">Peers</a><a href="#intelligence">Intelligence</a><a href="#updates">Updates</a><a href="#documents">Filings</a></nav>
     <div id="overview" class="company-overview-stack">
       <section class="panel company-summary company-research-card">
         <div class="summary-main ratio-board">
@@ -531,6 +531,10 @@ function companyView(ticker) {
       </section>
     </div>
     <section id="chart" class="panel chart-panel"><div class="panel-head"><div><h2>Price & volume</h2><p>Historical market data · select the time range below</p></div></div><div id="company-chart" class="chart-area">Loading chart…</div></section>
+    <section id="strengths" class="panel company-signals-panel" aria-labelledby="company-signals-title">
+      <div class="panel-head"><div><h2 id="company-signals-title">Pros &amp; cons</h2><p>Automatically calculated from reported financial data</p></div><span class="signals-badge">Rules-based</span></div>
+      <div id="company-signals" class="company-signals-loading">Analysing the latest reported figures...</div>
+    </section>
     <section id="quarterly" class="panel financial-panel quarterly-panel"><div class="panel-head"><div><h2>Quarterly results</h2><p>USD millions except per-share data · latest reported quarters</p></div><span class="quarterly-source">Reported data</span></div><div id="company-quarterly"><p class="data-empty">Loading quarterly results…</p></div></section>
     <div id="financials" class="financial-stack"></div>
     <section id="peers" class="panel documents-panel"><div class="panel-head"><div><h2>Peer comparison</h2><p>Companies in the same sector and industry</p></div></div><div id="company-peers" class="data-empty">Peer data is loading…</div></section>
@@ -570,19 +574,119 @@ function renderFilteredRatioExplorer(holder, ratios) {
   draw();
 }
 
+function buildCompanySignals(data) {
+  const ratios = data.ratios || {};
+  const income = Array.isArray(data.income) ? data.income : [];
+  const cashflow = Array.isArray(data.cashflow) ? data.cashflow : [];
+  const quarterly = Array.isArray(data.quarterlyIncome) ? data.quarterlyIncome : [];
+  const pros = [];
+  const cons = [];
+  const number = value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)) ? Number(value) : null;
+  const firstNumber = (...values) => values.map(number).find(value => value !== null) ?? null;
+  const push = (list, key, text, priority) => {
+    if (!text || list.some(item => item.key === key)) return;
+    list.push({ key, text, priority });
+  };
+  const percentage = value => `${Math.abs(value * 100).toFixed(1)}%`;
+  const multiple = value => `${Math.abs(value).toFixed(1)}x`;
+  const latestIncome = income[0] || {};
+  const previousIncome = income[1] || {};
+  const latestQuarter = quarterly[0] || {};
+  const previousQuarter = quarterly[1] || {};
+  const latestCashflow = cashflow[0] || {};
+
+  const latestRevenue = firstNumber(latestIncome.revenue, latestQuarter.revenue);
+  const previousRevenue = firstNumber(previousIncome.revenue, previousQuarter.revenue);
+  if (latestRevenue !== null && previousRevenue !== null && previousRevenue !== 0) {
+    const growth = (latestRevenue - previousRevenue) / Math.abs(previousRevenue);
+    if (growth >= 0.08) push(pros, 'revenue-growth', `Revenue grew ${percentage(growth)} versus the previous reported period.`, 90 + Math.min(growth, 1));
+    if (growth <= -0.05) push(cons, 'revenue-decline', `Revenue declined ${percentage(growth)} versus the previous reported period.`, 90 + Math.min(Math.abs(growth), 1));
+  }
+
+  const latestNetIncome = firstNumber(latestIncome.netIncome, latestQuarter.netIncome);
+  const previousNetIncome = firstNumber(previousIncome.netIncome, previousQuarter.netIncome);
+  if (latestNetIncome !== null && latestNetIncome < 0) push(cons, 'loss', 'The latest reported period shows a net loss.', 120);
+  if (latestNetIncome !== null && previousNetIncome !== null && latestNetIncome > 0 && previousNetIncome > 0) {
+    const growth = (latestNetIncome - previousNetIncome) / Math.abs(previousNetIncome);
+    if (growth >= 0.12) push(pros, 'profit-growth', `Net profit grew ${percentage(growth)} versus the previous reported period.`, 105 + Math.min(growth, 1));
+    if (growth <= -0.15) push(cons, 'profit-decline', `Net profit fell ${percentage(growth)} versus the previous reported period.`, 105 + Math.min(Math.abs(growth), 1));
+  }
+
+  const grossMargin = number(ratios.grossProfitMarginTTM);
+  const operatingMargin = number(ratios.operatingProfitMarginTTM);
+  const netMargin = number(ratios.netProfitMarginTTM);
+  if (grossMargin !== null && grossMargin >= 0.45) push(pros, 'gross-margin', `Gross margin is a strong ${percentage(grossMargin)} on a trailing-twelve-month basis.`, 80 + grossMargin);
+  if (operatingMargin !== null && operatingMargin >= 0.18) push(pros, 'operating-margin', `Operating margin is ${percentage(operatingMargin)} on a trailing-twelve-month basis.`, 85 + operatingMargin);
+  if (netMargin !== null && netMargin >= 0.12) push(pros, 'net-margin', `Net margin is ${percentage(netMargin)} on a trailing-twelve-month basis.`, 88 + netMargin);
+  if (netMargin !== null && netMargin < 0) push(cons, 'loss', `Trailing-twelve-month net margin is negative at -${percentage(netMargin)}.`, 115);
+  else if (netMargin !== null && netMargin >= 0 && netMargin < 0.04) push(cons, 'thin-margin', `Trailing-twelve-month net margin is thin at ${percentage(netMargin)}.`, 72);
+
+  const roe = number(ratios.returnOnEquityTTM);
+  const roic = number(ratios.returnOnInvestedCapitalTTM);
+  if (roe !== null && roe >= 0.15) push(pros, 'roe', `Return on equity is ${percentage(roe)}.`, 96 + Math.min(roe, 1));
+  if (roe !== null && roe < 0) push(cons, 'negative-roe', `Return on equity is negative at -${percentage(roe)}.`, 112);
+  else if (roe !== null && roe >= 0 && roe < 0.07) push(cons, 'low-roe', `Return on equity is low at ${percentage(roe)}.`, 75);
+  if (roic !== null && roic >= 0.12) push(pros, 'roic', `Return on invested capital is ${percentage(roic)}.`, 94 + Math.min(roic, 1));
+  if (roic !== null && roic >= 0 && roic < 0.04) push(cons, 'low-roic', `Return on invested capital is low at ${percentage(roic)}.`, 74);
+
+  const debtToEquity = number(ratios.debtToEquityRatioTTM);
+  const currentRatio = number(ratios.currentRatioTTM);
+  const interestCoverage = number(ratios.interestCoverageTTM);
+  if (debtToEquity !== null && debtToEquity >= 0 && debtToEquity <= 0.45) push(pros, 'low-debt', `Debt to equity is conservative at ${debtToEquity.toFixed(2)}.`, 92 - debtToEquity);
+  if (debtToEquity !== null && debtToEquity > 1.5) push(cons, 'high-debt', `Debt to equity is elevated at ${debtToEquity.toFixed(2)}.`, 98 + Math.min(debtToEquity, 5));
+  if (currentRatio !== null && currentRatio >= 1.5) push(pros, 'liquidity', `Current ratio of ${currentRatio.toFixed(2)} indicates a solid near-term liquidity cushion.`, 82 + Math.min(currentRatio, 3));
+  if (currentRatio !== null && currentRatio < 1) push(cons, 'liquidity', `Current ratio is below 1.0 at ${currentRatio.toFixed(2)}.`, 100 - currentRatio);
+  if (interestCoverage !== null && interestCoverage >= 5) push(pros, 'interest-coverage', `Operating earnings cover interest expense ${multiple(interestCoverage)}.`, 88 + Math.min(interestCoverage / 10, 2));
+  if (interestCoverage !== null && interestCoverage > 0 && interestCoverage < 2) push(cons, 'interest-coverage', `Interest coverage is only ${multiple(interestCoverage)}.`, 104 - interestCoverage);
+
+  const freeCashFlow = number(latestCashflow.freeCashFlow);
+  const operatingCashFlow = number(latestCashflow.operatingCashFlow);
+  if (freeCashFlow !== null && freeCashFlow > 0) push(pros, 'free-cash-flow', 'The latest annual period generated positive free cash flow.', 86);
+  if (freeCashFlow !== null && freeCashFlow < 0) push(cons, 'free-cash-flow', 'The latest annual period reported negative free cash flow.', 108);
+  else if (operatingCashFlow !== null && operatingCashFlow < 0) push(cons, 'operating-cash-flow', 'The latest annual period reported negative operating cash flow.', 106);
+
+  const pe = number(ratios.peRatioTTM);
+  const priceToBook = number(ratios.priceToBookRatioTTM);
+  const priceToSales = number(ratios.priceToSalesRatioTTM);
+  if (pe !== null && pe > 45) push(cons, 'pe', `The stock trades at a high ${multiple(pe)} trailing earnings.`, 91 + Math.min(pe / 20, 5));
+  if (priceToBook !== null && priceToBook > 8) push(cons, 'price-to-book', `The stock trades at ${multiple(priceToBook)} book value.`, 88 + Math.min(priceToBook / 10, 4));
+  if (priceToSales !== null && priceToSales > 10) push(cons, 'price-to-sales', `The stock trades at ${multiple(priceToSales)} trailing sales.`, 87 + Math.min(priceToSales / 10, 4));
+
+  const dividendYield = number(ratios.dividendYieldTTM);
+  if (dividendYield !== null && dividendYield >= 0.02) push(pros, 'dividend', `Trailing dividend yield is ${percentage(dividendYield)}.`, 70 + dividendYield);
+
+  const takeBest = values => values.sort((a, b) => b.priority - a.priority).slice(0, 4).map(item => item.text);
+  return { pros: takeBest(pros), cons: takeBest(cons) };
+}
+
+function renderCompanySignals(holder, data) {
+  if (!holder) return;
+  const signals = buildCompanySignals(data);
+  const list = (items, emptyText) => items.length
+    ? `<ul>${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
+    : `<p class="signal-empty">${emptyText}</p>`;
+  holder.innerHTML = `<div class="company-signals-grid">
+    <article class="signal-card signal-pros"><div class="signal-heading"><span aria-hidden="true">+</span><h3>Pros</h3><small>${signals.pros.length} signals</small></div>${list(signals.pros, 'No strong positive signal crossed the current rules with the available reported data.')}</article>
+    <article class="signal-card signal-cons"><div class="signal-heading"><span aria-hidden="true">!</span><h3>Cons</h3><small>${signals.cons.length} signals</small></div>${list(signals.cons, 'No material risk signal crossed the current rules with the available reported data.')}</article>
+  </div><p class="signals-note">Automatically generated from reported financial statements and ratios using fixed research rules. For education only, not investment advice.</p>`;
+}
+
 hydrateCompanyExtras = function(ticker) {
   originalHydrateCompanyExtras(ticker);
   const holder = $('#company-ratios');
   const quarterlyHolder = $('#company-quarterly');
-  if (!holder && !quarterlyHolder) return;
+  const signalsHolder = $('#company-signals');
+  if (!holder && !quarterlyHolder && !signalsHolder) return;
   getJson(`/data/company?symbol=${encodeURIComponent(ticker)}`)
     .then(data => {
       if (holder) renderFilteredRatioExplorer(holder, data.ratios || {});
       if (quarterlyHolder) quarterlyHolder.innerHTML = quarterlyResultsTable(data.quarterlyIncome || []);
+      renderCompanySignals(signalsHolder, data);
     })
     .catch(() => {
       if (holder) holder.innerHTML = '<p class="data-empty">Detailed ratios are temporarily unavailable for this company.</p>';
       if (quarterlyHolder) quarterlyHolder.innerHTML = '<p class="data-empty">Quarterly results are temporarily unavailable for this company.</p>';
+      if (signalsHolder) signalsHolder.innerHTML = '<p class="signal-empty">Pros and cons are temporarily unavailable because reported company data could not be loaded.</p>';
     });
 };
 

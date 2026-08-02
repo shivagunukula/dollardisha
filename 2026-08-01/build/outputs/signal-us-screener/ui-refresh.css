@@ -185,6 +185,110 @@ body {
 }
 
 .company-overview-stack { gap: 12px !important; }
+
+/* Evidence-based strengths and risks on every company page */
+.company-signals-panel {
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.signals-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 25px;
+  padding: 0 9px;
+  border: 1px solid #344163;
+  border-radius: 999px;
+  background: #111a2e;
+  color: #9eacd0;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.company-signals-loading {
+  padding: 18px;
+  color: #94a1bf;
+  font-size: 11px;
+}
+.company-signals-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 0 18px 16px;
+}
+.signal-card {
+  min-height: 165px;
+  padding: 17px 18px;
+  border: 1px solid;
+  border-radius: 10px;
+  background: #10182a;
+}
+.signal-card.signal-pros {
+  border-color: #43cbb1;
+  background: linear-gradient(145deg, rgba(42, 194, 160, .09), rgba(16, 24, 42, .96) 42%);
+}
+.signal-card.signal-cons {
+  border-color: #ee8692;
+  background: linear-gradient(145deg, rgba(238, 113, 132, .09), rgba(16, 24, 42, .96) 42%);
+}
+.signal-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 12px;
+}
+.signal-heading > span {
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 800;
+}
+.signal-pros .signal-heading > span { background: rgba(76, 220, 185, .16); color: #62e6c5; }
+.signal-cons .signal-heading > span { background: rgba(255, 122, 143, .15); color: #ff98a7; }
+.signal-heading h3 {
+  margin: 0;
+  color: #f4f7ff;
+  font: 700 13px Inter, Arial, sans-serif;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.signal-heading small {
+  margin-left: auto;
+  color: #8290af;
+  font-size: 9px;
+}
+.signal-card ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+  color: #c3cee5;
+  font-size: 11px;
+  line-height: 1.55;
+}
+.signal-pros li::marker { color: #5de0ba; }
+.signal-cons li::marker { color: #ff8799; }
+.signal-empty {
+  margin: 0;
+  color: #9ca9c5;
+  font-size: 11px;
+  line-height: 1.55;
+}
+.signals-note {
+  margin: 0;
+  padding: 0 18px 16px;
+  color: #7f8dab;
+  font-size: 9px;
+  line-height: 1.5;
+}
+@media (max-width: 760px) {
+  .company-signals-grid { grid-template-columns: 1fr; padding: 0 12px 12px; }
+  .signal-card { min-height: 0; padding: 15px; }
+  .signals-note { padding: 0 12px 14px; }
+}
 .company-research-card {
   align-items: start !important;
   grid-template-columns: minmax(0, 2.25fr) minmax(280px, .85fr) !important;
