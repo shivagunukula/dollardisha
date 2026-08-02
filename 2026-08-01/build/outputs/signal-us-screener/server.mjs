@@ -14,7 +14,18 @@ const twelveDataKey = process.env.TWELVE_DATA_API_KEY || process.env.TWELVE_DATA
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SECRET_KEY;
 if (!key) console.warn('FMP_API_KEY is not configured. DollarDisha will use its quote fallback where available.');
-const mime = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.json':'application/json; charset=utf-8' };
+const mime = {
+  '.html':'text/html; charset=utf-8',
+  '.js':'text/javascript; charset=utf-8',
+  '.css':'text/css; charset=utf-8',
+  '.json':'application/json; charset=utf-8',
+  '.png':'image/png',
+  '.ico':'image/x-icon',
+  '.svg':'image/svg+xml',
+  '.webp':'image/webp',
+  '.jpg':'image/jpeg',
+  '.jpeg':'image/jpeg'
+};
 const symbol = value => /^[A-Z.]{1,10}$/.test(String(value || '').toUpperCase()) ? String(value).toUpperCase() : null;
 const externalFetch = (url, options = {}) => fetch(url, { ...options, signal: AbortSignal.timeout(6000) });
 
@@ -381,7 +392,11 @@ createServer(async (req, res) => {
     if (requested.startsWith('.') || requested.includes('..')) return send(res, 403, 'Forbidden', 'text/plain; charset=utf-8');
     const file = join(root, requested);
     const data = await readFile(file);
-    return send(res, 200, data.toString(), mime[extname(file)] || 'application/octet-stream');
+    res.writeHead(200, {
+      'Content-Type': mime[extname(file).toLowerCase()] || 'application/octet-stream',
+      'Cache-Control': requested === 'index.html' ? 'no-cache' : 'public, max-age=3600'
+    });
+    return res.end(data);
   } catch (error) {
     if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/data/')) return send(res, 502, { error:'Live data is temporarily unavailable.', detail:error.message });
     return send(res, 404, 'Not found', 'text/plain; charset=utf-8');
