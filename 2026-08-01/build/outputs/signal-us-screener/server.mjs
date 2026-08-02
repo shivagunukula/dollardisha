@@ -77,12 +77,6 @@ async function nasdaqQuote(ticker) {
   const percentage = Number(String(data.percentageChange || '0').replace(/[%+]/g, ''));
   return { symbol: ticker, price, changesPercentage: percentage, previousClose: data.previousClose, provider: 'nasdaq' };
 }
-const referenceQuotes = {
-  NVDA: { price: 141.98, changesPercentage: 2.47 }, MSFT: { price: 460.36, changesPercentage: 1.12 },
-  AAPL: { price: 224.18, changesPercentage: -0.31 }, GOOGL: { price: 178.34, changesPercentage: 1.83 },
-  SPY: { price: 594.18, changesPercentage: 0.32 }, QQQ: { price: 513.43, changesPercentage: 0.51 },
-  DIA: { price: 437.36, changesPercentage: 0.08 }, IWM: { price: 221.44, changesPercentage: -0.17 }
-};
 let twelveDirectory = { rows: [], expiresAt: 0 };
 async function twelveStockSearch(query) {
   if (!twelveDataKey) return [];
@@ -119,8 +113,6 @@ async function liveQuote(ticker) {
       try { return await nasdaqQuote(ticker); }
       catch (nasdaqError) {
         console.warn(`Nasdaq quote unavailable for ${ticker}: ${nasdaqError.message}`);
-        const reference = referenceQuotes[ticker];
-        if (reference) return { symbol: ticker, ...reference, delayed: true, provider: 'reference' };
         throw nasdaqError;
       }
     }
