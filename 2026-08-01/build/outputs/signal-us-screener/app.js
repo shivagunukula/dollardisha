@@ -23,6 +23,56 @@ let authClient = null;
 let authSession = null;
 let authMode = 'login';
 
+const themeMedia = window.matchMedia('(prefers-color-scheme: dark)');
+function applyTheme(mode, persist = true) {
+  const preference = ['light', 'dark', 'auto'].includes(mode) ? mode : 'auto';
+  const resolved = preference === 'auto' ? (themeMedia.matches ? 'dark' : 'light') : preference;
+  document.documentElement.dataset.themeMode = preference;
+  document.documentElement.dataset.theme = resolved;
+  document.documentElement.style.colorScheme = resolved;
+  if (persist) {
+    try { localStorage.setItem('dd-theme', preference); } catch {}
+  }
+  const label = $('#theme-button-label');
+  const icon = $('#theme-button-icon');
+  if (label) label.textContent = preference[0].toUpperCase() + preference.slice(1);
+  if (icon) icon.textContent = preference === 'light' ? '☀' : preference === 'dark' ? '☾' : '▣';
+  document.querySelectorAll('[data-theme-option]').forEach(option => {
+    const selected = option.dataset.themeOption === preference;
+    option.classList.toggle('selected', selected);
+    option.setAttribute('aria-checked', String(selected));
+  });
+}
+
+function setupTheme() {
+  const picker = $('.theme-picker');
+  const button = $('#theme-button');
+  const menu = $('#theme-menu');
+  if (!picker || !button || !menu) return;
+  const close = () => { menu.hidden = true; button.setAttribute('aria-expanded', 'false'); };
+  applyTheme(document.documentElement.dataset.themeMode || 'auto', false);
+  button.onclick = event => {
+    event.stopPropagation();
+    const willOpen = menu.hidden;
+    menu.hidden = !willOpen;
+    button.setAttribute('aria-expanded', String(willOpen));
+    if (willOpen) menu.querySelector('[aria-checked="true"]')?.focus();
+  };
+  menu.onclick = event => event.stopPropagation();
+  menu.querySelectorAll('[data-theme-option]').forEach(option => option.onclick = () => {
+    applyTheme(option.dataset.themeOption);
+    close();
+    button.focus();
+  });
+  document.addEventListener('click', close);
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });
+  const handleSystemThemeChange = () => {
+    if (document.documentElement.dataset.themeMode === 'auto') applyTheme('auto', false);
+  };
+  if (themeMedia.addEventListener) themeMedia.addEventListener('change', handleSystemThemeChange);
+  else themeMedia.addListener(handleSystemThemeChange);
+}
+
 function watchButton(ticker) { return `<button class="watch-toggle ${watchlist.includes(ticker) ? 'saved' : ''}" data-watch="${ticker}" title="Add to watchlist">${watchlist.includes(ticker) ? '★' : '☆'}</button>`; }
 function row(stock) {
   const rawChange = stock.change ?? stock.changesPercentage ?? stock.changePercentage;
@@ -956,6 +1006,7 @@ async function setupAuth() {
   };
 }
 
+setupTheme();
 setupSearch();
 render();
 setupAuth();
