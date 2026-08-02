@@ -64,7 +64,7 @@ body {
   border-color: var(--dd-accent) !important;
   box-shadow: 0 0 0 3px rgba(113, 135, 255, .12);
 }
-.nav { font-size: 11px !important; }
+.nav { font-size: 11px !important; text-decoration: none !important; }
 .nav.active {
   background: var(--dd-accent-soft) !important;
   color: #fff !important;
