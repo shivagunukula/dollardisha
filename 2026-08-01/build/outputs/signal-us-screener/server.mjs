@@ -13,26 +13,27 @@ const supabaseKey = process.env.SUPABASE_SECRET_KEY;
 if (!key) console.warn('FMP_API_KEY is not configured. DollarDisha will use its quote fallback where available.');
 const mime = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.json':'application/json; charset=utf-8' };
 const symbol = value => /^[A-Z.]{1,10}$/.test(String(value || '').toUpperCase()) ? String(value).toUpperCase() : null;
+const externalFetch = (url, options = {}) => fetch(url, { ...options, signal: AbortSignal.timeout(6000) });
 
 async function fmp(path, parameters = {}) {
   if (!key) throw new Error('FMP_API_KEY is not configured');
   const url = new URL(`https://financialmodelingprep.com/stable/${path}`);
   Object.entries(parameters).forEach(([name, value]) => url.searchParams.set(name, value));
   url.searchParams.set('apikey', key);
-  const response = await fetch(url, { headers: { 'User-Agent': 'DollarDisha research app contact@dollardisha.local' } });
+  const response = await externalFetch(url, { headers: { 'User-Agent': 'DollarDisha research app contact@dollardisha.local' } });
   if (!response.ok) throw new Error(`FMP returned ${response.status}`);
   return response.json();
 }
 async function secSubmissions(cik) {
   const paddedCik = String(cik).replace(/\D/g, '').padStart(10, '0');
-  const response = await fetch(`https://data.sec.gov/submissions/CIK${paddedCik}.json`, {
+  const response = await externalFetch(`https://data.sec.gov/submissions/CIK${paddedCik}.json`, {
     headers: { 'User-Agent': 'DollarDisha/1.0 contact@dollardisha.in', Accept: 'application/json' }
   });
   if (!response.ok) throw new Error(`SEC returned ${response.status}`);
   return response.json();
 }
 async function yahooQuote(ticker) {
-  const response = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=1d&interval=1m`, {
+  const response = await externalFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=1d&interval=1m`, {
     headers: { 'User-Agent': 'DollarDisha research app contact@dollardisha.in' }
   });
   if (!response.ok) throw new Error(`Fallback quote provider returned ${response.status}`);
@@ -49,7 +50,7 @@ async function yahooQuote(ticker) {
 }
 async function nasdaqQuote(ticker) {
   const fetchQuote = async assetclass => {
-    const response = await fetch(`https://api.nasdaq.com/api/quote/${encodeURIComponent(ticker.toLowerCase())}/info?assetclass=${assetclass}`, {
+    const response = await externalFetch(`https://api.nasdaq.com/api/quote/${encodeURIComponent(ticker.toLowerCase())}/info?assetclass=${assetclass}`, {
       headers: { 'User-Agent': 'Mozilla/5.0 DollarDisha research app', Accept: 'application/json, text/plain, */*' }
     });
     if (!response.ok) throw new Error(`Nasdaq quote provider returned ${response.status}`);
