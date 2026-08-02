@@ -940,14 +940,23 @@ function updateAuthUI(session) {
   if (!button) return;
   const email = user?.email || '';
   const displayName = user?.user_metadata?.full_name || user?.user_metadata?.name || email.split('@')[0] || 'Account';
-  button.querySelector('.account-label').textContent = user ? displayName.split(' ')[0] : 'Log in';
-  button.querySelector('.account-avatar').textContent = user ? displayName.slice(0, 1).toUpperCase() : 'S';
+  const label = button.querySelector('.account-label');
+  const avatar = button.querySelector('.account-avatar');
+  const firstName = displayName.trim().split(/\s+/)[0] || 'Account';
+  if (label) label.textContent = user ? firstName : 'Log in';
+  if (avatar) avatar.textContent = user ? firstName.slice(0, 1).toUpperCase() : 'S';
+  button.title = user ? `Signed in as ${email || displayName}` : 'Log in or create a DollarDisha account';
+  button.setAttribute('aria-label', user ? `Account: ${email || displayName}` : 'Log in or create a DollarDisha account');
   button.classList.toggle('signed-in', Boolean(user));
-  $('#auth-signed-out').hidden = Boolean(user);
-  $('#auth-signed-in').hidden = !user;
+  const signedOut = $('#auth-signed-out');
+  const signedIn = $('#auth-signed-in');
+  if (signedOut) signedOut.hidden = Boolean(user);
+  if (signedIn) signedIn.hidden = !user;
   if (user) {
-    $('#auth-profile-email').textContent = email;
-    $('#auth-profile-avatar').textContent = displayName.slice(0, 1).toUpperCase();
+    const profileEmail = $('#auth-profile-email');
+    const profileAvatar = $('#auth-profile-avatar');
+    if (profileEmail) profileEmail.textContent = email || displayName;
+    if (profileAvatar) profileAvatar.textContent = firstName.slice(0, 1).toUpperCase();
   }
 }
 
@@ -990,14 +999,40 @@ async function setupAuth() {
   }
 
   authClient = window.supabase.createClient(config.url, config.publishableKey, {
-    auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
+    auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true, flowType:'pkce' }
   });
 
   const redirectTo = `${window.location.origin}${window.location.pathname}`;
   const recoveryReturn = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('type') === 'recovery';
-  const { data:initial } = await authClient.auth.getSession();
-  updateAuthUI(initial.session);
-  if (recoveryReturn && initial.session) {
+  // Supabase may return either an access-token hash (implicit flow) or a
+  // short-lived `?code=` (PKCE flow).  Exchange the code before reading the
+  // session, otherwise the page comes back from Google but still says “Log in”.
+  const callbackUrl = new URL(window.location.href);
+  const callbackCode = callbackUrl.searchParams.get('code');
+  if (callbackCode) {
+    try {
+      const { error } = await authClient.auth.exchangeCodeForSession(callbackCode);
+      if (error) console.warn(`Could not restore Google session: ${error.message}`);
+    } catch (error) { console.warn(`Could not restore Google session: ${error.message}`); }
+    callbackUrl.searchParams.delete('code');
+    callbackUrl.searchParams.delete('error');
+    callbackUrl.searchParams.delete('error_code');
+    callbackUrl.searchParams.delete('error_description');
+    window.history.replaceState({}, document.title, `${callbackUrl.pathname}${callbackUrl.search}${callbackUrl.hash}`);
+  }
+
+  // The auth client restores storage asynchronously on a fresh redirect. A
+  // short retry avoids a race where the first getSession() runs too early.
+  let initialSession = null;
+  for (let attempt = 0; attempt < 3 && !initialSession; attempt += 1) {
+    try {
+      const { data } = await authClient.auth.getSession();
+      initialSession = data?.session || null;
+    } catch (error) { console.warn(`Could not read account session: ${error.message}`); }
+    if (!initialSession && attempt < 2) await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  updateAuthUI(initialSession);
+  if (recoveryReturn && initialSession) {
     setAuthMode('recovery');
     openAuth('recovery');
   }

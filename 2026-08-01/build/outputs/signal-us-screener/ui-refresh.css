@@ -811,6 +811,8 @@ tbody tr:nth-child(even) td { background: rgba(255, 255, 255, .012); }
   transition: border-color .18s ease, background .18s ease, transform .18s ease;
 }
 .account-button:hover { border-color: #48b99b; background: #15231f; transform: translateY(-1px); }
+.account-button.signed-in { border-color: #3fc79f; background: #132922; }
+.account-button.signed-in .account-avatar { background: linear-gradient(135deg, #9ce6d1, #3fc79f); color: #092019; }
 .account-avatar {
   display: grid;
   width: 26px;
