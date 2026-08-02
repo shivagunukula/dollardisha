@@ -200,12 +200,13 @@ createServer(async (req, res) => {
       if (!ticker) return send(res, 400, { error:'Invalid ticker.' });
       const optional = path => fmp(path, { symbol:ticker, limit: 8 }).catch(() => []);
       const [profile, quote, metrics, income, balance, cashflow, ratios] = await Promise.all([
-        fmp('profile', { symbol:ticker }), liveQuote(ticker),
-        fmp('key-metrics-ttm', { symbol:ticker }), fmp('income-statement', { symbol:ticker, limit:4 })
+        optional('profile'), liveQuote(ticker),
+        optional('key-metrics-ttm'), optional('income-statement')
         , optional('balance-sheet-statement'), optional('cash-flow-statement'), optional('ratios-ttm')
       ]);
-      await cacheCompany(ticker, profile[0], quote, { income, balance, cashflow, ratios });
-      return send(res, 200, { profile: profile[0] || {}, quote: quote || {}, metrics: metrics[0] || {}, income, balance, cashflow, ratios: ratios[0] || {} });
+      const fallbackProfile = { companyName: ticker, sector: 'US Equity', description: 'Latest available price is shown below. Detailed fundamentals are unavailable for this company right now.' };
+      await cacheCompany(ticker, profile[0] || fallbackProfile, quote, { income, balance, cashflow, ratios });
+      return send(res, 200, { profile: profile[0] || fallbackProfile, quote: quote || {}, metrics: metrics[0] || {}, income, balance, cashflow, ratios: ratios[0] || {} });
     }
     if (url.pathname === '/data/market' || url.pathname === '/api/market') {
       // Broad-market ETFs are not available under every FMP plan. These liquid US equities
