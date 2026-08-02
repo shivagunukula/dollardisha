@@ -33,6 +33,22 @@ function row(stock) {
   const cap = stock.marketCap || (stock.cap ? stock.cap * 1e9 : 0);
   return `<tr class="company-row" data-stock="${ticker}"><td class="company">${escapeHtml(name)}<span class="ticker">${ticker}</span></td><td>${stock.price ? `$${Number(stock.price).toFixed(2)}` : '—'}</td><td>${money(cap)}</td><td>${stock.pe ? `${Number(stock.pe).toFixed(1)}x` : '—'}</td><td class="${hasChange ? (change >= 0 ? 'positive' : 'down') : ''}">${hasChange ? percent(change) : '—'}</td><td>${watchButton(ticker)}</td></tr>`;
 }
+const scanNumber = (...values) => values.find(value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))) ?? null;
+const scanPercent = value => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  return Math.abs(number) <= 2 ? number * 100 : number;
+};
+function screenerRow(stock) {
+  const ticker = stock.symbol || stock.ticker;
+  const name = stock.companyName || stock.name || ticker;
+  const cap = scanNumber(stock.marketCap, stock.cap ? stock.cap * 1e9 : null);
+  const pe = scanNumber(stock.pe, stock.peRatioTTM, stock.priceToEarningsRatioTTM);
+  const roe = scanPercent(scanNumber(stock.returnOnEquityTTM, stock.roeTTM, stock.roe));
+  const volume = scanNumber(stock.volume, stock.avgVolume);
+  const sector = stock.sector || 'Not classified';
+  return `<tr class="company-row" data-stock="${ticker}"><td class="company">${escapeHtml(name)}<span class="ticker">${escapeHtml(ticker)}</span></td><td>${scanNumber(stock.price) !== null ? `$${Number(stock.price).toFixed(2)}` : 'Not available'}</td><td>${cap !== null ? money(cap) : 'Not available'}</td><td title="N/M means not meaningful or not reported">${pe !== null && pe > 0 ? `${Number(pe).toFixed(1)}x` : 'N/M'}</td><td>${roe !== null ? `${roe.toFixed(1)}%` : 'Not reported'}</td><td>${volume !== null ? whole(volume) : 'Not available'}</td><td>${escapeHtml(sector)}</td><td>${watchButton(ticker)}</td></tr>`;
+}
 function pageHeader(kicker, title, text) { return `<div class="section-header"><div><p class="crumb">${kicker}</p><h1 class="page-title">${title}</h1><p class="sub">${text}</p></div></div>`; }
 
 function dashboardView() {
@@ -51,8 +67,22 @@ function marketsView() {
 
 function screenerView() {
   return `<div class="page">${pageHeader('DISCOVER', 'US stock screener', 'Filter a broad US-equity universe, customise your query and export a research list.')}
-  <div class="query-card"><div><b>Custom query</b><small>Example: P/E under 30, ROE over 15%, or a sector filter.</small></div><input id="screen-search" placeholder="Search a company or ticker"><button class="solid-btn" id="screen-run">Search</button><button class="link-button" id="export-screen">Export CSV</button></div>
-  <div class="filter-layout"><aside class="filters"><div class="filter-title"><span>Quick filters</span><b>Research only</b></div><label>Sector<select id="screen-sector"><option value="all">All sectors</option><option>Technology</option><option>Healthcare</option><option>Financial Services</option><option>Consumer Cyclical</option></select></label><label>Maximum P/E<select id="screen-pe"><option value="999">Any P/E</option><option value="20">Under 20x</option><option value="30">Under 30x</option><option value="50">Under 50x</option></select></label><label>Minimum ROE<select id="screen-roe"><option value="0">No minimum</option><option value="15">15%+</option><option value="30">30%+</option></select></label></aside><section class="table-panel"><div class="result-meta"><span id="screen-count">Loading companies…</span><span>Click a company to research it</span></div><div class="table-wrap"><table><thead><tr><th>Company</th><th>Price</th><th>Market cap</th><th>P/E</th><th>Today</th><th></th></tr></thead><tbody id="screen-table"></tbody></table></div></section></div></div>`;
+  <div class="query-card"><div><b>Build a US equity screen</b><small>Search once, then combine size, liquidity, valuation and quality filters.</small></div><input id="screen-search" placeholder="Search a company or ticker"><button class="solid-btn" id="screen-run">Refresh data</button><button class="link-button" id="export-screen">Export CSV</button></div>
+  <div class="screen-presets" aria-label="Quick screening presets"><span>Popular screens</span><button data-screen-preset="mega">Mega-cap leaders</button><button data-screen-preset="value">Profitable value</button><button data-screen-preset="quality">High ROE</button><button data-screen-preset="liquid">Highly liquid</button><button data-screen-preset="dividend">Dividend payers</button><button data-screen-preset="reset">Clear all</button></div>
+  <div class="filter-layout"><aside class="filters"><div class="filter-title"><span>Filter stocks</span><b>Active US listings</b></div>
+    <div class="filter-fields">
+      <label>Sector<select id="screen-sector"><option value="all">All sectors</option><option>Technology</option><option>Healthcare</option><option>Financial Services</option><option>Consumer Cyclical</option><option>Communication Services</option><option>Industrials</option><option>Consumer Defensive</option><option>Energy</option><option>Basic Materials</option><option>Real Estate</option><option>Utilities</option></select></label>
+      <label>Exchange<select id="screen-exchange"><option value="all">NASDAQ, NYSE & AMEX</option><option value="NASDAQ">NASDAQ</option><option value="NYSE">NYSE</option><option value="AMEX">AMEX</option></select></label>
+      <label>Market capitalisation<select id="screen-cap"><option value="all">All sizes</option><option value="mega">Mega cap · $200B+</option><option value="large">Large cap · $10B–$200B</option><option value="mid">Mid cap · $2B–$10B</option><option value="small">Small cap · $300M–$2B</option><option value="micro">Micro cap · under $300M</option></select></label>
+      <label>Share price<select id="screen-price"><option value="all">Any price</option><option value="under10">Under $10</option><option value="10to50">$10–$50</option><option value="50to200">$50–$200</option><option value="over200">Above $200</option></select></label>
+      <label>Maximum P/E<select id="screen-pe"><option value="999">Any P/E / not reported</option><option value="15">Under 15x</option><option value="20">Under 20x</option><option value="30">Under 30x</option><option value="50">Under 50x</option></select></label>
+      <label>Minimum ROE<select id="screen-roe"><option value="0">No minimum</option><option value="10">10%+</option><option value="15">15%+</option><option value="20">20%+</option><option value="30">30%+</option></select></label>
+      <label>Minimum daily volume<select id="screen-volume"><option value="0">Any volume</option><option value="100000">100K+</option><option value="1000000">1M+</option><option value="10000000">10M+</option></select></label>
+      <label>Dividend<select id="screen-dividend"><option value="all">Any dividend policy</option><option value="payer">Dividend payers only</option></select></label>
+      <label>Sort results<select id="screen-sort"><option value="cap">Market cap · high to low</option><option value="volume">Volume · high to low</option><option value="roe">ROE · high to low</option><option value="pe">P/E · low to high</option><option value="price">Price · high to low</option><option value="name">Company name · A–Z</option></select></label>
+    </div>
+    <p class="filter-help"><b>N/M</b> means a valuation is not meaningful or has not been reported. P/E and ROE use the latest available TTM filing data.</p>
+  </aside><section class="table-panel"><div class="result-meta"><span id="screen-count">Loading active US stocks…</span><span>Click a company to research it</span></div><div class="screen-data-note" id="screen-data-note">Funds and ETFs are excluded. Financial ratios appear when reported by the company.</div><div class="table-wrap"><table class="screener-table"><thead><tr><th>Company</th><th>Price</th><th>Market cap</th><th>P/E</th><th>ROE</th><th>Volume</th><th>Sector</th><th></th></tr></thead><tbody id="screen-table"><tr><td colspan="8">Loading the US stock directory…</td></tr></tbody></table></div></section></div></div>`;
 }
 
 function indexView() {
@@ -191,8 +221,107 @@ async function setupMarkets() { let universe = stocks; const draw = (mode) => { 
   try { const values = await Promise.all([getJson('/data/indices'), getJson('/data/screener?cap=all&sector=all')]); const indices = values[0]; universe = Array.isArray(values[1]) ? values[1] : stocks; indices.forEach((quote) => { const card = document.querySelector(`[data-index="${quote.symbol}"]`); if (!card) return; card.querySelector('strong').textContent = quote.price ? Number(quote.price).toLocaleString('en-US',{maximumFractionDigits:2}) : '—'; const change = Number(quote.changesPercentage || 0); const note = card.querySelector('b'); note.textContent = `${percent(change)} today`; note.className = change >= 0 ? 'positive' : 'down'; }); } catch { universe = stocks; document.querySelectorAll('#index-cards .index-card').forEach(card=>{card.querySelector('strong').textContent='Index unavailable';card.querySelector('b').textContent='Live index feed unavailable'}); }
   draw('gainers');
 }
-function setupScreener() { let results = stocks; const refresh = async () => { const search = $('#screen-search').value.trim().toUpperCase(); const sector = $('#screen-sector').value; const pe = Number($('#screen-pe').value); const roe = Number($('#screen-roe').value); try { const data = await getJson(`/data/screener?cap=all&sector=${encodeURIComponent(sector)}`); results = Array.isArray(data) ? data : stocks; } catch { results = stocks; } results = results.filter((stock) => { const ticker = stock.symbol || stock.ticker || ''; const name = stock.companyName || stock.name || ''; const stockPe = Number(stock.pe || 999); const stockRoe = Number(stock.returnOnEquityTTM || stock.roe || 0); return (!search || ticker.includes(search) || name.toUpperCase().includes(search)) && stockPe <= pe && stockRoe >= roe; }); $('#screen-count').textContent = `${results.length} US equities`; $('#screen-table').innerHTML = results.slice(0, 500).map(row).join('') || '<tr><td colspan="6">No companies match this screen.</td></tr>'; wireCommon(); };
-  ['screen-search', 'screen-sector', 'screen-pe', 'screen-roe'].forEach((id) => $(`#${id}`).oninput = refresh); $('#screen-run').onclick = refresh; $('#export-screen').onclick = () => { const csv = ['Symbol,Company,Price', ...results.map((stock) => `${stock.symbol || stock.ticker},"${(stock.companyName || stock.name || '').replace(/"/g, '""')}",${stock.price || ''}`)].join('\n'); const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); link.download = 'dollardisha-screen.csv'; link.click(); URL.revokeObjectURL(link.href); }; refresh(); }
+function setupScreener() {
+  let universe = [];
+  let results = [];
+  const value = id => $(`#${id}`).value;
+  const inCapBand = (cap, band) => band === 'all' || (band === 'mega' && cap >= 2e11) || (band === 'large' && cap >= 1e10 && cap < 2e11) || (band === 'mid' && cap >= 2e9 && cap < 1e10) || (band === 'small' && cap >= 3e8 && cap < 2e9) || (band === 'micro' && cap < 3e8);
+  const inPriceBand = (price, band) => band === 'all' || (band === 'under10' && price < 10) || (band === '10to50' && price >= 10 && price < 50) || (band === '50to200' && price >= 50 && price <= 200) || (band === 'over200' && price > 200);
+  const draw = () => {
+    const search = value('screen-search').trim().toUpperCase();
+    const sector = value('screen-sector');
+    const exchange = value('screen-exchange');
+    const capBand = value('screen-cap');
+    const priceBand = value('screen-price');
+    const maxPe = Number(value('screen-pe'));
+    const minRoe = Number(value('screen-roe'));
+    const minVolume = Number(value('screen-volume'));
+    const dividend = value('screen-dividend');
+    const sort = value('screen-sort');
+    results = universe.filter(stock => {
+      const ticker = String(stock.symbol || stock.ticker || '').toUpperCase();
+      const name = String(stock.companyName || stock.name || '').toUpperCase();
+      const stockSector = stock.sector || 'Not classified';
+      const stockExchange = String(stock.exchangeShortName || stock.exchange || '').toUpperCase();
+      const cap = Number(scanNumber(stock.marketCap, stock.cap ? stock.cap * 1e9 : null) || 0);
+      const price = Number(scanNumber(stock.price) || 0);
+      const pe = scanNumber(stock.pe, stock.peRatioTTM, stock.priceToEarningsRatioTTM);
+      const roe = scanPercent(scanNumber(stock.returnOnEquityTTM, stock.roeTTM, stock.roe));
+      const volume = Number(scanNumber(stock.volume, stock.avgVolume) || 0);
+      const yieldValue = scanNumber(stock.dividendYieldTTM);
+      const paysDividend = (yieldValue !== null && Number(yieldValue) > 0) || Number(stock.lastAnnualDividend || 0) > 0;
+      return (!search || ticker.includes(search) || name.includes(search)) &&
+        (sector === 'all' || stockSector === sector) &&
+        (exchange === 'all' || stockExchange.includes(exchange)) &&
+        inCapBand(cap, capBand) && inPriceBand(price, priceBand) &&
+        (maxPe === 999 || (pe !== null && Number(pe) > 0 && Number(pe) <= maxPe)) &&
+        (minRoe === 0 || (roe !== null && roe >= minRoe)) && volume >= minVolume &&
+        (dividend === 'all' || paysDividend);
+    });
+    const sorter = {
+      cap: (a, b) => Number(b.marketCap || 0) - Number(a.marketCap || 0),
+      volume: (a, b) => Number(b.volume || 0) - Number(a.volume || 0),
+      roe: (a, b) => Number(scanPercent(scanNumber(b.returnOnEquityTTM, b.roeTTM, b.roe)) ?? -Infinity) - Number(scanPercent(scanNumber(a.returnOnEquityTTM, a.roeTTM, a.roe)) ?? -Infinity),
+      pe: (a, b) => Number(scanNumber(a.pe, a.peRatioTTM) ?? Infinity) - Number(scanNumber(b.pe, b.peRatioTTM) ?? Infinity),
+      price: (a, b) => Number(b.price || 0) - Number(a.price || 0),
+      name: (a, b) => String(a.companyName || a.name || '').localeCompare(String(b.companyName || b.name || ''))
+    };
+    results.sort(sorter[sort] || sorter.cap);
+    $('#screen-count').textContent = `${results.length.toLocaleString()} matches · ${universe.length.toLocaleString()} active US stocks`;
+    $('#screen-table').innerHTML = results.slice(0, 500).map(screenerRow).join('') || '<tr><td colspan="8">No active US stocks match these filters. Try clearing one or two filters.</td></tr>';
+    wireCommon();
+  };
+  const load = async force => {
+    $('#screen-count').textContent = force ? 'Refreshing the US stock directory…' : 'Loading active US stocks…';
+    try {
+      const data = await getJson(`/data/screener${force ? `?refresh=${Date.now()}` : ''}`, 25000);
+      universe = Array.isArray(data) ? data : stocks;
+      const needsRatioFallback = !universe.some(stock => scanNumber(stock.pe, stock.peRatioTTM, stock.returnOnEquityTTM) !== null);
+      if (needsRatioFallback) {
+        const symbols = [...universe].sort((a, b) => Number(b.marketCap || 0) - Number(a.marketCap || 0)).slice(0, 60).map(stock => stock.symbol || stock.ticker).filter(Boolean);
+        const metricRows = await getJson(`/data/screener-metrics?symbols=${encodeURIComponent(symbols.join(','))}`, 25000).catch(() => []);
+        const metricsBySymbol = new Map(metricRows.map(item => [item.symbol, item]));
+        universe = universe.map(stock => ({ ...stock, ...(metricsBySymbol.get(stock.symbol || stock.ticker) || {}) }));
+      }
+      const ratioCount = universe.filter(stock => scanNumber(stock.pe, stock.peRatioTTM, stock.returnOnEquityTTM) !== null).length;
+      $('#screen-data-note').textContent = `Funds and ETFs are excluded. TTM valuation or quality data is loaded for ${ratioCount.toLocaleString()} companies in this scan; open any company for its complete ratios.`;
+    } catch {
+      universe = stocks;
+      $('#screen-data-note').textContent = 'The live directory is temporarily unavailable. Showing a small local company list.';
+    }
+    draw();
+  };
+  const presets = {
+    mega: { cap:'mega', sort:'cap' },
+    value: { cap:'large', pe:'20', sort:'pe' },
+    quality: { cap:'large', roe:'20', sort:'roe' },
+    liquid: { cap:'large', volume:'10000000', sort:'volume' },
+    dividend: { dividend:'payer', sort:'cap' },
+    reset: { sector:'all', exchange:'all', cap:'all', price:'all', pe:'999', roe:'0', volume:'0', dividend:'all', sort:'cap' }
+  };
+  document.querySelectorAll('[data-screen-preset]').forEach(button => button.onclick = () => {
+    const preset = presets[button.dataset.screenPreset];
+    Object.entries(presets.reset).forEach(([name, selected]) => { const input = $(`#screen-${name}`); if (input) input.value = selected; });
+    Object.entries(preset).forEach(([name, selected]) => { const input = $(`#screen-${name}`); if (input) input.value = selected; });
+    $('#screen-search').value = '';
+    document.querySelectorAll('[data-screen-preset]').forEach(item => item.classList.toggle('selected', item === button && button.dataset.screenPreset !== 'reset'));
+    draw();
+  });
+  ['screen-search', 'screen-sector', 'screen-exchange', 'screen-cap', 'screen-price', 'screen-pe', 'screen-roe', 'screen-volume', 'screen-dividend', 'screen-sort'].forEach(id => $(`#${id}`).oninput = draw);
+  $('#screen-run').onclick = () => load(true);
+  $('#export-screen').onclick = () => {
+    const csv = ['Symbol,Company,Price,Market Cap,P/E,ROE,Volume,Sector', ...results.map(stock => {
+      const fields = [stock.symbol || stock.ticker, stock.companyName || stock.name || '', stock.price || '', stock.marketCap || '', scanNumber(stock.pe, stock.peRatioTTM) ?? '', scanPercent(scanNumber(stock.returnOnEquityTTM, stock.roeTTM, stock.roe)) ?? '', stock.volume || '', stock.sector || ''];
+      return fields.map(item => `"${String(item).replace(/"/g, '""')}"`).join(',');
+    })].join('\n');
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([csv], { type:'text/csv' }));
+    link.download = 'dollardisha-screen.csv';
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+  load(false);
+}
 function setupIndex() { const save = () => localStorage.setItem('dd-custom-index', JSON.stringify(basket)); $('#basket-add').onclick = () => { const input = $('#basket-ticker'); const ticker = input.value.trim().toUpperCase(); if (/^[A-Z.]{1,10}$/.test(ticker) && !basket.symbols.includes(ticker)) { basket.symbols.push(ticker); save(); render(); } }; $('#basket-rename').onclick = () => { const name = prompt('Name your index', basket.name); if (name && name.trim()) { basket.name = name.trim(); save(); render(); } }; document.querySelectorAll('[data-remove-basket]').forEach((button) => button.onclick = () => { basket.symbols = basket.symbols.filter((ticker) => ticker !== button.dataset.removeBasket); save(); render(); }); }
 function drawResearchLists() { $('#alerts-list').innerHTML = alerts.map((alert, index) => `<div class="alert-item"><span><b>${alert.ticker}</b> · price ${alert.direction} $${alert.price}</span><button data-delete-alert="${index}">Remove</button></div>`).join('') || '<div class="empty-small">No alert ideas saved yet.</div>'; $('#notes-list').innerHTML = notes.slice().reverse().map((note, index) => `<article class="note-item"><div><b>${note.ticker}</b><small>${note.date}</small></div><p>${escapeHtml(note.text)}</p><button data-delete-note="${notes.length - 1 - index}">Delete</button></article>`).join('') || '<div class="empty-small">No research notes yet.</div>'; document.querySelectorAll('[data-delete-alert]').forEach((button) => button.onclick = () => { alerts.splice(Number(button.dataset.deleteAlert), 1); localStorage.setItem('dd-price-alerts', JSON.stringify(alerts)); drawResearchLists(); }); document.querySelectorAll('[data-delete-note]').forEach((button) => button.onclick = () => { notes.splice(Number(button.dataset.deleteNote), 1); localStorage.setItem('dd-research-notes', JSON.stringify(notes)); drawResearchLists(); }); }
 function setupResearch() { const findFilings = async () => { const ticker = $('#filing-ticker').value.trim().toUpperCase(); if (!/^[A-Z.]{1,10}$/.test(ticker)) return; $('#filing-results').innerHTML = '<p class="sub">Loading official SEC filings…</p>'; try { const data = await getJson(`/data/filings?symbol=${ticker}`); $('#filing-results').innerHTML = `<div class="filing-company"><b>${escapeHtml(data.companyName)}</b><small>${data.symbol} · CIK ${data.cik}</small></div>` + (data.filings || []).map((filing) => `<a class="filing-row" href="${filing.url || '#'}" target="_blank" rel="noreferrer"><span class="filing-form">${escapeHtml(filing.form || 'Filing')}</span><span>${escapeHtml(filing.description || filing.reportDate || 'SEC filing')}<small>Filed ${escapeHtml(filing.filedAt || '—')}</small></span><b>Open ↗</b></a>`).join(''); } catch { $('#filing-results').innerHTML = '<p class="sub">Filings are temporarily unavailable. Try again shortly.</p>'; } }; $('#filing-find').onclick = findFilings; $('#alert-add').onclick = () => { const ticker = $('#alert-ticker').value.trim().toUpperCase(); const price = Number($('#alert-price').value); if (/^[A-Z.]{1,10}$/.test(ticker) && price > 0) { alerts.push({ ticker, price, direction: $('#alert-direction').value }); localStorage.setItem('dd-price-alerts', JSON.stringify(alerts)); drawResearchLists(); } }; $('#note-save').onclick = () => { const ticker = $('#note-ticker').value.trim().toUpperCase(); const text = $('#note-text').value.trim(); if (/^[A-Z.]{1,10}$/.test(ticker) && text) { notes.push({ ticker, text, date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) }); localStorage.setItem('dd-research-notes', JSON.stringify(notes)); $('#note-text').value = ''; drawResearchLists(); } }; drawResearchLists(); }

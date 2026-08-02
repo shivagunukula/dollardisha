@@ -54,6 +54,29 @@ async function secSubmissions(cik) {
   if (!response.ok) throw new Error(`SEC returned ${response.status}`);
   return response.json();
 }
+
+const screenerRatioCache = new Map();
+async function screenerRatio(ticker) {
+  const cached = screenerRatioCache.get(ticker);
+  if (cached && Date.now() < cached.expiresAt) return cached.value;
+  const [ratioRows, metricRows] = await Promise.all([
+    fmp('ratios-ttm', { symbol:ticker }).catch(() => []),
+    fmp('key-metrics-ttm', { symbol:ticker }).catch(() => [])
+  ]);
+  const item = Array.isArray(ratioRows) ? (ratioRows[0] || {}) : {};
+  const metrics = Array.isArray(metricRows) ? (metricRows[0] || {}) : {};
+  const value = {
+    symbol:ticker,
+    pe:finiteValue(item.peRatioTTM, item.priceToEarningsRatioTTM, item.priceEarningsRatioTTM, metrics.peRatioTTM, metrics.peRatio),
+    returnOnEquityTTM:finiteValue(item.returnOnEquityTTM, item.roeTTM, metrics.returnOnEquityTTM, metrics.roeTTM),
+    dividendYieldTTM:finiteValue(item.dividendYieldTTM, metrics.dividendYieldTTM),
+    currentRatioTTM:finiteValue(item.currentRatioTTM, metrics.currentRatioTTM),
+    debtToEquityRatioTTM:finiteValue(item.debtToEquityRatioTTM, item.debtToEquityTTM, metrics.debtToEquityTTM),
+    metricsLoaded:true
+  };
+  screenerRatioCache.set(ticker, { value, expiresAt:Date.now() + 6 * 60 * 60 * 1000 });
+  return value;
+}
 let secTickers = { rows: null, expiresAt: 0 };
 async function secFactsForTicker(ticker) {
   if (!secTickers.rows || Date.now() > secTickers.expiresAt) {
@@ -487,17 +510,25 @@ createServer(async (req, res) => {
       }));
       return send(res, 200, { symbol:ticker, companyName: submission.name, cik: String(cik), filings });
     }
+    if (url.pathname === '/data/screener-metrics') {
+      const tickers = [...new Set(String(url.searchParams.get('symbols') || '').split(',').map(symbol).filter(Boolean))].slice(0, 60);
+      if (!tickers.length) return send(res, 200, []);
+      return send(res, 200, await Promise.all(tickers.map(screenerRatio)));
+    }
     if (url.pathname === '/data/screener' || url.pathname === '/api/screener') {
-      const sector = url.searchParams.get('sector');
-      const cap = url.searchParams.get('cap');
-      const parameters = { limit: 500 };
-      if (sector && sector !== 'all') parameters.sector = sector;
-      if (cap === 'mega') parameters.marketCapMoreThan = 200000000000;
-      if (cap === 'large') parameters.marketCapMoreThan = 10000000000;
+      const parameters = { limit: 3000, isEtf: false, isFund: false, isActivelyTrading: true };
       const exchanges = ['NASDAQ', 'NYSE', 'AMEX'];
       const results = await Promise.all(exchanges.map(exchange => fmp('company-screener', { ...parameters, exchange })));
-      const rows = results.flat();
-      await cacheScreenerRows(rows);
+      const seen = new Set();
+      const rows = results.flat().filter(item => {
+        const ticker = symbol(item.symbol);
+        const isFund = item.isEtf === true || item.isFund === true || String(item.isEtf).toLowerCase() === 'true' || String(item.isFund).toLowerCase() === 'true';
+        const inactive = item.isActivelyTrading === false || String(item.isActivelyTrading).toLowerCase() === 'false';
+        if (!ticker || isFund || inactive || seen.has(ticker)) return false;
+        seen.add(ticker);
+        return true;
+      });
+      await cacheScreenerRows(rows.slice(0, 1500));
       return send(res, 200, rows);
     }
     const requested = url.pathname === '/' ? 'index.html' : normalize(url.pathname).replace(/^([.][.][\\/])+/, '');
