@@ -13,6 +13,7 @@ const key = process.env.FMP_API_KEY || process.env.FMP_API || env.FMP_API_KEY ||
 const twelveDataKey = process.env.TWELVE_DATA_API_KEY || process.env.TWELVE_DATA_KEY || process.env.TWELVE_API_KEY;
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SECRET_KEY;
+const supabasePublishableKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
 if (!key) console.warn('FMP_API_KEY is not configured. DollarDisha will use its quote fallback where available.');
 const mime = {
   '.html':'text/html; charset=utf-8',
@@ -257,6 +258,13 @@ function send(res, status, data, type = 'application/json; charset=utf-8') { res
 createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {
+    if (url.pathname === '/data/auth-config') {
+      return send(res, 200, {
+        enabled:Boolean(supabaseUrl && supabasePublishableKey),
+        url:supabaseUrl || null,
+        publishableKey:supabasePublishableKey || null
+      });
+    }
     if (url.pathname === '/data/search' || url.pathname === '/api/search') {
       const query = url.searchParams.get('q')?.trim();
       if (!query || query.length > 50) return send(res, 400, { error:'Provide a company or ticker to search.' });

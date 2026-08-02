@@ -35,6 +35,7 @@
         <button class="nav" data-page="markets">Market</button>
         <button class="nav" data-page="watchlist">Watchlist <b id="watch-count">0</b></button>
       </nav>
+      <button id="account-button" class="account-button" type="button" aria-haspopup="dialog"><span class="account-avatar">S</span><span class="account-label">Log in</span></button>
     </div>
     <div class="secondary-nav">
       <div><button class="nav" data-page="compare">Compare companies</button><button class="nav" data-page="indexlab">Custom index</button></div>
@@ -43,6 +44,34 @@
   </header>
   <main id="content"></main>
   <footer class="site-footer"><div>© 2026 DollarDisha · US stock research, made simpler.</div><div>For research and education only. Not investment advice.</div></footer>
+  <div id="auth-modal" class="auth-overlay" hidden>
+    <section class="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+      <button id="auth-close" class="auth-close" type="button" aria-label="Close account window">×</button>
+      <div class="auth-brand"><img src="assets/dollardisha-app-icon.png" alt=""><div><strong>Dollar<span>Disha</span></strong><small>YOUR RESEARCH ACCOUNT</small></div></div>
+      <div id="auth-signed-out">
+        <div id="auth-tabs" class="auth-tabs"><button type="button" data-auth-view="login" class="active">Log in</button><button type="button" data-auth-view="signup">Create account</button></div>
+        <div class="auth-heading"><h2 id="auth-title">Welcome back</h2><p id="auth-description">Continue building your US equity research list.</p></div>
+        <button id="auth-google" class="auth-provider" type="button"><span>G</span>Continue with Google</button>
+        <div class="auth-divider"><span>or use email</span></div>
+        <form id="auth-form">
+          <label id="auth-name-field" hidden>Full name<input id="auth-name" type="text" autocomplete="name" maxlength="80" placeholder="Your name"></label>
+          <label id="auth-email-field">Email address<input id="auth-email" type="email" autocomplete="email" required placeholder="you@example.com"></label>
+          <label id="auth-password-field">Password<input id="auth-password" type="password" autocomplete="current-password" minlength="8" required placeholder="At least 8 characters"></label>
+          <button id="auth-submit" class="auth-primary" type="submit">Log in</button>
+        </form>
+        <div id="auth-secondary-actions" class="auth-secondary-actions"><button id="auth-magic" type="button">Email me a login link</button><button id="auth-forgot" type="button">Forgot password?</button></div>
+        <p id="auth-message" class="auth-message" aria-live="polite"></p>
+      </div>
+      <div id="auth-signed-in" class="auth-profile" hidden>
+        <div class="auth-profile-avatar" id="auth-profile-avatar">D</div>
+        <h2>Your DollarDisha account</h2>
+        <p id="auth-profile-email"></p>
+        <div class="auth-profile-note"><b>Research anywhere</b><span>Your account is active and ready for personalised features.</span></div>
+        <button id="auth-signout" class="auth-primary" type="button">Log out</button>
+      </div>
+    </section>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>
 </body>
 </html>

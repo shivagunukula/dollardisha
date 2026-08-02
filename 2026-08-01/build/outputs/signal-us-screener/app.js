@@ -19,6 +19,9 @@ let watchlistRefreshTimer;
 let basket = JSON.parse(localStorage.getItem('dd-custom-index') || '{"name":"DollarDisha Research 10","symbols":[]}');
 let notes = JSON.parse(localStorage.getItem('dd-research-notes') || '[]');
 let alerts = JSON.parse(localStorage.getItem('dd-price-alerts') || '[]');
+let authClient = null;
+let authSession = null;
+let authMode = 'login';
 
 function watchButton(ticker) { return `<button class="watch-toggle ${watchlist.includes(ticker) ? 'saved' : ''}" data-watch="${ticker}" title="Add to watchlist">${watchlist.includes(ticker) ? '★' : '☆'}</button>`; }
 function row(stock) {
@@ -257,5 +260,179 @@ document.head.insertAdjacentHTML('beforeend', `<style>
   @media(max-width:650px){.overview-ratios .ratio-explorer{grid-template-columns:1fr}.ratio-filter-actions{align-items:flex-start;flex-direction:column}.ratio-search{box-sizing:border-box;width:100%}}
 </style>`);
 
+function setAuthMessage(message = '', kind = '') {
+  const holder = $('#auth-message');
+  if (!holder) return;
+  holder.textContent = message;
+  holder.className = `auth-message${kind ? ` ${kind}` : ''}`;
+}
+
+function setAuthBusy(busy) {
+  ['#auth-submit', '#auth-google', '#auth-magic', '#auth-forgot', '#auth-signout'].forEach(selector => {
+    const control = $(selector);
+    if (control) control.disabled = busy;
+  });
+}
+
+function setAuthMode(mode = 'login') {
+  authMode = mode;
+  const recovery = mode === 'recovery';
+  const signup = mode === 'signup';
+  $('#auth-tabs').hidden = recovery;
+  $('#auth-name-field').hidden = !signup;
+  $('#auth-email-field').hidden = recovery;
+  $('#auth-secondary-actions').hidden = recovery;
+  $('#auth-google').hidden = recovery;
+  document.querySelector('.auth-divider').hidden = recovery;
+  document.querySelectorAll('[data-auth-view]').forEach(button => button.classList.toggle('active', button.dataset.authView === mode));
+  $('#auth-title').textContent = recovery ? 'Choose a new password' : signup ? 'Create your account' : 'Welcome back';
+  $('#auth-description').textContent = recovery ? 'Enter a secure new password for your DollarDisha account.' : signup ? 'Save your research identity and access personalised features.' : 'Continue building your US equity research list.';
+  $('#auth-submit').textContent = recovery ? 'Update password' : signup ? 'Create account' : 'Log in';
+  $('#auth-password').autocomplete = recovery ? 'new-password' : signup ? 'new-password' : 'current-password';
+  setAuthMessage();
+}
+
+function updateAuthUI(session) {
+  authSession = session || null;
+  const user = authSession?.user;
+  const button = $('#account-button');
+  if (!button) return;
+  const email = user?.email || '';
+  const displayName = user?.user_metadata?.full_name || user?.user_metadata?.name || email.split('@')[0] || 'Account';
+  button.querySelector('.account-label').textContent = user ? displayName.split(' ')[0] : 'Log in';
+  button.querySelector('.account-avatar').textContent = user ? displayName.slice(0, 1).toUpperCase() : 'S';
+  button.classList.toggle('signed-in', Boolean(user));
+  $('#auth-signed-out').hidden = Boolean(user);
+  $('#auth-signed-in').hidden = !user;
+  if (user) {
+    $('#auth-profile-email').textContent = email;
+    $('#auth-profile-avatar').textContent = displayName.slice(0, 1).toUpperCase();
+  }
+}
+
+function openAuth(mode = 'login') {
+  const modal = $('#auth-modal');
+  if (!modal) return;
+  updateAuthUI(authSession);
+  if (!authSession?.user) setAuthMode(mode);
+  modal.hidden = false;
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => (authSession?.user ? $('#auth-signout') : mode === 'recovery' ? $('#auth-password') : $('#auth-email'))?.focus(), 30);
+}
+
+function closeAuth() {
+  const modal = $('#auth-modal');
+  if (!modal) return;
+  modal.hidden = true;
+  document.body.style.overflow = '';
+  setAuthMessage();
+}
+
+async function setupAuth() {
+  const accountButton = $('#account-button');
+  const modal = $('#auth-modal');
+  if (!accountButton || !modal) return;
+
+  accountButton.onclick = () => openAuth('login');
+  $('#auth-close').onclick = closeAuth;
+  modal.onclick = event => { if (event.target === modal) closeAuth(); };
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && !modal.hidden) closeAuth(); });
+  document.querySelectorAll('[data-auth-view]').forEach(button => button.onclick = () => setAuthMode(button.dataset.authView));
+
+  let config;
+  try { config = await getJson('/data/auth-config'); }
+  catch { config = null; }
+  if (!config?.enabled || !window.supabase?.createClient) {
+    accountButton.onclick = () => { openAuth('login'); setAuthMessage('Account login needs one final configuration step from the site owner.', 'error'); };
+    setAuthBusy(true);
+    return;
+  }
+
+  authClient = window.supabase.createClient(config.url, config.publishableKey, {
+    auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
+  });
+
+  const redirectTo = `${window.location.origin}${window.location.pathname}`;
+  const recoveryReturn = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('type') === 'recovery';
+  const { data:initial } = await authClient.auth.getSession();
+  updateAuthUI(initial.session);
+  if (recoveryReturn && initial.session) {
+    setAuthMode('recovery');
+    openAuth('recovery');
+  }
+
+  authClient.auth.onAuthStateChange((event, session) => {
+    updateAuthUI(session);
+    if (event === 'PASSWORD_RECOVERY') {
+      setAuthMode('recovery');
+      openAuth('recovery');
+    } else if (event === 'SIGNED_IN' && !modal.hidden && authMode !== 'recovery') {
+      setAuthMessage('You are logged in.', 'success');
+      setTimeout(closeAuth, 450);
+    }
+  });
+
+  $('#auth-form').onsubmit = async event => {
+    event.preventDefault();
+    setAuthBusy(true);
+    setAuthMessage();
+    const email = $('#auth-email').value.trim();
+    const password = $('#auth-password').value;
+    try {
+      if (authMode === 'recovery') {
+        const { error } = await authClient.auth.updateUser({ password });
+        if (error) throw error;
+        setAuthMessage('Password updated. You are now logged in.', 'success');
+        setTimeout(closeAuth, 700);
+      } else if (authMode === 'signup') {
+        const fullName = $('#auth-name').value.trim();
+        const { data, error } = await authClient.auth.signUp({ email, password, options:{ data:{ full_name:fullName }, emailRedirectTo:redirectTo } });
+        if (error) throw error;
+        if (data.session) updateAuthUI(data.session);
+        else setAuthMessage('Account created. Check your email to confirm it, then log in.', 'success');
+      } else {
+        const { data, error } = await authClient.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        updateAuthUI(data.session);
+      }
+    } catch (error) { setAuthMessage(error.message || 'Could not complete that request.', 'error'); }
+    finally { setAuthBusy(false); }
+  };
+
+  $('#auth-google').onclick = async () => {
+    setAuthBusy(true);
+    setAuthMessage();
+    const { error } = await authClient.auth.signInWithOAuth({ provider:'google', options:{ redirectTo } });
+    if (error) { setAuthMessage(error.message, 'error'); setAuthBusy(false); }
+  };
+
+  $('#auth-magic').onclick = async () => {
+    const email = $('#auth-email').value.trim();
+    if (!email) { $('#auth-email').focus(); setAuthMessage('Enter your email address first.', 'error'); return; }
+    setAuthBusy(true);
+    const { error } = await authClient.auth.signInWithOtp({ email, options:{ emailRedirectTo:redirectTo, shouldCreateUser:true } });
+    setAuthMessage(error ? error.message : 'Login link sent. Check your email.', error ? 'error' : 'success');
+    setAuthBusy(false);
+  };
+
+  $('#auth-forgot').onclick = async () => {
+    const email = $('#auth-email').value.trim();
+    if (!email) { $('#auth-email').focus(); setAuthMessage('Enter your email address first.', 'error'); return; }
+    setAuthBusy(true);
+    const { error } = await authClient.auth.resetPasswordForEmail(email, { redirectTo });
+    setAuthMessage(error ? error.message : 'Password reset email sent.', error ? 'error' : 'success');
+    setAuthBusy(false);
+  };
+
+  $('#auth-signout').onclick = async () => {
+    setAuthBusy(true);
+    const { error } = await authClient.auth.signOut();
+    if (error) setAuthMessage(error.message, 'error');
+    else { updateAuthUI(null); closeAuth(); }
+    setAuthBusy(false);
+  };
+}
+
 setupSearch();
 render();
+setupAuth();
