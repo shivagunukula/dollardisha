@@ -97,6 +97,9 @@ async function screenerRatio(ticker) {
     dividendYieldTTM:finiteValue(item.dividendYieldTTM, metrics.dividendYieldTTM),
     currentRatioTTM:finiteValue(item.currentRatioTTM, metrics.currentRatioTTM),
     debtToEquityRatioTTM:finiteValue(item.debtToEquityRatioTTM, item.debtToEquityTTM, metrics.debtToEquityTTM),
+    epsTTM:finiteValue(item.netIncomePerShareTTM, item.epsTTM, metrics.netIncomePerShareTTM, metrics.epsTTM),
+    revenueGrowthTTM:finiteValue(item.revenueGrowthTTM, metrics.revenueGrowthTTM),
+    netIncomeGrowthTTM:finiteValue(item.netIncomeGrowthTTM, metrics.netIncomeGrowthTTM),
     metricsLoaded:true
   };
   screenerRatioCache.set(ticker, { value, expiresAt:Date.now() + 6 * 60 * 60 * 1000 });

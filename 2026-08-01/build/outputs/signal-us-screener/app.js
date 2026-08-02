@@ -129,6 +129,8 @@ function screenerView() {
       <label>Share price<select id="screen-price"><option value="all">Any price</option><option value="under10">Under $10</option><option value="10to50">$10–$50</option><option value="50to200">$50–$200</option><option value="over200">Above $200</option></select></label>
       <label>Maximum P/E<select id="screen-pe"><option value="999">Any P/E / not reported</option><option value="15">Under 15x</option><option value="20">Under 20x</option><option value="30">Under 30x</option><option value="50">Under 50x</option></select></label>
       <label>Minimum ROE<select id="screen-roe"><option value="0">No minimum</option><option value="10">10%+</option><option value="15">15%+</option><option value="20">20%+</option><option value="30">30%+</option></select></label>
+      <label>Minimum EPS<select id="screen-eps"><option value="-999999">Any EPS</option><option value="0">Positive EPS</option><option value="1">$1+</option><option value="5">$5+</option></select></label>
+      <label>Minimum revenue growth<select id="screen-growth"><option value="-999999">Any growth</option><option value="0">Positive growth</option><option value="0.1">10%+</option><option value="0.2">20%+</option></select></label>
       <label>Minimum daily volume<select id="screen-volume"><option value="0">Any volume</option><option value="100000">100K+</option><option value="1000000">1M+</option><option value="10000000">10M+</option></select></label>
       <label>Dividend<select id="screen-dividend"><option value="all">Any dividend policy</option><option value="payer">Dividend payers only</option></select></label>
       <label>Sort results<select id="screen-sort"><option value="cap">Market cap · high to low</option><option value="volume">Volume · high to low</option><option value="roe">ROE · high to low</option><option value="pe">P/E · low to high</option><option value="price">Price · high to low</option><option value="name">Company name · A–Z</option></select></label>
@@ -367,6 +369,8 @@ async function setupMarkets() {
 function setupScreener() {
   let universe = [];
   let results = [];
+  const resultMeta = document.querySelector('.result-meta');
+  if (resultMeta && !document.querySelector('#screen-freshness')) resultMeta.insertAdjacentHTML('beforeend', '<span id="screen-freshness">Waiting for live directory data</span>');
   const metricSymbols = new Set();
   let metricRequest = 0;
   const value = id => $(`#${id}`).value;
@@ -395,6 +399,8 @@ function setupScreener() {
     const priceBand = value('screen-price');
     const maxPe = Number(value('screen-pe'));
     const minRoe = Number(value('screen-roe'));
+    const minEps = Number(value('screen-eps'));
+    const minGrowth = Number(value('screen-growth'));
     const minVolume = Number(value('screen-volume'));
     const dividend = value('screen-dividend');
     const sort = value('screen-sort');
@@ -408,6 +414,8 @@ function setupScreener() {
       const pe = scanNumber(stock.pe, stock.peRatioTTM, stock.priceToEarningsRatioTTM);
       const roe = scanPercent(scanNumber(stock.returnOnEquityTTM, stock.roeTTM, stock.roe));
       const volume = Number(scanNumber(stock.volume, stock.avgVolume) || 0);
+      const eps = scanNumber(stock.epsTTM, stock.netIncomePerShareTTM);
+      const growth = scanNumber(stock.revenueGrowthTTM);
       const yieldValue = scanNumber(stock.dividendYieldTTM);
       const paysDividend = (yieldValue !== null && Number(yieldValue) > 0) || Number(stock.lastAnnualDividend || 0) > 0;
       return (!search || ticker.includes(search) || name.includes(search)) &&
@@ -415,7 +423,9 @@ function setupScreener() {
         (exchange === 'all' || stockExchange.includes(exchange)) &&
         inCapBand(cap, capBand) && inPriceBand(price, priceBand) &&
         (maxPe === 999 || (pe !== null && Number(pe) > 0 && Number(pe) <= maxPe)) &&
-        (minRoe === 0 || (roe !== null && roe >= minRoe)) && volume >= minVolume &&
+        (minRoe === 0 || (roe !== null && roe >= minRoe)) &&
+        (minEps <= -999998 || (eps !== null && eps >= minEps)) &&
+        (minGrowth <= -999998 || (growth !== null && growth >= minGrowth)) && volume >= minVolume &&
         (dividend === 'all' || paysDividend);
     });
     const sorter = {
@@ -433,6 +443,8 @@ function setupScreener() {
     if (!skipEnrichment) enrichVisible(results);
   };
   const load = async force => {
+    const freshness = $('#screen-freshness');
+    if (freshness) freshness.textContent = force ? 'Refreshing live data…' : 'Loading live data…';
     $('#screen-count').textContent = force ? 'Refreshing the US stock directory…' : 'Loading active US stocks…';
     try {
       const data = await getJson(`/data/screener${force ? `?refresh=${Date.now()}` : ''}`, 25000);
@@ -444,9 +456,11 @@ function setupScreener() {
       universe = universe.map(stock => ({ ...stock, ...(metricsBySymbol.get(String(stock.symbol || stock.ticker || '').toUpperCase()) || {}) }));
       const ratioCount = universe.filter(stock => scanNumber(stock.pe, stock.peRatioTTM, stock.returnOnEquityTTM) !== null).length;
       $('#screen-data-note').textContent = `Funds and ETFs are excluded. TTM valuation or quality data is loaded for ${ratioCount.toLocaleString()} companies in this scan; open any company for its complete ratios.`;
+      if (freshness) freshness.textContent = `Live directory updated ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}`;
     } catch {
       universe = stocks;
       $('#screen-data-note').textContent = 'The live directory is temporarily unavailable. Showing a small local company list.';
+      if (freshness) freshness.textContent = 'Live directory unavailable';
     }
     draw();
   };
@@ -456,7 +470,7 @@ function setupScreener() {
     quality: { cap:'large', roe:'20', sort:'roe' },
     liquid: { cap:'large', volume:'10000000', sort:'volume' },
     dividend: { dividend:'payer', sort:'cap' },
-    reset: { sector:'all', exchange:'all', cap:'all', price:'all', pe:'999', roe:'0', volume:'0', dividend:'all', sort:'cap' }
+    reset: { sector:'all', exchange:'all', cap:'all', price:'all', pe:'999', roe:'0', eps:'-999999', growth:'-999999', volume:'0', dividend:'all', sort:'cap' }
   };
   document.querySelectorAll('[data-screen-preset]').forEach(button => button.onclick = () => {
     const preset = presets[button.dataset.screenPreset];
@@ -466,7 +480,7 @@ function setupScreener() {
     document.querySelectorAll('[data-screen-preset]').forEach(item => item.classList.toggle('selected', item === button && button.dataset.screenPreset !== 'reset'));
     draw();
   });
-  ['screen-search', 'screen-sector', 'screen-exchange', 'screen-cap', 'screen-price', 'screen-pe', 'screen-roe', 'screen-volume', 'screen-dividend', 'screen-sort'].forEach(id => $(`#${id}`).oninput = draw);
+  ['screen-search', 'screen-sector', 'screen-exchange', 'screen-cap', 'screen-price', 'screen-pe', 'screen-roe', 'screen-eps', 'screen-growth', 'screen-volume', 'screen-dividend', 'screen-sort'].forEach(id => $(`#${id}`).oninput = draw);
   $('#screen-run').onclick = () => load(true);
   $('#export-screen').onclick = () => {
     const csv = ['Symbol,Company,Price,Market Cap,P/E,ROE,Volume,Sector', ...results.map(stock => {
