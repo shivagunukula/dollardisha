@@ -164,7 +164,16 @@ function companyView(ticker) { const stock = stocks.find((item) => item.ticker =
 
 const usd = (value) => Number.isFinite(Number(value)) ? new Intl.NumberFormat('en-US', { style:'currency', currency:'USD', notation:'compact', maximumFractionDigits:2 }).format(Number(value)) : '—';
 const whole = (value) => Number.isFinite(Number(value)) ? new Intl.NumberFormat('en-US', { maximumFractionDigits:0 }).format(Number(value)) : '—';
-const financialTable = (title, rows, fields) => `<section class="panel financial-panel"><div class="panel-head"><div><h2>${title}</h2><p>USD millions · annual reports</p></div></div>${rows.length ? `<div class="table-wrap"><table><thead><tr><th>Metric</th>${rows.map(item => `<th>${escapeHtml(item.calendarYear || String(item.date || '').slice(0, 4) || 'TTM')}</th>`).join('')}</tr></thead><tbody>${fields.map(([label, key]) => `<tr><td>${label}</td>${rows.map(item => `<td>${whole(item[key])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="data-empty">Financial data is not available from the current provider for this company.</p>'}</section>`;
+const compactFinancial = (value, perShare = false) => {
+  if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return '—';
+  const number = Number(value);
+  if (perShare) return `${number < 0 ? '-$' : '$'}${Math.abs(number).toFixed(2)}`;
+  const absolute = Math.abs(number);
+  const units = absolute >= 1e12 ? [1e12, 'T', 2] : absolute >= 1e9 ? [1e9, 'B', 2] : absolute >= 1e6 ? [1e6, 'M', 2] : absolute >= 1e3 ? [1e3, 'K', 1] : [1, '', 0];
+  const decimals = units[2];
+  return `${(number / units[0]).toFixed(decimals)}${units[1]}`;
+};
+const financialTable = (title, rows, fields) => `<section class="panel financial-panel"><div class="panel-head"><div><h2>${title}</h2><p>USD · compact units · annual reports</p></div></div>${rows.length ? `<div class="table-wrap"><table><thead><tr><th>Metric</th>${rows.map(item => `<th>${escapeHtml(item.calendarYear || String(item.date || '').slice(0, 4) || 'TTM')}</th>`).join('')}</tr></thead><tbody>${fields.map(([label, key]) => `<tr><td>${label}</td>${rows.map(item => `<td>${compactFinancial(item[key], key === 'eps')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="data-empty">Financial data is not available from the current provider for this company.</p>'}</section>`;
 
 const quarterlyPeriodLabel = (row) => {
   const rawDate = row.date || row.fiscalDateEnding;
