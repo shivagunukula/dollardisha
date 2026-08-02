@@ -456,7 +456,20 @@ createServer(async (req, res) => {
       if (!ticker) return send(res, 400, { error:'Invalid ticker.' });
       const requested = Number(url.searchParams.get('points'));
       const points = [22, 130, 260, 780, 1300, 2600].includes(requested) ? requested : 260;
-      return send(res, 200, { symbol:ticker, values:await priceHistory(ticker, points) });
+      const [history, quarterly] = await Promise.all([
+        priceHistory(ticker, points),
+        fmp('income-statement', { symbol:ticker, period:'quarter', limit:20 }).catch(() => [])
+      ]);
+      const reports = (Array.isArray(quarterly) ? quarterly : []).map(row => ({
+        date:row.date || row.filingDate || row.calendarYear,
+        eps:finiteValue(row.epsdiluted, row.epsDiluted, row.eps)
+      })).filter(row => row.date && Number.isFinite(row.eps)).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      const values = history.map(point => {
+        const report = reports.filter(row => String(row.date) <= String(point.date)).pop();
+        const eps = report?.eps ?? null;
+        return { ...point, eps, pe:eps !== null && eps > 0 ? point.close / eps : null };
+      });
+      return send(res, 200, { symbol:ticker, values });
     }
     if (url.pathname === '/data/peers') {
       const ticker = symbol(url.searchParams.get('symbol'));

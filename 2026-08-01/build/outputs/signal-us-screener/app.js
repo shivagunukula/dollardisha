@@ -1107,6 +1107,41 @@ function drawCompanyChart(values) {
   return `<div class="chart-live-stats">${stats.map(([label,value,key]) => `<div><span>${label}</span><b${key ? ` data-chart-stat="${key}"` : ''}>${value}</b></div>`).join('')}</div><p class="chart-data-note">Moving averages use the latest daily closes from the live market feed. P/E is TTM; EPS is the latest reported figure.</p><div class="chart-controls"><div>${[[22,'1M'],[130,'6M'],[260,'1Y'],[780,'3Y'],[1300,'5Y'],[2600,'10Y']].map(([points,label]) => `<button class="${companyChartOptions.points === points ? 'selected' : ''}" data-chart-points="${points}">${label}</button>`).join('')}</div><div><button class="${companyChartOptions.ma50 ? 'selected' : ''}" data-chart-toggle="ma50">50 DMA</button><button class="${companyChartOptions.ma200 ? 'selected' : ''}" data-chart-toggle="ma200">200 DMA</button><button class="${companyChartOptions.volume ? 'selected' : ''}" data-chart-toggle="volume">Volume</button></div></div><svg viewBox="0 0 800 200" role="img" aria-label="Historical price, moving averages and volume chart"><path class="chart-grid" d="M28 30H772M28 78H772M28 126H772M28 174H772"/><g class="chart-volume">${bars}</g><path class="chart-line" d="${pathFor(closes)}"/>${companyChartOptions.ma50 ? `<path class="chart-ma50" d="${pathFor(ma50)}"/>` : ''}${companyChartOptions.ma200 ? `<path class="chart-ma200" d="${pathFor(ma200)}"/>` : ''}<text x="28" y="193">${escapeHtml(values[0].date)}</text><text x="676" y="193">${escapeHtml(values[values.length - 1].date)}</text><text x="720" y="30">${max.toFixed(2)}</text><text x="720" y="174">${min.toFixed(2)}</text></svg><div class="chart-legend"><span class="legend-price">Price</span>${companyChartOptions.ma50 ? '<span class="legend-ma50">50 DMA</span>' : ''}${companyChartOptions.ma200 ? '<span class="legend-ma200">200 DMA</span>' : ''}${companyChartOptions.volume ? '<span class="legend-volume">Volume</span>' : ''}</div>`;
 }
 
+const baseDrawCompanyChart = drawCompanyChart;
+drawCompanyChart = function(values) {
+  const html = baseDrawCompanyChart(values);
+  if (!values.length || !html.includes('</svg>')) return html;
+  const step = 744 / Math.max(values.length - 1, 1);
+  const targets = values.map((item, index) => `<rect class="chart-hover-target" tabindex="0" data-chart-index="${index}" x="${(28 + index * step - Math.max(step / 2, 2)).toFixed(1)}" y="20" width="${Math.max(step, 4).toFixed(1)}" height="158"/>`).join('');
+  const withTargets = html.replace('</svg>', `<g class="chart-hover-points" aria-label="Historical data points">${targets}</g></svg>`);
+  setTimeout(() => {
+    const holder = $('#company-chart');
+    const tooltip = holder?.querySelector('[data-chart-tooltip]');
+    if (!holder || !tooltip) return;
+    const show = target => {
+      const item = values[Number(target.dataset.chartIndex)];
+      if (!item) return;
+      const fmt = (value, suffix = '') => Number.isFinite(Number(value)) ? `${Number(value).toLocaleString('en-US', { maximumFractionDigits:2 })}${suffix}` : 'Unavailable';
+      tooltip.innerHTML = `<b>${escapeHtml(item.date || 'Historical point')}</b><span>Price: <strong>${fmt(item.close, ' USD')}</strong></span><span>P/E: <strong>${fmt(item.pe, 'x')}</strong></span><span>EPS: <strong>${fmt(item.eps, ' USD')}</strong></span>`;
+      tooltip.hidden = false;
+    };
+    holder.querySelectorAll('.chart-hover-target').forEach(target => {
+      target.addEventListener('mouseenter', () => show(target));
+      target.addEventListener('focus', () => show(target));
+      target.addEventListener('mouseleave', () => { tooltip.hidden = true; });
+      target.addEventListener('blur', () => { tooltip.hidden = true; });
+    });
+  }, 0);
+  return withTargets;
+};
+
+// Add a persistent tooltip host after the chart markup is created.
+const chartWithTooltip = drawCompanyChart;
+drawCompanyChart = function(values) {
+  const output = chartWithTooltip(values);
+  return output.includes('data-chart-tooltip') ? output : `${output}<div class="chart-hover-tooltip" data-chart-tooltip hidden>Hover over the chart to inspect a historical point.</div>`;
+};
+
 setupTheme();
 setupSearch();
 render();

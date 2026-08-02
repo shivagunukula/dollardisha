@@ -1663,3 +1663,24 @@ html[data-theme="light"] .filings-inline strong { color: #147b63 !important; }
   .chart-live-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .chart-live-stats b { font-size: 12px; }
 }
+.chart-hover-target { fill: transparent; cursor: crosshair; outline: none; }
+.chart-hover-target:focus { fill: rgba(158, 175, 255, .08); }
+.chart-hover-tooltip {
+  display: grid;
+  grid-template-columns: repeat(4, max-content);
+  gap: 6px 16px;
+  align-items: center;
+  margin-top: 8px;
+  padding: 9px 11px;
+  border: 1px solid var(--dd-line);
+  border-radius: 7px;
+  background: var(--dd-panel);
+  color: var(--dd-muted);
+  font-size: 9px;
+}
+.chart-hover-tooltip[hidden] { display: none; }
+.chart-hover-tooltip b { color: var(--dd-text); }
+.chart-hover-tooltip strong { color: var(--dd-text); font-weight: 700; }
+@media (max-width: 640px) {
+  .chart-hover-tooltip { grid-template-columns: repeat(2, max-content); }
+}
