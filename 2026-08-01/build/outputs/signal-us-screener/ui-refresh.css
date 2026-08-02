@@ -1506,3 +1506,13 @@ html[data-theme="light"] .auth-heading h2,
 html[data-theme="light"] .auth-profile h2,
 html[data-theme="light"] .auth-brand strong,
 html[data-theme="light"] .auth-profile-note b { color: #17231f !important; }
+
+.filings-source-note {
+  margin: 0 16px 14px;
+  color: var(--dd-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+html[data-theme="light"] .filings-source-note { color: #6f817a !important; }
+html[data-theme="light"] .filings-inline strong { color: #147b63 !important; }

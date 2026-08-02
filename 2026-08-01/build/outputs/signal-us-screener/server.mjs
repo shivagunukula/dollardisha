@@ -593,11 +593,26 @@ createServer(async (req, res) => {
       if (!cik) return send(res, 404, { error:'No SEC identifier is available for this company.' });
       const submission = await secSubmissions(cik);
       const recent = submission.filings?.recent || {};
-      const filings = (recent.accessionNumber || []).slice(0, 30).map((accession, index) => ({
-        accession, form: recent.form?.[index], filedAt: recent.filingDate?.[index],
-        reportDate: recent.reportDate?.[index], description: recent.primaryDocDescription?.[index],
-        url: recent.primaryDocument?.[index] ? `https://www.sec.gov/Archives/edgar/data/${Number(cik)}/${String(accession).replaceAll('-', '')}/${recent.primaryDocument[index]}` : null
-      }));
+      // Keep this section issuer-only: exclude insider ownership, fund/holder
+      // reports and other third-party research documents from the company view.
+      const issuerForms = new Set(['10-K', '10-K/A', '10-Q', '10-Q/A', '8-K', '8-K/A', '20-F', '20-F/A', '40-F', '40-F/A', '6-K', '6-K/A', 'DEF 14A', 'DEFA14A', 'DEFR14A', 'PRE 14A', 'ARS', 'ARS/A', 'S-1', 'S-1/A', 'S-3', 'S-3/A', 'S-4', 'S-4/A', 'S-8', 'S-8/A', 'F-1', 'F-1/A', 'F-3', 'F-3/A', 'F-4', 'F-4/A', 'F-10', 'F-10/A', '15-12B', '15-12G', '15D', 'NT 10-K', 'NT 10-Q']);
+      const filings = (recent.accessionNumber || []).reduce((items, accession, index) => {
+        const form = String(recent.form?.[index] || '').toUpperCase();
+        if (!issuerForms.has(form)) return items;
+        const category = form.includes('10-K') || form === '20-F' || form === '40-F' || form === 'ARS' || form === 'ARS/A'
+          ? 'Annual report'
+          : form.includes('10-Q') ? 'Quarterly report'
+            : form.includes('8-K') || form === '6-K' ? 'Current report'
+              : form.includes('14A') ? 'Proxy statement'
+                : form.includes('S-') || form.startsWith('F-') ? 'Registration statement'
+                  : 'Company filing';
+        items.push({
+          accession, form, category, filedAt: recent.filingDate?.[index],
+          reportDate: recent.reportDate?.[index], description: recent.primaryDocDescription?.[index],
+          url: recent.primaryDocument?.[index] ? `https://www.sec.gov/Archives/edgar/data/${Number(cik)}/${String(accession).replaceAll('-', '')}/${recent.primaryDocument[index]}` : null
+        });
+        return items;
+      }, []).slice(0, 60);
       return send(res, 200, { symbol:ticker, companyName: submission.name, cik: String(cik), filings });
     }
     if (url.pathname === '/data/screener-metrics') {
