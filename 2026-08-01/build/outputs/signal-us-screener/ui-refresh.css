@@ -335,6 +335,54 @@ tbody tr:nth-child(even) td { background: rgba(255, 255, 255, .012); }
 .workflow button > b { background: #17372f !important; color: #79dec2 !important; }
 .market-card::before,
 .index-card::before { background: linear-gradient(90deg, #48d0aa, #6ea5c8) !important; }
+.market-card {
+  isolation: isolate;
+  min-height: 112px;
+}
+.market-card > * {
+  position: relative;
+  z-index: 1;
+}
+.market-card::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  top: -56px;
+  right: -34px;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  opacity: 0;
+  filter: blur(3px);
+  transition: opacity .25s ease, transform .25s ease;
+}
+.market-card.gain {
+  border-color: rgba(67, 198, 162, .34) !important;
+  background: linear-gradient(135deg, rgba(24, 76, 64, .48), #0e151c 68%) !important;
+}
+.market-card.gain::before {
+  background: linear-gradient(90deg, #40dfae, #2b9a80) !important;
+}
+.market-card.gain::after {
+  opacity: .34;
+  background: radial-gradient(circle, rgba(65, 224, 174, .42), transparent 68%);
+}
+.market-card.loss {
+  border-color: rgba(255, 125, 136, .34) !important;
+  background: linear-gradient(135deg, rgba(88, 38, 46, .42), #0e151c 68%) !important;
+}
+.market-card.loss::before {
+  background: linear-gradient(90deg, #ff7d88, #b84f62) !important;
+}
+.market-card.loss::after {
+  opacity: .31;
+  background: radial-gradient(circle, rgba(255, 105, 121, .4), transparent 68%);
+}
+.market-card.gain b.positive { color: #5ce3b6 !important; }
+.market-card.loss b.down { color: #ff929c !important; }
+.market-card.gain span { color: #a6d8ca !important; }
+.market-card.loss span { color: #d5a3aa !important; }
+.market-card:hover::after { transform: scale(1.12); }
 .page > section.panel:first-child h1 span { color: #66d5b6 !important; }
 .page > section.panel:first-child > div:first-child {
   background: radial-gradient(circle, rgba(57, 177, 145, .2) 0%, transparent 68%) !important;
