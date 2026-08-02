@@ -28,6 +28,13 @@ const mime = {
 };
 const symbol = value => /^[A-Z.]{1,10}$/.test(String(value || '').toUpperCase()) ? String(value).toUpperCase() : null;
 const externalFetch = (url, options = {}) => fetch(url, { ...options, signal: AbortSignal.timeout(6000) });
+const finiteValue = (...values) => values.find(value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))) ?? null;
+const safeDivide = (numerator, denominator) => {
+  if (numerator === null || numerator === undefined || numerator === '' || denominator === null || denominator === undefined || denominator === '') return null;
+  const top = Number(numerator);
+  const bottom = Number(denominator);
+  return Number.isFinite(top) && Number.isFinite(bottom) && bottom !== 0 ? top / bottom : null;
+};
 
 async function fmp(path, parameters = {}) {
   if (!key) throw new Error('FMP_API_KEY is not configured');
@@ -273,19 +280,54 @@ createServer(async (req, res) => {
       const rawProfile = profile[0] || fallbackProfile;
       const rawRatios = ratios[0] || {};
       const rawMetrics = metrics[0] || {};
+      const latestIncome = income[0] || secValues.income[0] || {};
+      const latestBalance = balance[0] || secValues.balance[0] || {};
+      const dilutedShares = finiteValue(latestIncome.weightedAverageShsOutDil, latestIncome.weightedAverageShsOut);
+      const reportedBookValuePerShare = finiteValue(rawRatios.bookValuePerShareTTM, rawMetrics.bookValuePerShareTTM, rawMetrics.bookValuePerShare, rawRatios.shareholdersEquityPerShareTTM);
+      const derivedBookValuePerShare = safeDivide(latestBalance.totalStockholdersEquity, dilutedShares);
+      const bookValuePerShare = finiteValue(reportedBookValuePerShare, derivedBookValuePerShare);
+      const earningsPerShare = finiteValue(rawRatios.netIncomePerShareTTM, rawMetrics.netIncomePerShareTTM, rawMetrics.netIncomePerShare);
+      const derivedPe = safeDivide(quote.price, earningsPerShare);
+      const derivedPriceToBook = safeDivide(quote.price, bookValuePerShare);
+      const derivedRoe = safeDivide(rawRatios.netIncomePerShareTTM, rawRatios.shareholdersEquityPerShareTTM);
+      const derivedRoa = Number.isFinite(Number(rawRatios.netProfitMarginTTM)) && Number.isFinite(Number(rawRatios.assetTurnoverTTM))
+        ? Number(rawRatios.netProfitMarginTTM) * Number(rawRatios.assetTurnoverTTM)
+        : null;
+      const derivedCurrentRatio = safeDivide(latestBalance.totalCurrentAssets, latestBalance.totalCurrentLiabilities);
+      const derivedDebtToEquity = safeDivide(latestBalance.totalDebt, latestBalance.totalStockholdersEquity);
+      const derivedDebtRatio = safeDivide(latestBalance.totalDebt, latestBalance.totalAssets);
       // FMP uses different field names across a few datasets. Normalise them
       // once on the server so the website never loses a number that was sent.
-      const finalProfile = { ...rawProfile, mktCap: rawProfile.mktCap ?? rawProfile.marketCap ?? quote.marketCap ?? null };
+      const finalProfile = { ...rawProfile, mktCap: finiteValue(rawProfile.mktCap, rawProfile.marketCap, quote.marketCap, rawMetrics.marketCapTTM) };
       const finalRatios = {
         ...rawRatios,
-        peRatioTTM: rawRatios.peRatioTTM ?? rawRatios.priceToEarningsRatioTTM ?? rawRatios.priceEarningsRatioTTM ?? rawMetrics.peRatioTTM ?? rawMetrics.priceToEarningsRatioTTM ?? rawMetrics.peRatio ?? quote.pe ?? quote.priceEarningsRatio ?? null,
-        priceToBookRatioTTM: rawRatios.priceToBookRatioTTM ?? rawRatios.priceBookValueRatioTTM ?? rawMetrics.priceToBookRatioTTM ?? null,
-        returnOnEquityTTM: rawRatios.returnOnEquityTTM ?? rawRatios.roeTTM ?? rawMetrics.returnOnEquityTTM ?? null,
-        currentRatioTTM: rawRatios.currentRatioTTM ?? rawMetrics.currentRatioTTM ?? null,
-        debtToEquityRatioTTM: rawRatios.debtToEquityRatioTTM ?? rawRatios.debtEquityRatioTTM ?? rawMetrics.debtToEquityTTM ?? null,
-        dividendYieldTTM: rawRatios.dividendYieldTTM ?? rawMetrics.dividendYieldTTM ?? null
+        peRatioTTM: finiteValue(rawRatios.peRatioTTM, rawRatios.priceToEarningsRatioTTM, rawRatios.priceEarningsRatioTTM, rawMetrics.peRatioTTM, rawMetrics.priceToEarningsRatioTTM, rawMetrics.peRatio, quote.pe, quote.priceEarningsRatio, derivedPe),
+        priceToBookRatioTTM: finiteValue(rawRatios.priceToBookRatioTTM, rawRatios.priceBookValueRatioTTM, rawMetrics.priceToBookRatioTTM, rawMetrics.pbRatioTTM, derivedPriceToBook),
+        priceToSalesRatioTTM: finiteValue(rawRatios.priceToSalesRatioTTM, rawMetrics.priceToSalesRatioTTM, rawMetrics.priceSalesRatioTTM),
+        priceToFreeCashFlowsRatioTTM: finiteValue(rawRatios.priceToFreeCashFlowsRatioTTM, rawRatios.priceToFreeCashFlowRatioTTM, rawMetrics.priceToFreeCashFlowRatioTTM, rawMetrics.pfcfRatioTTM),
+        enterpriseValueMultipleTTM: finiteValue(rawRatios.enterpriseValueMultipleTTM, rawMetrics.enterpriseValueMultipleTTM, rawMetrics.enterpriseValueOverEBITDATTM, rawMetrics.evToEBITDATTM),
+        dividendYieldTTM: finiteValue(rawRatios.dividendYieldTTM, rawMetrics.dividendYieldTTM),
+        grossProfitMarginTTM: finiteValue(rawRatios.grossProfitMarginTTM, rawRatios.grossMarginTTM),
+        operatingProfitMarginTTM: finiteValue(rawRatios.operatingProfitMarginTTM, rawRatios.operatingMarginTTM),
+        netProfitMarginTTM: finiteValue(rawRatios.netProfitMarginTTM, rawRatios.netMarginTTM),
+        returnOnEquityTTM: finiteValue(rawRatios.returnOnEquityTTM, rawRatios.roeTTM, rawMetrics.returnOnEquityTTM, rawMetrics.roeTTM, derivedRoe),
+        returnOnAssetsTTM: finiteValue(rawRatios.returnOnAssetsTTM, rawMetrics.returnOnAssetsTTM, rawMetrics.roaTTM, derivedRoa),
+        returnOnInvestedCapitalTTM: finiteValue(rawRatios.returnOnInvestedCapitalTTM, rawMetrics.returnOnInvestedCapitalTTM, rawMetrics.roicTTM),
+        currentRatioTTM: finiteValue(rawRatios.currentRatioTTM, rawMetrics.currentRatioTTM, derivedCurrentRatio),
+        quickRatioTTM: finiteValue(rawRatios.quickRatioTTM, rawMetrics.quickRatioTTM),
+        debtToEquityRatioTTM: finiteValue(rawRatios.debtToEquityRatioTTM, rawRatios.debtEquityRatioTTM, rawMetrics.debtToEquityTTM, derivedDebtToEquity),
+        debtRatioTTM: finiteValue(rawRatios.debtRatioTTM, rawRatios.debtToAssetsRatioTTM, rawMetrics.debtToAssetsTTM, derivedDebtRatio),
+        interestCoverageTTM: finiteValue(rawRatios.interestCoverageTTM, rawRatios.interestCoverageRatioTTM, rawMetrics.interestCoverageTTM),
+        companyEquityMultiplierTTM: finiteValue(rawRatios.companyEquityMultiplierTTM, rawRatios.financialLeverageRatioTTM, rawMetrics.financialLeverageRatioTTM),
+        operatingCashFlowSalesRatioTTM: finiteValue(rawRatios.operatingCashFlowSalesRatioTTM, rawMetrics.operatingCashFlowSalesRatioTTM),
+        freeCashFlowOperatingCashFlowRatioTTM: finiteValue(rawRatios.freeCashFlowOperatingCashFlowRatioTTM, rawMetrics.freeCashFlowOperatingCashFlowRatioTTM),
+        assetTurnoverTTM: finiteValue(rawRatios.assetTurnoverTTM, rawMetrics.assetTurnoverTTM),
+        inventoryTurnoverTTM: finiteValue(rawRatios.inventoryTurnoverTTM, rawMetrics.inventoryTurnoverTTM),
+        receivablesTurnoverTTM: finiteValue(rawRatios.receivablesTurnoverTTM, rawMetrics.receivablesTurnoverTTM),
+        payoutRatioTTM: finiteValue(rawRatios.payoutRatioTTM, rawRatios.dividendPayoutRatioTTM, rawMetrics.payoutRatioTTM),
+        bookValuePerShareTTM: bookValuePerShare
       };
-      const finalMetrics = { ...rawMetrics, bookValuePerShareTTM: rawMetrics.bookValuePerShareTTM ?? rawMetrics.bookValuePerShare ?? null };
+      const finalMetrics = { ...rawMetrics, bookValuePerShareTTM: bookValuePerShare };
       const finalIncome = income.length ? income : secValues.income;
       const finalBalance = balance.length ? balance : secValues.balance;
       const finalCashflow = cashflow.length ? cashflow : secValues.cashflow;
