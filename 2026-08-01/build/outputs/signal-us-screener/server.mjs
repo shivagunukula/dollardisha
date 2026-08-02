@@ -281,6 +281,41 @@ createServer(async (req, res) => {
       }));
       return send(res, 200, rows);
     }
+    if (url.pathname === '/data/company-intel') {
+      const ticker = symbol(url.searchParams.get('symbol'));
+      if (!ticker) return send(res, 400, { error:'Invalid ticker.' });
+      // These are intentionally independent: one unavailable premium dataset must
+      // never stop the rest of a company research page from loading.
+      const optional = (path, parameters = {}) => fmp(path, { symbol:ticker, limit:10, ...parameters }).catch(() => []);
+      const [scores, ownerEarnings, earnings, dividends, executives, insiders, estimates, priceTarget, ratings, news] = await Promise.all([
+        optional('financial-scores'), optional('owner-earnings'), optional('earnings'), optional('dividends'),
+        optional('company-executives'), optional('insider-trading/search', { page:0 }),
+        optional('analyst-estimates', { period:'annual', page:0 }), optional('price-target-consensus'),
+        optional('ratings-snapshot'), optional('news/stock', { symbols:ticker })
+      ]);
+      return send(res, 200, {
+        scores: Array.isArray(scores) ? scores[0] || {} : scores || {},
+        ownerEarnings: Array.isArray(ownerEarnings) ? ownerEarnings.slice(0, 6) : [],
+        earnings: Array.isArray(earnings) ? earnings.slice(0, 8) : [],
+        dividends: Array.isArray(dividends) ? dividends.slice(0, 8) : [],
+        executives: Array.isArray(executives) ? executives.slice(0, 12) : [],
+        insiders: Array.isArray(insiders) ? insiders.slice(0, 12) : [],
+        estimates: Array.isArray(estimates) ? estimates.slice(0, 8) : [],
+        priceTarget: Array.isArray(priceTarget) ? priceTarget[0] || {} : priceTarget || {},
+        ratings: Array.isArray(ratings) ? ratings[0] || {} : ratings || {},
+        news: Array.isArray(news) ? news.slice(0, 10) : []
+      });
+    }
+    if (url.pathname === '/data/movers') {
+      const optional = path => fmp(path, { limit:25 }).catch(() => []);
+      const [gainers, losers, active] = await Promise.all([optional('biggest-gainers'), optional('biggest-losers'), optional('most-actives')]);
+      return send(res, 200, { gainers, losers, active });
+    }
+    if (url.pathname === '/data/calendar') {
+      const optional = path => fmp(path, { limit:30 }).catch(() => []);
+      const [earnings, dividends, ipos] = await Promise.all([optional('earnings-calendar'), optional('dividends-calendar'), optional('ipos-calendar')]);
+      return send(res, 200, { earnings, dividends, ipos });
+    }
     if (url.pathname === '/data/market' || url.pathname === '/api/market') {
       // Broad-market ETFs are not available under every FMP plan. These liquid US equities
       // give the dashboard reliable live quotes while keeping its free-tier usage low.
