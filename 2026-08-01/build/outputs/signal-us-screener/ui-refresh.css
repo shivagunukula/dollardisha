@@ -1684,3 +1684,35 @@ html[data-theme="light"] .filings-inline strong { color: #147b63 !important; }
 @media (max-width: 640px) {
   .chart-hover-tooltip { grid-template-columns: repeat(2, max-content); }
 }
+.issuer-documents-panel { overflow: hidden; }
+.issuer-documents-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.8fr) repeat(2, minmax(170px, .8fr)) minmax(260px, 1.5fr);
+  gap: 12px;
+  padding: 0 16px 14px;
+}
+.issuer-doc-card { min-width: 0; border: 1px solid var(--dd-line); border-radius: 8px; overflow: hidden; background: var(--dd-panel); }
+.issuer-doc-card h3 { margin: 0; padding: 13px 14px; color: var(--dd-text); font-size: 15px; }
+.issuer-doc-tabs { display: flex; gap: 3px; margin: 0 12px 8px; padding: 3px; background: var(--dd-panel); border-radius: 4px; }
+.issuer-doc-tabs span { padding: 5px 7px; color: var(--dd-muted); font-size: 9px; }
+.issuer-doc-tabs .active { background: var(--dd-panel-strong, var(--dd-panel)); color: #9eafff; border-radius: 3px; }
+.issuer-doc-list { max-height: 330px; overflow: auto; }
+.issuer-doc-item { display: block; padding: 10px 13px; border-top: 1px solid var(--dd-line-soft); color: var(--dd-text); text-decoration: none; }
+.issuer-doc-item:hover { background: var(--dd-panel); }
+.issuer-doc-item b, .issuer-doc-item span { display: block; }
+.issuer-doc-item b { color: #9eafff; font-size: 11px; line-height: 1.4; }
+.issuer-doc-item span { margin-top: 4px; color: var(--dd-muted); font-size: 9px; }
+.issuer-rating-card { margin: 8px 12px; padding: 12px; border: 1px solid var(--dd-line); border-radius: 6px; background: var(--dd-panel); }
+.issuer-rating-card b, .issuer-rating-card span { display: block; }
+.issuer-rating-card b { color: #9eafff; font-size: 14px; }
+.issuer-rating-card span { margin-top: 5px; color: var(--dd-muted); font-size: 9px; }
+.issuer-call-row { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 8px; padding: 10px 12px; border-top: 1px solid var(--dd-line-soft); }
+.issuer-call-row > span { color: var(--dd-muted); font-size: 9px; }
+.issuer-call-row b, .issuer-call-row small { display: block; }
+.issuer-call-row b { color: #9eafff; font-size: 10px; }
+.issuer-call-row small { margin-top: 4px; color: var(--dd-muted); font-size: 9px; }
+.issuer-doc-actions { grid-column: 2; display: flex; gap: 5px; }
+.issuer-doc-actions button { padding: 4px 7px; border: 1px solid var(--dd-line); border-radius: 999px; background: transparent; color: var(--dd-muted); font-size: 8px; }
+.filings-source-note { padding: 0 16px 15px; }
+@media (max-width: 1000px) { .issuer-documents-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 580px) { .issuer-documents-grid { grid-template-columns: 1fr; padding: 0 10px 12px; } .issuer-doc-list { max-height: 260px; } }

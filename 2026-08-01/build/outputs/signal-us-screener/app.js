@@ -1142,6 +1142,37 @@ drawCompanyChart = function(values) {
   return output.includes('data-chart-tooltip') ? output : `${output}<div class="chart-hover-tooltip" data-chart-tooltip hidden>Hover over the chart to inspect a historical point.</div>`;
 };
 
+// Issuer document workspace: keep the visual grouping close to the reference
+// while limiting content to SEC/company-reported material.
+const baseCompanyView = companyView;
+companyView = function(ticker) {
+  const html = baseCompanyView(ticker);
+  const documents = `<section id="documents" class="panel documents-panel issuer-documents-panel"><div class="panel-head"><div><h2>Documents</h2><p>Company announcements, reports and reported earnings materials</p></div></div><div class="issuer-documents-grid"><article class="issuer-doc-card issuer-announcements"><h3>Announcements</h3><div class="issuer-doc-tabs"><span class="active">Recent</span><span>Important</span><span>Search</span><span>All</span></div><div id="doc-announcements" class="issuer-doc-list"><p class="data-empty">Loading issuer announcements…</p></div></article><article class="issuer-doc-card"><h3>Annual reports</h3><div id="doc-annual" class="issuer-doc-list"><p class="data-empty">Loading annual reports…</p></div></article><article class="issuer-doc-card"><h3>Credit ratings</h3><div id="doc-ratings" class="issuer-doc-list"><p class="data-empty">Loading ratings…</p></div></article><article class="issuer-doc-card issuer-concalls"><h3>Earnings &amp; calls</h3><div id="doc-concalls" class="issuer-doc-list"><p class="data-empty">Loading earnings materials…</p></div></article></div><p class="filings-source-note">Company/issuer documents are sourced from SEC EDGAR and provider-reported company data. Third-party research is excluded.</p></section>`;
+  return html.replace(/<section id="documents"[\s\S]*?<\/section>\s*<\/div>\s*$/, `${documents}</div>`);
+};
+
+function renderCompanyDocuments(ticker) {
+  const safe = value => escapeHtml(value || '—');
+  const list = (rows, empty, render) => rows.length ? rows.map(render).join('') : `<p class="data-empty">${empty}</p>`;
+  const filingLink = filing => `<a class="issuer-doc-item" href="${escapeHtml(filing.url || '#')}" target="_blank" rel="noreferrer"><b>${safe(filing.description || filing.form || 'Company filing')}</b><span>${safe(filing.filedAt || filing.reportDate)} · ${safe(filing.form)}</span></a>`;
+  Promise.all([getJson(`/data/filings?symbol=${encodeURIComponent(ticker)}`), getJson(`/data/company-intel?symbol=${encodeURIComponent(ticker)}`)])
+    .then(([filingData, intel]) => {
+      const filings = filingData.filings || [];
+      const announcements = filings.filter(item => /^(8-K|8-K\/A|6-K|6-K\/A)$/.test(String(item.form || '').toUpperCase())).slice(0, 8);
+      const annual = filings.filter(item => /10-K|20-F|40-F|ARS/.test(String(item.form || '').toUpperCase())).slice(0, 6);
+      const announcementHolder = $('#doc-announcements'); const annualHolder = $('#doc-annual'); const ratingHolder = $('#doc-ratings'); const callsHolder = $('#doc-concalls');
+      if (announcementHolder) announcementHolder.innerHTML = list(announcements, 'No recent issuer announcements were returned.', filingLink);
+      if (annualHolder) annualHolder.innerHTML = list(annual, 'No annual reports were returned.', filingLink);
+      const rating = intel.ratings || {};
+      if (ratingHolder) ratingHolder.innerHTML = rating.rating || rating.ratingRecommendation ? `<div class="issuer-rating-card"><b>${safe(rating.rating || rating.ratingRecommendation)}</b><span>${safe(rating.date || rating.ratingDate || 'Latest provider snapshot')}</span></div>` : '<p class="data-empty">No credit-rating update was returned for this company.</p>';
+      const earnings = (intel.earnings || []).slice(0, 6);
+      if (callsHolder) callsHolder.innerHTML = list(earnings, 'No earnings-call records were returned.', item => `<div class="issuer-call-row"><span>${safe(item.date || item.fiscalDateEnding || 'Reported')}</span><div><b>${safe(item.epsEstimated !== undefined ? `EPS estimate ${item.epsEstimated}` : 'Earnings update')}</b><small>${item.eps !== undefined ? `Reported EPS ${safe(item.eps)}` : 'Provider-reported earnings data'}</small></div><span class="issuer-doc-actions"><button type="button" disabled>Transcript</button><button type="button" disabled>Summary</button></span></div>`);
+    })
+    .catch(() => ['doc-announcements','doc-annual','doc-ratings','doc-concalls'].forEach(id => { const holder = $(`#${id}`); if (holder) holder.innerHTML = '<p class="data-empty">Document data is temporarily unavailable.</p>'; }));
+}
+const previousCompanyExtras = hydrateCompanyExtras;
+hydrateCompanyExtras = function(ticker) { previousCompanyExtras(ticker); renderCompanyDocuments(ticker); };
+
 setupTheme();
 setupSearch();
 render();
