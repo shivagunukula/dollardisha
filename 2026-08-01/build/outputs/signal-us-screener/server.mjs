@@ -535,9 +535,10 @@ createServer(async (req, res) => {
     if (requested.startsWith('.') || requested.includes('..')) return send(res, 403, 'Forbidden', 'text/plain; charset=utf-8');
     const file = join(root, requested);
     const data = await readFile(file);
+    const assetName = requested.replace(/^[\\/]+/, '');
     res.writeHead(200, {
       'Content-Type': mime[extname(file).toLowerCase()] || 'application/octet-stream',
-      'Cache-Control': requested === 'index.html' ? 'no-cache' : 'public, max-age=3600'
+      'Cache-Control': ['index.html', 'app.js', 'styles.css', 'ui-refresh.css'].includes(assetName) ? 'no-cache, no-store, must-revalidate' : 'public, max-age=3600'
     });
     return res.end(data);
   } catch (error) {

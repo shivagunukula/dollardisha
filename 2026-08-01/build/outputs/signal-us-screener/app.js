@@ -100,7 +100,7 @@ function researchView() {
 }
 
 function compareView() { return `<div class="page">${pageHeader('RESEARCH SIDE BY SIDE', 'Compare companies', 'Search the complete US stock directory and compare two companies side by side.')}<section class="panel compare-panel"><div class="compare-controls"><div class="compare-picker"><label for="compare-a">First company</label><div class="compare-search"><span>⌕</span><input id="compare-a" value="AAPL" maxlength="50" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="compare-a-results"><div id="compare-a-results" class="compare-results" hidden></div></div></div><span class="compare-vs">VS</span><div class="compare-picker"><label for="compare-b">Second company</label><div class="compare-search"><span>⌕</span><input id="compare-b" value="MSFT" maxlength="50" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="compare-b-results"><div id="compare-b-results" class="compare-results" hidden></div></div></div><button id="compare-run" class="solid-btn">Compare stocks</button></div><div id="comparison"></div></section></div>`; }
-function watchlistView() { const placeholders = watchlist.map(ticker => `<tr class="company-row" data-stock="${ticker}"><td class="company">${ticker}<span class="ticker">Updating live data…</span></td><td colspan="4">Loading latest values…</td><td>${watchButton(ticker)}</td></tr>`).join(''); return `<div class="page">${pageHeader('YOUR RESEARCH', 'Watchlist', 'Latest available prices and fundamentals. Values refresh every minute while this page is open.')}<section class="panel"><div class="table-wrap"><table><thead><tr><th>Company</th><th>Price</th><th>Market cap</th><th>P/E</th><th>Today</th><th></th></tr></thead><tbody id="watchlist-body">${placeholders || '<tr><td colspan="6">Your watchlist is empty. Add a company from any scan.</td></tr>'}</tbody></table></div></section></div>`; }
+function watchlistView() { const placeholders = watchlist.map(ticker => `<tr class="company-row" data-stock="${ticker}"><td class="company">${ticker}<span class="ticker">Updating live data…</span></td><td colspan="4">Loading latest values…</td><td>${watchButton(ticker)}</td></tr>`).join(''); return `<div class="page">${pageHeader('YOUR RESEARCH', 'Watchlist', 'Latest available prices and fundamentals. Values refresh every minute while this page is open.')}<section class="panel"><div class="watchlist-toolbar"><span id="watchlist-status" role="status" aria-live="polite">${watchlist.length ? 'Loading live prices…' : 'Add a company to begin.'}</span>${watchlist.length ? '<button type="button" class="link-button" data-refresh-watchlist>Refresh now</button>' : ''}</div><div class="table-wrap"><table><thead><tr><th>Company</th><th>Price</th><th>Market cap</th><th>P/E</th><th>Today</th><th></th></tr></thead><tbody id="watchlist-body">${placeholders || '<tr><td colspan="6">Your watchlist is empty. Add a company from any scan.</td></tr>'}</tbody></table></div></section></div>`; }
 function companyView(ticker) { const stock = stocks.find((item) => item.ticker === ticker) || { ticker, name: ticker, sector: 'US Equity' }; return `<div class="page">${pageHeader(`US STOCKS / ${escapeHtml(stock.sector).toUpperCase()}`, escapeHtml(stock.name), `${ticker} · US EQUITY`)}<section class="detail-grid"><div><section class="panel"><div class="panel-head"><div><h2>Company research</h2><p id="company-description">Loading company profile and latest available quote…</p></div>${watchButton(ticker)}</div><div class="key-metrics"><div><span>Price</span><b id="company-price">${stock.price ? `$${stock.price.toFixed(2)}` : '—'}</b></div><div><span>Today</span><b id="company-change" class="${stock.change >= 0 ? 'positive' : 'down'}">${percent(stock.change)}</b></div><div><span>Market cap</span><b id="company-cap">${money(stock.cap * 1e9)}</b></div><div><span>P/E ratio</span><b id="company-pe">${stock.pe ? `${stock.pe}x` : '—'}</b></div><div><span>ROE</span><b>${stock.roe ? `${stock.roe}%` : '—'}</b></div></div></section><section class="panel" style="margin-top:18px"><div class="panel-head"><div><h2>Research checklist</h2><p>Keep your decision process consistent</p></div></div><div class="checklist"><label><input type="checkbox"> Understand the business</label><label><input type="checkbox"> Review revenue and profit trend</label><label><input type="checkbox"> Compare valuation and peers</label><label><input type="checkbox"> Write the risk case</label></div></section></div><aside class="panel"><div class="panel-head"><div><h2>Next steps</h2><p>Use the Research Hub for filings and notes.</p></div></div><button data-page="research" class="solid-btn">Open Research Hub</button></aside></section></div>`; }
 
 const usd = (value) => Number.isFinite(Number(value)) ? new Intl.NumberFormat('en-US', { style:'currency', currency:'USD', notation:'compact', maximumFractionDigits:2 }).format(Number(value)) : '—';
@@ -175,15 +175,29 @@ function wireCommon() {
   document.querySelectorAll('[data-page]').forEach((button) => button.onclick = () => { page = button.dataset.page; render(); });
   document.querySelectorAll('[data-stock]').forEach((element) => element.onclick = (event) => { if (!event.target.closest('[data-watch]')) { page = element.dataset.stock; render(); window.scrollTo(0, 0); } });
   document.querySelectorAll('[data-watch]').forEach((button) => button.onclick = (event) => { event.stopPropagation(); const ticker = button.dataset.watch; watchlist = watchlist.includes(ticker) ? watchlist.filter((item) => item !== ticker) : [...watchlist, ticker]; localStorage.setItem('dd-watchlist', JSON.stringify(watchlist)); render(); });
+  document.querySelectorAll('[data-refresh-watchlist]').forEach((button) => button.onclick = () => hydrateWatchlist());
 }
 const jsonRequestCache = new Map();
 async function getJson(url, timeout = 9000) {
   const cacheable = url.startsWith('/data/company?');
   if (cacheable && jsonRequestCache.has(url)) return jsonRequestCache.get(url);
   const request = (async () => {
-    const response = await fetch(url, { signal: AbortSignal.timeout(timeout) });
-    if (!response.ok) throw new Error('Request failed');
-    return response.json();
+    let lastError;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeout);
+      try {
+        const response = await fetch(url, { signal:controller.signal, cache:'no-store', headers:{ Accept:'application/json' } });
+        if (!response.ok) throw new Error(`Request failed (${response.status})`);
+        return await response.json();
+      } catch (error) {
+        lastError = error;
+        if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 700));
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    throw lastError || new Error('Request failed');
   })();
   if (cacheable) {
     jsonRequestCache.set(url, request);
@@ -196,19 +210,26 @@ async function hydrateWatchlist() {
   clearTimeout(watchlistRefreshTimer);
   watchlistRefreshTimer = null;
   const holder = $('#watchlist-body');
+  const status = $('#watchlist-status');
   const requested = [...watchlist];
   if (!holder || !requested.length) return;
+  if (status) status.textContent = 'Loading live prices…';
   try {
-    const rows = await getJson(`/data/watchlist?symbols=${encodeURIComponent(requested.join(','))}`, 20000);
+    const rows = await getJson(`/data/watchlist?symbols=${encodeURIComponent(requested.join(','))}`, 45000);
+    if (!Array.isArray(rows)) throw new Error('Invalid watchlist response');
     const currentHolder = $('#watchlist-body');
     if (page !== 'watchlist' || !currentHolder) return;
-    const byTicker = new Map(rows.map(item => [item.symbol || item.ticker, item]));
+    const byTicker = new Map(rows.map(item => [String(item.symbol || item.ticker || '').toUpperCase(), item]));
     currentHolder.innerHTML = requested.map(ticker => row(byTicker.get(ticker) || { ticker, name:ticker })).join('');
+    const currentStatus = $('#watchlist-status');
+    if (currentStatus) currentStatus.textContent = `Live values updated ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}`;
     wireCommon();
-  } catch {
+  } catch (error) {
     const currentHolder = $('#watchlist-body');
     if (page === 'watchlist' && currentHolder) {
       currentHolder.innerHTML = requested.map(ticker => row({ ticker, name:ticker })).join('');
+      const currentStatus = $('#watchlist-status');
+      if (currentStatus) currentStatus.textContent = 'Live values could not load. Select Refresh now to retry.';
       wireCommon();
     }
   } finally {
