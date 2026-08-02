@@ -7,8 +7,10 @@ const configPath = join(root, '..', '..', 'work', 'dollardisha.env');
 let configText = '';
 try { configText = await readFile(configPath, 'utf8'); } catch { /* Production uses FMP_API_KEY from the host environment. */ }
 const env = Object.fromEntries(configText.split(/\r?\n/).filter(Boolean).map(line => line.split('=')));
-const key = process.env.FMP_API_KEY || env.FMP_API_KEY;
-const twelveDataKey = process.env.TWELVE_DATA_API_KEY;
+// Accept the concise names too. This keeps a deployment working if a host
+// dashboard saved the provider key as FMP_API or TWELVE_DATA_KEY.
+const key = process.env.FMP_API_KEY || process.env.FMP_API || env.FMP_API_KEY || env.FMP_API;
+const twelveDataKey = process.env.TWELVE_DATA_API_KEY || process.env.TWELVE_DATA_KEY || process.env.TWELVE_API_KEY;
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SECRET_KEY;
 if (!key) console.warn('FMP_API_KEY is not configured. DollarDisha will use its quote fallback where available.');
