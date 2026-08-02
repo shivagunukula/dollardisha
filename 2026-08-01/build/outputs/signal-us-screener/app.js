@@ -1096,40 +1096,31 @@ async function setupAuth() {
   });
 
   const redirectTo = `${window.location.origin}${window.location.pathname}`;
-  const recoveryReturn = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('type') === 'recovery';
-  // Supabase may return either an access-token hash (implicit flow) or a
-  // short-lived `?code=` (PKCE flow).  Exchange the code before reading the
-  // session, otherwise the page comes back from Google but still says “Log in”.
+  const callbackParams = new URLSearchParams(window.location.search);
+  const recoveryReturn = callbackParams.get('type') === 'recovery' || new URLSearchParams(window.location.hash.replace(/^#/, '')).get('type') === 'recovery';
   const callbackUrl = new URL(window.location.href);
   const callbackCode = callbackUrl.searchParams.get('code');
   let callbackError = callbackUrl.searchParams.get('error_description') || callbackUrl.searchParams.get('error') || '';
-  if (callbackCode) {
+  // detectSessionInUrl lets Supabase exchange the one-time PKCE code exactly
+  // once. A second manual exchange makes a successful callback look expired.
+  // The auth client restores storage asynchronously on a fresh redirect.
+  let initialSession = null;
+  for (let attempt = 0; attempt < 8 && !initialSession; attempt += 1) {
     try {
-      const { error } = await authClient.auth.exchangeCodeForSession(callbackCode);
-      if (error) {
-        callbackError = error.message;
-        console.warn(`Could not restore Google session: ${error.message}`);
-      }
-    } catch (error) {
-      callbackError = error.message;
-      console.warn(`Could not restore Google session: ${error.message}`);
+      const { data } = await authClient.auth.getSession();
+      initialSession = data?.session || null;
+    } catch (error) { console.warn(`Could not read account session: ${error.message}`); }
+    if (!initialSession && attempt < 7) await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  if (callbackCode || callbackError) {
+    if (callbackCode && !initialSession && !callbackError) {
+      callbackError = 'The sign-in callback could not be completed. Please start Google sign-in again.';
     }
     callbackUrl.searchParams.delete('code');
     callbackUrl.searchParams.delete('error');
     callbackUrl.searchParams.delete('error_code');
     callbackUrl.searchParams.delete('error_description');
     window.history.replaceState({}, document.title, `${callbackUrl.pathname}${callbackUrl.search}${callbackUrl.hash}`);
-  }
-
-  // The auth client restores storage asynchronously on a fresh redirect. A
-  // short retry avoids a race where the first getSession() runs too early.
-  let initialSession = null;
-  for (let attempt = 0; attempt < 3 && !initialSession; attempt += 1) {
-    try {
-      const { data } = await authClient.auth.getSession();
-      initialSession = data?.session || null;
-    } catch (error) { console.warn(`Could not read account session: ${error.message}`); }
-    if (!initialSession && attempt < 2) await new Promise(resolve => setTimeout(resolve, 250));
   }
   updateAuthUI(initialSession);
   if (callbackError && !initialSession) {
