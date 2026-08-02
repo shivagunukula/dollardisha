@@ -83,6 +83,25 @@ const referenceQuotes = {
   SPY: { price: 594.18, changesPercentage: 0.32 }, QQQ: { price: 513.43, changesPercentage: 0.51 },
   DIA: { price: 437.36, changesPercentage: 0.08 }, IWM: { price: 221.44, changesPercentage: -0.17 }
 };
+let twelveDirectory = { rows: [], expiresAt: 0 };
+async function twelveStockSearch(query) {
+  if (!twelveDataKey) return [];
+  if (Date.now() > twelveDirectory.expiresAt) {
+    const url = new URL('https://api.twelvedata.com/stocks');
+    url.searchParams.set('country', 'United States');
+    url.searchParams.set('type', 'Common Stock');
+    url.searchParams.set('apikey', twelveDataKey);
+    const response = await externalFetch(url, { headers: { 'User-Agent': 'DollarDisha research app contact@dollardisha.in' } });
+    const data = await response.json();
+    const rows = data.data || [];
+    if (!response.ok || data.status === 'error' || !Array.isArray(rows)) throw new Error(data.message || 'Twelve Data stock directory is unavailable');
+    twelveDirectory = { rows, expiresAt: Date.now() + 24 * 60 * 60 * 1000 };
+  }
+  const needle = query.toUpperCase();
+  return twelveDirectory.rows.filter(row => String(row.symbol || '').toUpperCase().includes(needle) || String(row.instrument_name || row.name || '').toUpperCase().includes(needle)).slice(0, 12).map(row => ({
+    symbol: row.symbol, name: row.instrument_name || row.name || row.symbol, exchangeShortName: row.exchange || row.mic_code || 'US', type: row.type
+  }));
+}
 async function liveQuote(ticker) {
   if (twelveDataKey) {
     try { return await twelveDataQuote(ticker); }
@@ -170,6 +189,10 @@ createServer(async (req, res) => {
     if (url.pathname === '/data/search' || url.pathname === '/api/search') {
       const query = url.searchParams.get('q')?.trim();
       if (!query || query.length > 50) return send(res, 400, { error:'Provide a company or ticker to search.' });
+      try {
+        const matches = await twelveStockSearch(query);
+        if (matches.length) return send(res, 200, matches);
+      } catch (error) { console.warn(`Twelve Data directory unavailable: ${error.message}`); }
       return send(res, 200, await fmp('search-name', { query, limit: 8 }));
     }
     if (url.pathname === '/data/company' || url.pathname === '/api/company') {
