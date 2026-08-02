@@ -8,6 +8,7 @@ let configText = '';
 try { configText = await readFile(configPath, 'utf8'); } catch { /* Production uses FMP_API_KEY from the host environment. */ }
 const env = Object.fromEntries(configText.split(/\r?\n/).filter(Boolean).map(line => line.split('=')));
 const key = process.env.FMP_API_KEY || env.FMP_API_KEY;
+const twelveDataKey = process.env.TWELVE_DATA_API_KEY;
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SECRET_KEY;
 if (!key) console.warn('FMP_API_KEY is not configured. DollarDisha will use its quote fallback where available.');
@@ -48,6 +49,20 @@ async function yahooQuote(ticker) {
     volume: meta.regularMarketVolume, provider: 'fallback'
   };
 }
+async function twelveDataQuote(ticker) {
+  if (!twelveDataKey) throw new Error('TWELVE_DATA_API_KEY is not configured');
+  const url = new URL('https://api.twelvedata.com/quote');
+  url.searchParams.set('symbol', ticker);
+  url.searchParams.set('apikey', twelveDataKey);
+  const response = await externalFetch(url, { headers: { 'User-Agent': 'DollarDisha research app contact@dollardisha.in' } });
+  const data = await response.json();
+  if (!response.ok || data.status === 'error' || data.code || !data.close) throw new Error(data.message || `Twelve Data returned ${response.status}`);
+  return {
+    symbol: ticker, price: Number(data.close), previousClose: Number(data.previous_close),
+    changesPercentage: Number(data.percent_change || 0), dayHigh: Number(data.high), dayLow: Number(data.low),
+    volume: Number(data.volume), provider: 'twelve-data'
+  };
+}
 async function nasdaqQuote(ticker) {
   const fetchQuote = async assetclass => {
     const response = await externalFetch(`https://api.nasdaq.com/api/quote/${encodeURIComponent(ticker.toLowerCase())}/info?assetclass=${assetclass}`, {
@@ -69,6 +84,10 @@ const referenceQuotes = {
   DIA: { price: 437.36, changesPercentage: 0.08 }, IWM: { price: 221.44, changesPercentage: -0.17 }
 };
 async function liveQuote(ticker) {
+  if (twelveDataKey) {
+    try { return await twelveDataQuote(ticker); }
+    catch (error) { console.warn(`Twelve Data quote unavailable for ${ticker}: ${error.message}`); }
+  }
   try {
     const rows = await fmp('quote', { symbol: ticker });
     if (rows[0]?.price) return rows[0];
