@@ -3,11 +3,14 @@
   --dd-surface: #111820;
   --dd-surface-2: #0d141b;
   --dd-surface-3: #17212a;
+  --dd-panel: #111820;
+  --dd-panel-strong: #17212a;
   --dd-line: #29343e;
   --dd-line-soft: #202a33;
   --dd-text: #edf3f7;
   --dd-muted: #93a2ad;
   --dd-accent: #43c6a2;
+  --dd-aqua: #6fe8d0;
   --dd-accent-soft: #17372f;
   --dd-green: #4ad6a7;
   --dd-red: #ff7d88;
@@ -1215,12 +1218,15 @@ html[data-theme="light"] {
   --dd-surface: #ffffff;
   --dd-surface-2: #f7faf9;
   --dd-surface-3: #edf3f1;
+  --dd-panel: #ffffff;
+  --dd-panel-strong: #edf3f1;
   --dd-line: #d5dfdc;
   --dd-line-soft: #e5ebe9;
   --dd-text: #15201d;
   --dd-muted: #65766f;
   --dd-accent: #147b63;
   --dd-accent-soft: #dff2ec;
+  --dd-aqua: #147b63;
   --dd-green: #087a5a;
   --dd-red: #c23f50;
   --ink: #15201d;
@@ -1758,3 +1764,174 @@ html[data-theme="light"] .filings-inline strong { color: #147b63 !important; }
 .filings-source-note { padding: 0 16px 15px; }
 @media (max-width: 1000px) { .issuer-documents-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 580px) { .issuer-documents-grid { grid-template-columns: 1fr; padding: 0 10px 12px; } .issuer-doc-list { max-height: 260px; } }
+
+/* Final light-theme coverage.  Keep every research surface readable when the
+   theme is switched, including newer charts, ownership, filings and filters. */
+html[data-theme="light"] {
+  color-scheme: light;
+}
+
+html[data-theme="light"] .market-section-heading h2,
+html[data-theme="light"] .financial-panel .panel-head h2,
+html[data-theme="light"] .quarterly-panel .panel-head h2,
+html[data-theme="light"] .ownership-panel .panel-head h2,
+html[data-theme="light"] .company-tabs a.active,
+html[data-theme="light"] .ratio-explorer-head b,
+html[data-theme="light"] .issuer-doc-card h3 { color: #17231f !important; }
+
+html[data-theme="light"] .market-freshness,
+html[data-theme="light"] .quarterly-source,
+html[data-theme="light"] .ratio-explorer-head span,
+html[data-theme="light"] .chart-data-note,
+html[data-theme="light"] .ownership-note,
+html[data-theme="light"] .market-section-heading .crumb { color: #6b7f77 !important; }
+
+html[data-theme="light"] .financial-panel,
+html[data-theme="light"] .chart-panel,
+html[data-theme="light"] .ratios-panel,
+html[data-theme="light"] .documents-panel,
+html[data-theme="light"] .ownership-panel,
+html[data-theme="light"] .issuer-documents-panel,
+html[data-theme="light"] .compare-panel,
+html[data-theme="light"] .intelligence-grid > .panel,
+html[data-theme="light"] .research-grid > .panel {
+  background: #fff !important;
+  border-color: #d6e0dd !important;
+  color: #25332f !important;
+}
+
+html[data-theme="light"] .company-summary,
+html[data-theme="light"] .company-research-card,
+html[data-theme="light"] .summary-main,
+html[data-theme="light"] .company-metrics > div,
+html[data-theme="light"] .company-about,
+html[data-theme="light"] .key-metrics > div,
+html[data-theme="light"] .ownership-summary > div {
+  border-color: #e0e8e5 !important;
+}
+
+html[data-theme="light"] .company-metrics span,
+html[data-theme="light"] .ratio-grid span,
+html[data-theme="light"] .about-label,
+html[data-theme="light"] .company-about p,
+html[data-theme="light"] .ownership-summary span,
+html[data-theme="light"] .ownership-table td,
+html[data-theme="light"] .compare-company small,
+html[data-theme="light"] .compare-label { color: #687b73 !important; }
+
+html[data-theme="light"] .company-metrics b,
+html[data-theme="light"] .ratio-grid b,
+html[data-theme="light"] .summary-main > div b,
+html[data-theme="light"] .ownership-summary b,
+html[data-theme="light"] .compare-value,
+html[data-theme="light"] .compare-company b { color: #17231f !important; }
+
+html[data-theme="light"] .ratio-explorer,
+html[data-theme="light"] .ratio-explorer section,
+html[data-theme="light"] .chart-live-stats > div,
+html[data-theme="light"] .chart-hover-tooltip,
+html[data-theme="light"] .quarter-detail-grid section,
+html[data-theme="light"] .issuer-doc-card,
+html[data-theme="light"] .issuer-doc-tabs,
+html[data-theme="light"] .issuer-rating-card {
+  background: #f8fbfa !important;
+  border-color: #d5e1dd !important;
+  color: #25332f !important;
+}
+
+html[data-theme="light"] .ratio-explorer h3 {
+  background: #edf5f2 !important;
+  color: #147b63 !important;
+  border-color: #d5e1dd !important;
+}
+html[data-theme="light"] .ratio-explorer section > div,
+html[data-theme="light"] .quarter-detail-grid section > div,
+html[data-theme="light"] .issuer-doc-item,
+html[data-theme="light"] .issuer-call-row { border-color: #e0e8e5 !important; }
+html[data-theme="light"] .ratio-explorer section span,
+html[data-theme="light"] .quarter-detail-grid section span,
+html[data-theme="light"] .issuer-doc-item span,
+html[data-theme="light"] .issuer-call-row > span,
+html[data-theme="light"] .issuer-call-row small { color: #6b7f77 !important; }
+html[data-theme="light"] .ratio-explorer section strong,
+html[data-theme="light"] .quarter-detail-grid section strong { color: #17231f !important; }
+
+html[data-theme="light"] .chart-live-stats b,
+html[data-theme="light"] .chart-hover-tooltip b,
+html[data-theme="light"] .chart-hover-tooltip strong { color: #17231f !important; }
+html[data-theme="light"] .chart-area text { fill: #71817c !important; }
+html[data-theme="light"] .chart-grid { stroke: #dbe5e2 !important; }
+html[data-theme="light"] .chart-line { stroke: #147b63 !important; }
+html[data-theme="light"] .chart-ma50 { stroke: #c57c00 !important; }
+html[data-theme="light"] .chart-ma200 { stroke: #648294 !important; }
+
+html[data-theme="light"] .ownership-switch button,
+html[data-theme="light"] .ownership-trades,
+html[data-theme="light"] .issuer-doc-actions button,
+html[data-theme="light"] .chart-controls button {
+  background: #f7faf9 !important;
+  border-color: #cbd9d4 !important;
+  color: #53665f !important;
+}
+html[data-theme="light"] .ownership-switch button.active,
+html[data-theme="light"] .ownership-switch button:hover,
+html[data-theme="light"] .ownership-trades.active,
+html[data-theme="light"] .ownership-trades:hover,
+html[data-theme="light"] .chart-controls button.selected {
+  background: #dff2ec !important;
+  border-color: #72b9a5 !important;
+  color: #126b57 !important;
+}
+html[data-theme="light"] .quarter-detail-row td { background: #f4f8f6 !important; }
+
+html[data-theme="light"] .issuer-doc-tabs .active {
+  background: #e0f1eb !important;
+  color: #147b63 !important;
+}
+html[data-theme="light"] .issuer-doc-item,
+html[data-theme="light"] .issuer-call-row b,
+html[data-theme="light"] .issuer-rating-card b { color: #147b63 !important; }
+html[data-theme="light"] .issuer-doc-item:hover { background: #edf7f3 !important; }
+
+html[data-theme="light"] .screen-presets,
+html[data-theme="light"] .filter-layout,
+html[data-theme="light"] .filters,
+html[data-theme="light"] .screen-data-note,
+html[data-theme="light"] .filter-help {
+  background: #fff !important;
+  border-color: #d5e0dc !important;
+  color: #53665f !important;
+}
+html[data-theme="light"] .filters label,
+html[data-theme="light"] .filter-title,
+html[data-theme="light"] .filter-title b,
+html[data-theme="light"] .screen-presets span,
+html[data-theme="light"] .filter-help b { color: #53665f !important; }
+html[data-theme="light"] .screen-presets button {
+  background: #f6faf8 !important;
+  border-color: #cbd9d4 !important;
+  color: #49675b !important;
+}
+html[data-theme="light"] .screen-presets button:hover,
+html[data-theme="light"] .screen-presets button.selected { background: #e0f2ec !important; color: #126b57 !important; border-color: #72b9a5 !important; }
+html[data-theme="light"] .screen-data-note { background: #eff8f4 !important; color: #536f63 !important; }
+
+html[data-theme="light"] .search-results,
+html[data-theme="light"] #global-results,
+html[data-theme="light"] .compare-results {
+  background: #fff !important;
+  border-color: #ccd9d5 !important;
+  box-shadow: 0 14px 32px rgba(30, 60, 52, .14) !important;
+}
+html[data-theme="light"] .search-results button,
+html[data-theme="light"] #global-results button,
+html[data-theme="light"] .compare-results button { background: #fff !important; color: #25332f !important; border-color: #e2e9e7 !important; }
+html[data-theme="light"] .search-results button:hover,
+html[data-theme="light"] #global-results button:hover,
+html[data-theme="light"] .compare-results button:hover { background: #edf7f3 !important; }
+
+html[data-theme="light"] .table-wrap { scrollbar-color: #abc5bb #f3f7f6; }
+html[data-theme="light"] .table-wrap table,
+html[data-theme="light"] .ownership-table { background: #fff !important; }
+html[data-theme="light"] .table-wrap td:first-child,
+html[data-theme="light"] .ownership-table td:first-child { color: #25332f !important; }
