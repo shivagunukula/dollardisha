@@ -69,7 +69,7 @@ function researchView() {
   <section class="panel journal-panel"><div class="panel-head"><div><h2>Research journal</h2><p>Write the reason, risk and evidence behind every idea.</p></div></div><div class="journal-form"><input id="note-ticker" placeholder="Ticker, e.g. NVDA"><textarea id="note-text" placeholder="What do you believe? What would prove you wrong?"></textarea><button id="note-save" class="solid-btn">Save research note</button></div><div id="notes-list" class="notes-list"></div></section></div>`;
 }
 
-function compareView() { return `<div class="page">${pageHeader('RESEARCH SIDE BY SIDE', 'Compare companies', 'Compare basic price, valuation and profitability data before you form a view.')}<section class="panel compare-panel"><div class="compare-controls"><input id="compare-a" value="AAPL" maxlength="10"><span>vs</span><input id="compare-b" value="MSFT" maxlength="10"><button id="compare-run" class="solid-btn">Compare</button></div><div id="comparison"></div></section></div>`; }
+function compareView() { return `<div class="page">${pageHeader('RESEARCH SIDE BY SIDE', 'Compare companies', 'Search the complete US stock directory and compare two companies side by side.')}<section class="panel compare-panel"><div class="compare-controls"><div class="compare-picker"><label for="compare-a">First company</label><div class="compare-search"><span>⌕</span><input id="compare-a" value="AAPL" maxlength="50" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="compare-a-results"><div id="compare-a-results" class="compare-results" hidden></div></div></div><span class="compare-vs">VS</span><div class="compare-picker"><label for="compare-b">Second company</label><div class="compare-search"><span>⌕</span><input id="compare-b" value="MSFT" maxlength="50" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="compare-b-results"><div id="compare-b-results" class="compare-results" hidden></div></div></div><button id="compare-run" class="solid-btn">Compare stocks</button></div><div id="comparison"></div></section></div>`; }
 function watchlistView() { const placeholders = watchlist.map(ticker => `<tr class="company-row" data-stock="${ticker}"><td class="company">${ticker}<span class="ticker">Updating live data…</span></td><td colspan="4">Loading latest values…</td><td>${watchButton(ticker)}</td></tr>`).join(''); return `<div class="page">${pageHeader('YOUR RESEARCH', 'Watchlist', 'Latest available prices and fundamentals. Values refresh every minute while this page is open.')}<section class="panel"><div class="table-wrap"><table><thead><tr><th>Company</th><th>Price</th><th>Market cap</th><th>P/E</th><th>Today</th><th></th></tr></thead><tbody id="watchlist-body">${placeholders || '<tr><td colspan="6">Your watchlist is empty. Add a company from any scan.</td></tr>'}</tbody></table></div></section></div>`; }
 function companyView(ticker) { const stock = stocks.find((item) => item.ticker === ticker) || { ticker, name: ticker, sector: 'US Equity' }; return `<div class="page">${pageHeader(`US STOCKS / ${escapeHtml(stock.sector).toUpperCase()}`, escapeHtml(stock.name), `${ticker} · US EQUITY`)}<section class="detail-grid"><div><section class="panel"><div class="panel-head"><div><h2>Company research</h2><p id="company-description">Loading company profile and latest available quote…</p></div>${watchButton(ticker)}</div><div class="key-metrics"><div><span>Price</span><b id="company-price">${stock.price ? `$${stock.price.toFixed(2)}` : '—'}</b></div><div><span>Today</span><b id="company-change" class="${stock.change >= 0 ? 'positive' : 'down'}">${percent(stock.change)}</b></div><div><span>Market cap</span><b id="company-cap">${money(stock.cap * 1e9)}</b></div><div><span>P/E ratio</span><b id="company-pe">${stock.pe ? `${stock.pe}x` : '—'}</b></div><div><span>ROE</span><b>${stock.roe ? `${stock.roe}%` : '—'}</b></div></div></section><section class="panel" style="margin-top:18px"><div class="panel-head"><div><h2>Research checklist</h2><p>Keep your decision process consistent</p></div></div><div class="checklist"><label><input type="checkbox"> Understand the business</label><label><input type="checkbox"> Review revenue and profit trend</label><label><input type="checkbox"> Compare valuation and peers</label><label><input type="checkbox"> Write the risk case</label></div></section></div><aside class="panel"><div class="panel-head"><div><h2>Next steps</h2><p>Use the Research Hub for filings and notes.</p></div></div><button data-page="research" class="solid-btn">Open Research Hub</button></aside></section></div>`; }
 
@@ -135,7 +135,75 @@ function setupScreener() { let results = stocks; const refresh = async () => { c
 function setupIndex() { const save = () => localStorage.setItem('dd-custom-index', JSON.stringify(basket)); $('#basket-add').onclick = () => { const input = $('#basket-ticker'); const ticker = input.value.trim().toUpperCase(); if (/^[A-Z.]{1,10}$/.test(ticker) && !basket.symbols.includes(ticker)) { basket.symbols.push(ticker); save(); render(); } }; $('#basket-rename').onclick = () => { const name = prompt('Name your index', basket.name); if (name && name.trim()) { basket.name = name.trim(); save(); render(); } }; document.querySelectorAll('[data-remove-basket]').forEach((button) => button.onclick = () => { basket.symbols = basket.symbols.filter((ticker) => ticker !== button.dataset.removeBasket); save(); render(); }); }
 function drawResearchLists() { $('#alerts-list').innerHTML = alerts.map((alert, index) => `<div class="alert-item"><span><b>${alert.ticker}</b> · price ${alert.direction} $${alert.price}</span><button data-delete-alert="${index}">Remove</button></div>`).join('') || '<div class="empty-small">No alert ideas saved yet.</div>'; $('#notes-list').innerHTML = notes.slice().reverse().map((note, index) => `<article class="note-item"><div><b>${note.ticker}</b><small>${note.date}</small></div><p>${escapeHtml(note.text)}</p><button data-delete-note="${notes.length - 1 - index}">Delete</button></article>`).join('') || '<div class="empty-small">No research notes yet.</div>'; document.querySelectorAll('[data-delete-alert]').forEach((button) => button.onclick = () => { alerts.splice(Number(button.dataset.deleteAlert), 1); localStorage.setItem('dd-price-alerts', JSON.stringify(alerts)); drawResearchLists(); }); document.querySelectorAll('[data-delete-note]').forEach((button) => button.onclick = () => { notes.splice(Number(button.dataset.deleteNote), 1); localStorage.setItem('dd-research-notes', JSON.stringify(notes)); drawResearchLists(); }); }
 function setupResearch() { const findFilings = async () => { const ticker = $('#filing-ticker').value.trim().toUpperCase(); if (!/^[A-Z.]{1,10}$/.test(ticker)) return; $('#filing-results').innerHTML = '<p class="sub">Loading official SEC filings…</p>'; try { const data = await getJson(`/data/filings?symbol=${ticker}`); $('#filing-results').innerHTML = `<div class="filing-company"><b>${escapeHtml(data.companyName)}</b><small>${data.symbol} · CIK ${data.cik}</small></div>` + (data.filings || []).map((filing) => `<a class="filing-row" href="${filing.url || '#'}" target="_blank" rel="noreferrer"><span class="filing-form">${escapeHtml(filing.form || 'Filing')}</span><span>${escapeHtml(filing.description || filing.reportDate || 'SEC filing')}<small>Filed ${escapeHtml(filing.filedAt || '—')}</small></span><b>Open ↗</b></a>`).join(''); } catch { $('#filing-results').innerHTML = '<p class="sub">Filings are temporarily unavailable. Try again shortly.</p>'; } }; $('#filing-find').onclick = findFilings; $('#alert-add').onclick = () => { const ticker = $('#alert-ticker').value.trim().toUpperCase(); const price = Number($('#alert-price').value); if (/^[A-Z.]{1,10}$/.test(ticker) && price > 0) { alerts.push({ ticker, price, direction: $('#alert-direction').value }); localStorage.setItem('dd-price-alerts', JSON.stringify(alerts)); drawResearchLists(); } }; $('#note-save').onclick = () => { const ticker = $('#note-ticker').value.trim().toUpperCase(); const text = $('#note-text').value.trim(); if (/^[A-Z.]{1,10}$/.test(ticker) && text) { notes.push({ ticker, text, date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) }); localStorage.setItem('dd-research-notes', JSON.stringify(notes)); $('#note-text').value = ''; drawResearchLists(); } }; drawResearchLists(); }
-function setupCompare() { const run = async () => { const tickers = [$('#compare-a').value.trim().toUpperCase(), $('#compare-b').value.trim().toUpperCase()]; $('#comparison').innerHTML = '<p class="sub">Loading comparison…</p>'; try { const data = await Promise.all(tickers.map((ticker) => getJson(`/data/company?symbol=${ticker}`))); const fields = [['Price', (d) => d.quote && d.quote.price ? `$${Number(d.quote.price).toFixed(2)}` : '—'], ['Market cap', (d) => money(d.profile && d.profile.mktCap)], ['P/E ratio', (d) => d.ratios && d.ratios.peRatioTTM ? `${Number(d.ratios.peRatioTTM).toFixed(1)}x` : '—'], ['Sector', (d) => d.profile && d.profile.sector || '—']]; $('#comparison').innerHTML = `<div class="comparison-grid"><div></div>${data.map((d) => `<div class="compare-company"><b>${escapeHtml(d.profile.companyName || d.quote.symbol)}</b><small>${d.quote.symbol}</small></div>`).join('')}${fields.map(([name, fn]) => `<div class="compare-label">${name}</div>${data.map((d) => `<div class="compare-value">${fn(d)}</div>`).join('')}`).join('')}</div>`; } catch { $('#comparison').innerHTML = '<p class="sub">Live comparison is unavailable. Please try again shortly.</p>'; } }; $('#compare-run').onclick = run; run(); }
+function setupCompare() {
+  const readTicker = input => String(input.dataset.symbol || input.value).trim().toUpperCase();
+  const wirePicker = (inputId, resultsId) => {
+    const input = $(`#${inputId}`);
+    const results = $(`#${resultsId}`);
+    let timer;
+    let requestNumber = 0;
+    const close = () => { results.hidden = true; input.setAttribute('aria-expanded', 'false'); };
+    const select = button => {
+      input.value = button.dataset.compareSymbol;
+      input.dataset.symbol = button.dataset.compareSymbol;
+      input.title = button.dataset.compareName;
+      close();
+    };
+    input.setAttribute('aria-expanded', 'false');
+    input.oninput = () => {
+      input.dataset.symbol = '';
+      clearTimeout(timer);
+      const currentRequest = ++requestNumber;
+      const query = input.value.trim();
+      if (!query) { close(); return; }
+      timer = setTimeout(async () => {
+        results.hidden = false;
+        input.setAttribute('aria-expanded', 'true');
+        results.innerHTML = '<button type="button" disabled>Searching all US stocks…</button>';
+        try {
+          const found = await getJson(`/data/search?q=${encodeURIComponent(query)}`);
+          if (currentRequest !== requestNumber) return;
+          results.innerHTML = found.map(stock => {
+            const ticker = stock.symbol || stock.ticker;
+            const name = stock.name || stock.companyName || ticker;
+            const exchange = stock.exchangeShortName || stock.exchange || 'US';
+            return `<button type="button" data-compare-symbol="${escapeHtml(ticker)}" data-compare-name="${escapeHtml(name)}"><span><b>${escapeHtml(name)}</b><small>${escapeHtml(ticker)}</small></span><em>${escapeHtml(exchange)}</em></button>`;
+          }).join('') || '<button type="button" disabled>No matching US stock</button>';
+          results.querySelectorAll('[data-compare-symbol]').forEach(button => button.onclick = () => select(button));
+        } catch { results.innerHTML = '<button type="button" disabled>Directory temporarily unavailable</button>'; }
+      }, 220);
+    };
+    input.onfocus = () => { if (results.children.length && input.value.trim()) { results.hidden = false; input.setAttribute('aria-expanded', 'true'); } };
+    input.onkeydown = event => {
+      if (event.key === 'Escape') close();
+      if (event.key === 'Enter' && !results.hidden) {
+        const first = results.querySelector('[data-compare-symbol]');
+        if (first) { event.preventDefault(); select(first); }
+      }
+    };
+    input.onblur = () => setTimeout(close, 160);
+  };
+
+  const run = async () => {
+    const inputs = [$('#compare-a'), $('#compare-b')];
+    const tickers = inputs.map(readTicker);
+    if (tickers.some(ticker => !/^[A-Z.]{1,10}$/.test(ticker))) {
+      $('#comparison').innerHTML = '<p class="sub">Choose two companies from the US stock directory above.</p>';
+      return;
+    }
+    inputs.forEach((input, index) => { input.value = tickers[index]; input.dataset.symbol = tickers[index]; });
+    $('#comparison').innerHTML = '<p class="sub">Loading comparison…</p>';
+    try {
+      const data = await Promise.all(tickers.map(ticker => getJson(`/data/company?symbol=${encodeURIComponent(ticker)}`)));
+      const fields = [['Price', d => d.quote?.price ? `$${Number(d.quote.price).toFixed(2)}` : '—'], ['Market cap', d => money(d.profile?.mktCap || d.quote?.marketCap)], ['P/E ratio', d => d.ratios?.peRatioTTM ? `${Number(d.ratios.peRatioTTM).toFixed(1)}x` : '—'], ['Price to book', d => d.ratios?.priceToBookRatioTTM ? `${Number(d.ratios.priceToBookRatioTTM).toFixed(1)}x` : '—'], ['Return on equity', d => Number.isFinite(Number(d.ratios?.returnOnEquityTTM)) ? `${(Number(d.ratios.returnOnEquityTTM) * 100).toFixed(1)}%` : '—'], ['Dividend yield', d => Number.isFinite(Number(d.ratios?.dividendYieldTTM)) ? `${(Number(d.ratios.dividendYieldTTM) * 100).toFixed(2)}%` : '—'], ['Sector', d => d.profile?.sector || '—']];
+      $('#comparison').innerHTML = `<div class="comparison-grid"><div></div>${data.map(d => `<div class="compare-company"><b>${escapeHtml(d.profile?.companyName || d.quote?.symbol)}</b><small>${escapeHtml(d.quote?.symbol || '')}</small></div>`).join('')}${fields.map(([name, fn]) => `<div class="compare-label">${name}</div>${data.map(d => `<div class="compare-value">${fn(d)}</div>`).join('')}`).join('')}</div>`;
+    } catch { $('#comparison').innerHTML = '<p class="sub">Live comparison is unavailable. Please try again shortly.</p>'; }
+  };
+  wirePicker('compare-a', 'compare-a-results');
+  wirePicker('compare-b', 'compare-b-results');
+  $('#compare-run').onclick = run;
+  run();
+}
 async function hydrateCompany(ticker) { try { const data = await getJson(`/data/company?symbol=${encodeURIComponent(ticker)}`); const profile = data.profile || {}; const quote = data.quote || {}; const ratios = data.ratios || {}; $('#company-description').textContent = profile.description || 'Review the business, financial statements, valuation and balance-sheet strength together.'; $('#company-price').textContent = quote.price ? `$${Number(quote.price).toFixed(2)}` : 'Quote unavailable'; const change = Number(quote.changesPercentage || 0); $('#company-change').textContent = `${percent(change)} today`; $('#company-change').className = change >= 0 ? 'positive' : 'down'; $('#company-cap').textContent = money(profile.mktCap); $('#company-pe').textContent = ratios.peRatioTTM ? `${Number(ratios.peRatioTTM).toFixed(1)}x` : '—'; } catch { $('#company-description').textContent = 'Live data is temporarily unavailable. Reference research data is shown.'; } }
 function drawCompanyChart(values) { if (!values.length) return '<p class="data-empty">Price history is unavailable.</p>'; const closes = values.map(item => Number(item.close)).filter(Number.isFinite); const min = Math.min(...closes); const max = Math.max(...closes); const scaleX = index => (index / Math.max(values.length - 1, 1)) * 760 + 20; const scaleY = value => 170 - ((value - min) / Math.max(max - min, 0.01)) * 145; const line = values.map((item, index) => `${index ? 'L' : 'M'} ${scaleX(index).toFixed(1)} ${scaleY(Number(item.close)).toFixed(1)}`).join(' '); return `<svg viewBox="0 0 800 190" role="img" aria-label="One year price chart"><path class="chart-grid" d="M20 25H780M20 75H780M20 125H780M20 170H780"/><path class="chart-line" d="${line}"/><text x="20" y="187">${escapeHtml(values[0].date)}</text><text x="680" y="187">${escapeHtml(values[values.length - 1].date)}</text><text x="735" y="25">${Number(max).toFixed(2)}</text><text x="735" y="170">${Number(min).toFixed(2)}</text></svg>`; }
 function ratioCard(label, value) { return `<div><span>${label}</span><b>${value}</b></div>`; }
