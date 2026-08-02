@@ -278,7 +278,7 @@ createServer(async (req, res) => {
       const finalProfile = { ...rawProfile, mktCap: rawProfile.mktCap ?? rawProfile.marketCap ?? quote.marketCap ?? null };
       const finalRatios = {
         ...rawRatios,
-        peRatioTTM: rawRatios.peRatioTTM ?? rawRatios.priceEarningsRatioTTM ?? rawMetrics.peRatioTTM ?? rawMetrics.peRatio ?? null,
+        peRatioTTM: rawRatios.peRatioTTM ?? rawRatios.priceToEarningsRatioTTM ?? rawRatios.priceEarningsRatioTTM ?? rawMetrics.peRatioTTM ?? rawMetrics.priceToEarningsRatioTTM ?? rawMetrics.peRatio ?? quote.pe ?? quote.priceEarningsRatio ?? null,
         priceToBookRatioTTM: rawRatios.priceToBookRatioTTM ?? rawRatios.priceBookValueRatioTTM ?? rawMetrics.priceToBookRatioTTM ?? null,
         returnOnEquityTTM: rawRatios.returnOnEquityTTM ?? rawRatios.roeTTM ?? rawMetrics.returnOnEquityTTM ?? null,
         currentRatioTTM: rawRatios.currentRatioTTM ?? rawMetrics.currentRatioTTM ?? null,
@@ -306,7 +306,9 @@ createServer(async (req, res) => {
       const peerList = Array.isArray(peerData) ? (peerData[0]?.peersList || []) : (peerData?.peersList || []);
       const rows = await Promise.all(peerList.filter(symbol).filter(item => item !== ticker).slice(0, 6).map(async peer => {
         const [profile, quote, ratios] = await Promise.all([fmp('profile', { symbol:peer }).catch(() => []), liveQuote(peer).catch(() => ({})), fmp('ratios-ttm', { symbol:peer }).catch(() => [])]);
-        return { symbol:peer, companyName:profile[0]?.companyName || peer, sector:profile[0]?.sector, marketCap:profile[0]?.mktCap, price:quote.price, change:quote.changesPercentage, pe:ratios[0]?.peRatioTTM };
+        const peerRatios = ratios[0] || {};
+        const pe = peerRatios.peRatioTTM ?? peerRatios.priceToEarningsRatioTTM ?? peerRatios.priceEarningsRatioTTM ?? quote.pe ?? quote.priceEarningsRatio ?? null;
+        return { symbol:peer, companyName:profile[0]?.companyName || peer, sector:profile[0]?.sector, marketCap:profile[0]?.mktCap, price:quote.price, change:quote.changesPercentage, pe };
       }));
       return send(res, 200, rows);
     }
