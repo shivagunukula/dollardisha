@@ -22,6 +22,14 @@ async function fmp(path, parameters = {}) {
   if (!response.ok) throw new Error(`FMP returned ${response.status}`);
   return response.json();
 }
+async function secSubmissions(cik) {
+  const paddedCik = String(cik).replace(/\D/g, '').padStart(10, '0');
+  const response = await fetch(`https://data.sec.gov/submissions/CIK${paddedCik}.json`, {
+    headers: { 'User-Agent': 'DollarDisha/1.0 contact@dollardisha.in', Accept: 'application/json' }
+  });
+  if (!response.ok) throw new Error(`SEC returned ${response.status}`);
+  return response.json();
+}
 async function database(path, { method = 'GET', body, prefer } = {}) {
   if (!supabaseUrl || !supabaseKey) return null;
   const response = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
@@ -102,6 +110,21 @@ createServer(async (req, res) => {
       ];
       const quotes = await Promise.all(indices.map(([, ticker]) => fmp('quote', { symbol:ticker })));
       return send(res, 200, indices.map(([name], index) => ({ name, symbol: indices[index][1], ...(quotes[index][0] || {}) })));
+    }
+    if (url.pathname === '/data/filings') {
+      const ticker = symbol(url.searchParams.get('symbol'));
+      if (!ticker) return send(res, 400, { error:'Invalid ticker.' });
+      const profile = await fmp('profile', { symbol:ticker });
+      const cik = profile[0]?.cik;
+      if (!cik) return send(res, 404, { error:'No SEC identifier is available for this company.' });
+      const submission = await secSubmissions(cik);
+      const recent = submission.filings?.recent || {};
+      const filings = (recent.accessionNumber || []).slice(0, 30).map((accession, index) => ({
+        accession, form: recent.form?.[index], filedAt: recent.filingDate?.[index],
+        reportDate: recent.reportDate?.[index], description: recent.primaryDocDescription?.[index],
+        url: recent.primaryDocument?.[index] ? `https://www.sec.gov/Archives/edgar/data/${Number(cik)}/${String(accession).replaceAll('-', '')}/${recent.primaryDocument[index]}` : null
+      }));
+      return send(res, 200, { symbol:ticker, companyName: submission.name, cik: String(cik), filings });
     }
     if (url.pathname === '/data/screener' || url.pathname === '/api/screener') {
       const sector = url.searchParams.get('sector');
