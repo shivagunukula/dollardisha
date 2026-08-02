@@ -98,6 +98,12 @@ async function twelveDataQuote(ticker) {
   };
 }
 async function priceHistory(ticker, points = 260) {
+  try {
+    const data = await fmp('historical-price-eod/full', { symbol:ticker });
+    const rows = Array.isArray(data) ? data : (data.historical || []);
+    const values = rows.slice(0, points).reverse().map(item => ({ date:item.date, close:Number(item.close), volume:Number(item.volume || 0) })).filter(item => Number.isFinite(item.close));
+    if (values.length) return values;
+  } catch { /* Try Twelve Data and then the last-resort provider below. */ }
   if (twelveDataKey) {
     const url = new URL('https://api.twelvedata.com/time_series');
     url.searchParams.set('symbol', ticker);
