@@ -728,6 +728,200 @@ select:focus-visible {
   outline-offset: 2px;
 }
 
+/* Responsive layout — final overrides stay after dynamically enhanced desktop rules */
+@media (max-width: 1050px) {
+  .dashboard-grid,
+  .detail-grid,
+  .index-lab-grid,
+  .research-grid,
+  .intelligence-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .filter-layout { grid-template-columns: 210px minmax(0, 1fr) !important; }
+  .company-page .company-research-card { grid-template-columns: 1fr !important; }
+  .company-page .ratio-board {
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--dd-line) !important;
+  }
+  .company-about > p:not(.about-label) { max-height: none !important; }
+}
+
+@media (max-width: 760px) {
+  html,
+  body { width: 100%; max-width: 100%; overflow-x: hidden; }
+  .site-header { position: sticky !important; }
+  .header-inner {
+    min-height: 0 !important;
+    height: auto !important;
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+    padding: 10px 14px 9px !important;
+  }
+  .brand { order: 1; min-width: 0; gap: 9px !important; }
+  .mark { width: 40px !important; height: 40px !important; flex-basis: 40px; border-radius: 12px !important; }
+  .brand-word strong,
+  .brand-word em { font-size: 18px !important; }
+  .brand-word small { margin-top: 4px !important; font-size: 6.5px !important; letter-spacing: .16em !important; }
+  .account-button { order: 2 !important; margin-left: auto; min-height: 36px; }
+  .account-avatar { width: 24px; height: 24px; }
+  .universal-search {
+    order: 3 !important;
+    width: 100% !important;
+    height: 41px !important;
+    margin: 0 !important;
+    flex-basis: 100%;
+  }
+  .primary-nav {
+    order: 4 !important;
+    width: calc(100% + 28px);
+    margin: 0 -14px -9px;
+    padding: 2px 14px 8px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+  .primary-nav::-webkit-scrollbar,
+  .company-tabs::-webkit-scrollbar { display: none; }
+  .primary-nav .nav { flex: 0 0 auto; min-height: 35px; }
+  .secondary-nav { display: none !important; }
+  #global-results { top: 45px; max-height: 58vh; overflow-y: auto; }
+
+  .page { padding: 20px 13px 45px !important; }
+  .page-title { max-width: 100%; font-size: clamp(24px, 8vw, 31px) !important; overflow-wrap: anywhere; }
+  .section-header { align-items: flex-start !important; gap: 12px; }
+  .section-header > .link-button { flex: 0 0 auto; }
+  .page > .panel:first-child[style] { padding: 21px !important; }
+  .page > .panel:first-child .page-title[style] { font-size: clamp(29px, 9vw, 38px) !important; }
+  .panel,
+  .market-card,
+  .index-card,
+  .filter-layout,
+  .query-card { border-radius: 10px !important; }
+  .panel-head { align-items: flex-start !important; flex-wrap: wrap; gap: 10px; min-height: 0; padding: 14px !important; }
+  .panel-head > div:last-child:not(:first-child) { display: flex; gap: 5px; overflow-x: auto; max-width: 100%; }
+  .panel-head .link-button { white-space: nowrap; }
+  .market-grid,
+  .index-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; }
+  .market-card,
+  .index-card { min-width: 0; padding: 14px !important; }
+  .market-card strong,
+  .index-card strong { font-size: 17px !important; }
+  .workflow { grid-template-columns: 1fr !important; padding: 0 13px 13px !important; }
+
+  .query-card { grid-template-columns: 1fr !important; padding: 13px !important; }
+  .query-card input,
+  .query-card button { width: 100%; }
+  .filter-layout { grid-template-columns: 1fr !important; }
+  .filters { border-right: 0 !important; border-bottom: 1px solid var(--dd-line) !important; }
+  .result-meta { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .index-hero { align-items: flex-start !important; flex-direction: column; padding: 18px !important; }
+  .index-actions { width: 100%; flex-wrap: wrap; }
+  .index-actions input { width: 100% !important; flex: 1 1 180px; }
+  .index-actions .solid-btn { flex: 1 1 140px; }
+  .filing-search { align-items: stretch; flex-direction: column; padding: 0 14px 14px !important; }
+  .filing-search .solid-btn { width: 100%; }
+  .alert-form,
+  .journal-form { grid-template-columns: 1fr !important; padding: 0 14px 14px !important; }
+  .alert-form .solid-btn,
+  .journal-form .solid-btn { grid-column: auto !important; width: 100%; }
+
+  .company-top { align-items: flex-start !important; gap: 12px; }
+  .company-top > div { min-width: 0; }
+  .company-top .solid-btn { flex: 0 0 auto; }
+  .company-tabs {
+    position: static !important;
+    display: flex;
+    width: calc(100% + 26px);
+    margin: 0 -13px 14px !important;
+    padding: 6px 13px !important;
+    gap: 3px !important;
+    overflow-x: auto;
+    border-left: 0 !important;
+    border-right: 0 !important;
+    border-radius: 0 !important;
+    scrollbar-width: none;
+  }
+  .company-tabs a { flex: 0 0 auto; padding: 8px 9px !important; }
+  .company-page section { scroll-margin-top: 122px; }
+  .company-page .company-research-card { grid-template-columns: 1fr !important; }
+  .company-page .ratio-board { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; padding: 7px !important; }
+  .company-page .ratio-cell { min-width: 0; padding: 11px 9px !important; }
+  .company-page .ratio-cell b { overflow-wrap: anywhere; }
+  .company-about { padding: 16px !important; border-top: 1px solid var(--dd-line) !important; }
+  .ratio-filter-bar { padding: 0 13px 13px !important; }
+  .ratio-category-filter { width: 100%; overflow-x: auto; flex-wrap: nowrap !important; padding-bottom: 2px; }
+  .ratio-category-filter button { flex: 0 0 auto; }
+  .ratio-filter-actions { align-items: stretch !important; flex-direction: column; width: 100%; }
+  .ratio-search { box-sizing: border-box; min-width: 0 !important; width: 100%; }
+  .overview-ratios .ratio-explorer,
+  .ratio-explorer { grid-template-columns: 1fr !important; padding: 13px !important; }
+
+  .chart-area { min-height: 210px !important; padding: 7px 8px 13px !important; }
+  .chart-controls { display: grid !important; gap: 7px; padding: 0 8px 10px !important; }
+  .chart-controls > div { flex-wrap: nowrap; overflow-x: auto; padding: 2px; scrollbar-width: none; }
+  .chart-controls button { flex: 0 0 auto; }
+  .chart-legend { overflow-x: auto; justify-content: flex-start !important; white-space: nowrap; }
+
+  .table-wrap {
+    width: 100%;
+    overflow-x: auto !important;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table-wrap table { min-width: 650px; }
+  .financial-panel .table-wrap table { min-width: 900px; }
+  .table-wrap th:first-child,
+  .table-wrap td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: #111820;
+    box-shadow: 1px 0 0 var(--dd-line-soft);
+  }
+  .table-wrap thead th:first-child { z-index: 3; }
+  .filings-inline a { grid-template-columns: 54px minmax(160px, 1fr) auto; }
+  .compact-list { padding-inline: 13px; }
+
+  .compare-panel { padding: 13px !important; overflow: visible !important; }
+  .compare-controls { grid-template-columns: 1fr !important; }
+  .compare-vs { display: none; }
+  .compare-controls > .solid-btn { width: 100%; }
+  .comparison-grid { min-width: 560px; }
+  #comparison { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  .site-footer { align-items: flex-start !important; flex-direction: column; gap: 6px; padding: 15px !important; line-height: 1.5; }
+  .auth-overlay { align-items: end; padding: 0; }
+  .auth-dialog { width: 100%; max-height: 92vh; padding: 22px 17px; border-radius: 18px 18px 0 0; }
+}
+
+@media (max-width: 480px) {
+  .page { padding-inline: 10px !important; }
+  .market-grid,
+  .index-grid { grid-template-columns: 1fr !important; }
+  .market-card,
+  .index-card { min-height: 100px; }
+  .section-header { flex-direction: column; }
+  .company-top { flex-direction: column; }
+  .company-top .solid-btn { width: 100%; }
+  .company-tabs { width: calc(100% + 20px); margin-inline: -10px !important; padding-inline: 10px !important; }
+  .company-page .ratio-board { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .company-page .ratio-cell { min-height: 67px !important; }
+  .company-page .ratio-cell span { font-size: 8px !important; }
+  .company-page .ratio-cell b { font-size: 11px !important; }
+  .company-page .ratio-cell.price-cell b { font-size: 17px !important; }
+  .idea { grid-template-columns: auto minmax(0, 1fr) auto; padding-inline: 13px; }
+  .idea .link-button { font-size: 9px !important; }
+}
+
+@media (max-width: 360px) {
+  .brand-word strong,
+  .brand-word em { font-size: 16px !important; }
+  .brand-word small { display: none; }
+  .mark { width: 36px !important; height: 36px !important; flex-basis: 36px; }
+  .page-title { font-size: 24px !important; }
+  .company-page .ratio-board { grid-template-columns: 1fr !important; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;
