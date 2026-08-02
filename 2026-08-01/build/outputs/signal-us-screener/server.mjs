@@ -96,6 +96,13 @@ createServer(async (req, res) => {
       const quotes = await Promise.all(tickers.map(ticker => fmp('quote', { symbol:ticker })));
       return send(res, 200, quotes.map(item => item[0] || {}));
     }
+    if (url.pathname === '/data/indices') {
+      const indices = [
+        ['S&P 500', 'SPY'], ['Nasdaq-100', 'QQQ'], ['Dow Jones', 'DIA'], ['Russell 2000', 'IWM']
+      ];
+      const quotes = await Promise.all(indices.map(([, ticker]) => fmp('quote', { symbol:ticker })));
+      return send(res, 200, indices.map(([name], index) => ({ name, symbol: indices[index][1], ...(quotes[index][0] || {}) })));
+    }
     if (url.pathname === '/data/screener' || url.pathname === '/api/screener') {
       const sector = url.searchParams.get('sector');
       const cap = url.searchParams.get('cap');
