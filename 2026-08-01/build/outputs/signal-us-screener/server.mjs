@@ -97,18 +97,19 @@ async function twelveDataQuote(ticker) {
     volume: Number(data.volume), provider: 'twelve-data'
   };
 }
-async function priceHistory(ticker) {
+async function priceHistory(ticker, points = 260) {
   if (twelveDataKey) {
     const url = new URL('https://api.twelvedata.com/time_series');
     url.searchParams.set('symbol', ticker);
     url.searchParams.set('interval', '1day');
-    url.searchParams.set('outputsize', '260');
+    url.searchParams.set('outputsize', String(points));
     url.searchParams.set('apikey', twelveDataKey);
     const response = await externalFetch(url, { headers: { 'User-Agent': 'DollarDisha research app contact@dollardisha.in' } });
     const data = await response.json();
     if (response.ok && data.status !== 'error' && Array.isArray(data.values)) return data.values.slice().reverse().map(item => ({ date:item.datetime, close:Number(item.close), volume:Number(item.volume || 0) }));
   }
-  const response = await externalFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=1y&interval=1d`, { headers: { 'User-Agent': 'DollarDisha research app contact@dollardisha.in' } });
+  const range = points <= 25 ? '1mo' : points <= 130 ? '6mo' : points <= 260 ? '1y' : points <= 780 ? '3y' : points <= 1300 ? '5y' : '10y';
+  const response = await externalFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=${range}&interval=1d`, { headers: { 'User-Agent': 'DollarDisha research app contact@dollardisha.in' } });
   if (!response.ok) throw new Error('Historical price data is unavailable');
   const data = (await response.json()).chart?.result?.[0];
   const quote = data?.indicators?.quote?.[0];
@@ -259,7 +260,9 @@ createServer(async (req, res) => {
     if (url.pathname === '/data/chart') {
       const ticker = symbol(url.searchParams.get('symbol'));
       if (!ticker) return send(res, 400, { error:'Invalid ticker.' });
-      return send(res, 200, { symbol:ticker, values:await priceHistory(ticker) });
+      const requested = Number(url.searchParams.get('points'));
+      const points = [22, 130, 260, 780, 1300, 2600].includes(requested) ? requested : 260;
+      return send(res, 200, { symbol:ticker, values:await priceHistory(ticker, points) });
     }
     if (url.pathname === '/data/market' || url.pathname === '/api/market') {
       // Broad-market ETFs are not available under every FMP plan. These liquid US equities
