@@ -257,11 +257,27 @@ createServer(async (req, res) => {
       ]);
       const secValues = secData ? secFinancials(secData.facts) : { income:[], balance:[], cashflow:[] };
       const fallbackProfile = { companyName: secData?.facts?.entityName || secData?.company?.title || ticker, cik: secData?.company?.cik_str, sector: 'US Equity', description: secData ? 'Financial statement figures are sourced from this company’s SEC filings.' : 'Latest available price is shown below. Detailed fundamentals are unavailable for this company right now.' };
+      const rawProfile = profile[0] || fallbackProfile;
+      const rawRatios = ratios[0] || {};
+      const rawMetrics = metrics[0] || {};
+      // FMP uses different field names across a few datasets. Normalise them
+      // once on the server so the website never loses a number that was sent.
+      const finalProfile = { ...rawProfile, mktCap: rawProfile.mktCap ?? rawProfile.marketCap ?? quote.marketCap ?? null };
+      const finalRatios = {
+        ...rawRatios,
+        peRatioTTM: rawRatios.peRatioTTM ?? rawRatios.priceEarningsRatioTTM ?? rawMetrics.peRatioTTM ?? rawMetrics.peRatio ?? null,
+        priceToBookRatioTTM: rawRatios.priceToBookRatioTTM ?? rawRatios.priceBookValueRatioTTM ?? rawMetrics.priceToBookRatioTTM ?? null,
+        returnOnEquityTTM: rawRatios.returnOnEquityTTM ?? rawRatios.roeTTM ?? rawMetrics.returnOnEquityTTM ?? null,
+        currentRatioTTM: rawRatios.currentRatioTTM ?? rawMetrics.currentRatioTTM ?? null,
+        debtToEquityRatioTTM: rawRatios.debtToEquityRatioTTM ?? rawRatios.debtEquityRatioTTM ?? rawMetrics.debtToEquityTTM ?? null,
+        dividendYieldTTM: rawRatios.dividendYieldTTM ?? rawMetrics.dividendYieldTTM ?? null
+      };
+      const finalMetrics = { ...rawMetrics, bookValuePerShareTTM: rawMetrics.bookValuePerShareTTM ?? rawMetrics.bookValuePerShare ?? null };
       const finalIncome = income.length ? income : secValues.income;
       const finalBalance = balance.length ? balance : secValues.balance;
       const finalCashflow = cashflow.length ? cashflow : secValues.cashflow;
-      await cacheCompany(ticker, profile[0] || fallbackProfile, quote, { income:finalIncome, balance:finalBalance, cashflow:finalCashflow, ratios });
-      return send(res, 200, { profile: profile[0] || fallbackProfile, quote: quote || {}, metrics: metrics[0] || {}, income:finalIncome, balance:finalBalance, cashflow:finalCashflow, ratios: ratios[0] || {} });
+      await cacheCompany(ticker, finalProfile, quote, { income:finalIncome, balance:finalBalance, cashflow:finalCashflow, ratios:finalRatios });
+      return send(res, 200, { profile: finalProfile, quote: quote || {}, metrics: finalMetrics, income:finalIncome, balance:finalBalance, cashflow:finalCashflow, ratios: finalRatios });
     }
     if (url.pathname === '/data/chart') {
       const ticker = symbol(url.searchParams.get('symbol'));
