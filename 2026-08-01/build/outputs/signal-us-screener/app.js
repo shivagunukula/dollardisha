@@ -134,5 +134,101 @@ const originalHydrateCompanyExtras = hydrateCompanyExtras;
 hydrateCompanyExtras = async function(ticker) { originalHydrateCompanyExtras(ticker); const holder = $('#company-ratios'); if (!holder) return; try { const data = await getJson(`/data/company?symbol=${encodeURIComponent(ticker)}`); const r = data.ratios || {}; const n = (value, digits = 2) => Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : '—'; const x = (value, digits = 1) => Number.isFinite(Number(value)) ? `${(Number(value) * 100).toFixed(digits)}%` : '—'; const groups = [['Valuation', [['P/E', r.peRatioTTM ? `${n(r.peRatioTTM, 1)}x` : '—'], ['Price to book', r.priceToBookRatioTTM ? `${n(r.priceToBookRatioTTM, 1)}x` : '—'], ['Price to sales', r.priceToSalesRatioTTM ? `${n(r.priceToSalesRatioTTM, 1)}x` : '—'], ['Price to free cash flow', r.priceToFreeCashFlowsRatioTTM ? `${n(r.priceToFreeCashFlowsRatioTTM, 1)}x` : '—'], ['EV / EBITDA', r.enterpriseValueMultipleTTM ? `${n(r.enterpriseValueMultipleTTM, 1)}x` : '—'], ['Dividend yield', x(r.dividendYieldTTM, 2)]]], ['Profitability', [['Gross margin', x(r.grossProfitMarginTTM)], ['Operating margin', x(r.operatingProfitMarginTTM)], ['Net margin', x(r.netProfitMarginTTM)], ['Return on equity', x(r.returnOnEquityTTM)], ['Return on assets', x(r.returnOnAssetsTTM)], ['Return on capital employed', x(r.returnOnCapitalEmployedTTM)]]], ['Balance sheet', [['Current ratio', n(r.currentRatioTTM)], ['Quick ratio', n(r.quickRatioTTM)], ['Debt to equity', n(r.debtToEquityRatioTTM)], ['Debt ratio', n(r.debtRatioTTM)], ['Interest coverage', n(r.interestCoverageTTM)], ['Equity multiplier', n(r.companyEquityMultiplierTTM)]]], ['Cash flow & efficiency', [['Operating cash flow / sales', x(r.operatingCashFlowSalesRatioTTM)], ['Free cash flow / operating cash flow', x(r.freeCashFlowOperatingCashFlowRatioTTM)], ['Asset turnover', n(r.assetTurnoverTTM)], ['Inventory turnover', n(r.inventoryTurnoverTTM)], ['Receivables turnover', n(r.receivablesTurnoverTTM)], ['Payout ratio', x(r.payoutRatioTTM)]]]]; holder.innerHTML = `<div class="ratio-explorer-head"><div><b>Ratio explorer</b><span>Most recent trailing-twelve-month values</span></div></div><div class="ratio-explorer">${groups.map(([name, rows]) => `<section><h3>${name}</h3>${rows.map(([label,value]) => `<div><span>${label}</span><b>${value}</b></div>`).join('')}</section>`).join('')}</div>`; } catch { holder.innerHTML = '<p class="data-empty">Detailed ratios are temporarily unavailable for this company.</p>'; } };
 document.head.insertAdjacentHTML('beforeend', '<style>.ratios-panel{overflow:hidden}.ratio-explorer-head{padding:2px 16px 14px}.ratio-explorer-head b,.ratio-explorer-head span{display:block}.ratio-explorer-head b{font-size:12px}.ratio-explorer-head span{margin-top:4px;color:#94a3c4;font-size:10px}.ratio-explorer{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding:0 16px 16px}.ratio-explorer section{border:1px solid #2d395a;border-radius:9px;overflow:hidden;background:#10182b}.ratio-explorer h3{margin:0;padding:11px 12px;background:#17213b;color:#b7c5ff;font-size:10px;text-transform:uppercase;letter-spacing:.1em}.ratio-explorer section>div{display:flex;justify-content:space-between;gap:10px;padding:10px 12px;border-top:1px solid #273250;font-size:11px}.ratio-explorer span{color:#a6b2cb}.ratio-explorer b{color:#f0f4ff}@media(max-width:700px){.ratio-explorer{grid-template-columns:1fr}}</style>');
 document.head.insertAdjacentHTML('beforeend', '<style>.ratio-cell{padding:11px 12px!important;min-height:64px!important}.ratio-cell span{font-size:9px!important}.ratio-cell b{margin-top:5px!important;font-size:12px!important;line-height:1.25!important;word-break:break-word}.ratio-cell.price-cell b{font-size:18px!important}.ratio-cell small{font-size:9px!important}.company-research-card{grid-template-columns:minmax(0,2.2fr) minmax(270px,.9fr)!important}.company-about{padding:18px 20px!important}</style>');
+// Company overview: keep the headline facts and the complete ratio explorer
+// together, with controls for finding and hiding individual metrics.
+function companyView(ticker) {
+  return `<div class="page company-page">
+    <div class="company-top">
+      <div><p class="crumb">US EQUITY RESEARCH</p><h1 class="page-title" id="company-title">${escapeHtml(ticker)}</h1><p class="sub" id="company-subtitle">${escapeHtml(ticker)} · Loading company research…</p></div>
+      <button class="solid-btn" data-watch="${ticker}">Follow</button>
+    </div>
+    <nav class="company-tabs"><a href="#overview">Overview</a><a href="#chart">Chart</a><a href="#financials">Financials</a><a href="#peers">Peers</a><a href="#intelligence">Intelligence</a><a href="#updates">Updates</a><a href="#documents">Filings</a></nav>
+    <div id="overview" class="company-overview-stack">
+      <section class="panel company-summary company-research-card">
+        <div class="summary-main ratio-board">
+          <div class="ratio-cell"><span>Market cap</span><b id="company-cap">—</b></div>
+          <div class="ratio-cell price-cell"><span>Current price</span><b id="company-price">—</b><small id="company-change">Quote loading…</small></div>
+          <div class="ratio-cell"><span>Day high / low</span><b id="company-range">—</b></div>
+          <div class="ratio-cell emphasis"><span>Stock P/E</span><b id="company-pe">—</b></div>
+          <div class="ratio-cell emphasis"><span>Book value / share</span><b id="company-book">—</b></div>
+          <div class="ratio-cell emphasis"><span>Dividend yield</span><b id="company-dividend">—</b></div>
+          <div class="ratio-cell"><span>Return on equity</span><b id="company-roe">—</b></div>
+          <div class="ratio-cell"><span>Current ratio</span><b id="company-current">—</b></div>
+          <div class="ratio-cell"><span>Debt to equity</span><b id="company-debt">—</b></div>
+          <div class="ratio-cell emphasis"><span>Price to book</span><b id="company-pb">—</b></div>
+          <div class="ratio-cell"><span>Volume</span><b id="company-volume">—</b></div>
+          <div class="ratio-cell"><span>Sector</span><b id="company-sector">—</b></div>
+        </div>
+        <aside class="company-about"><p class="about-label">ABOUT</p><p id="company-description">Loading company profile and latest available quote…</p><div class="about-meta"><span>Website</span><b id="company-site">—</b></div><div id="company-keypoints" class="key-points"></div></aside>
+      </section>
+      <section class="panel ratios-panel overview-ratios">
+        <div class="panel-head"><div><h2>Financial ratio explorer</h2><p>Filter the latest trailing-twelve-month valuation, quality and efficiency metrics</p></div></div>
+        <div id="company-ratios"><p class="data-empty">Loading ratios…</p></div>
+      </section>
+    </div>
+    <section id="chart" class="panel chart-panel"><div class="panel-head"><div><h2>Price & volume</h2><p>Historical market data · select the time range below</p></div></div><div id="company-chart" class="chart-area">Loading chart…</div></section>
+    <div id="financials" class="financial-stack"></div>
+    <section id="peers" class="panel documents-panel"><div class="panel-head"><div><h2>Peer comparison</h2><p>Companies in the same sector and industry</p></div></div><div id="company-peers" class="data-empty">Peer data is loading…</div></section>
+    <section id="intelligence" class="research-grid intelligence-grid"><div class="panel"><div class="panel-head"><div><h2>Analyst & financial strength</h2><p>Consensus, financial scores and owner earnings</p></div></div><div id="company-intel" class="data-empty">Loading analyst and financial-strength data…</div></div><div class="panel"><div class="panel-head"><div><h2>Company leadership</h2><p>Executives reported by the provider</p></div></div><div id="company-executives" class="data-empty">Loading executive data…</div></div></section>
+    <section id="updates" class="research-grid intelligence-grid"><div class="panel"><div class="panel-head"><div><h2>News & company events</h2><p>Latest available provider headlines, earnings and dividends</p></div></div><div id="company-updates" class="data-empty">Loading company updates…</div></div><div class="panel"><div class="panel-head"><div><h2>Insider activity</h2><p>Reported insider transactions</p></div></div><div id="company-insiders" class="data-empty">Loading insider activity…</div></div></section>
+    <section id="documents" class="panel documents-panel"><div class="panel-head"><div><h2>Recent SEC filings</h2><p>Official documents, direct from the SEC</p></div></div><div id="company-documents" class="data-empty">Loading recent filings…</div></section>
+  </div>`;
+}
+
+function renderFilteredRatioExplorer(holder, ratios) {
+  const metric = (label, value, format = 'number', digits = 2) => ({ label, value, format, digits, available: Number.isFinite(Number(value)) });
+  const groups = [
+    { id:'valuation', name:'Valuation', rows:[metric('P/E', ratios.peRatioTTM, 'multiple', 1), metric('Price to book', ratios.priceToBookRatioTTM, 'multiple', 1), metric('Price to sales', ratios.priceToSalesRatioTTM, 'multiple', 1), metric('Price to free cash flow', ratios.priceToFreeCashFlowsRatioTTM, 'multiple', 1), metric('EV / EBITDA', ratios.enterpriseValueMultipleTTM, 'multiple', 1), metric('Dividend yield', ratios.dividendYieldTTM, 'percent', 2)] },
+    { id:'profitability', name:'Profitability', rows:[metric('Gross margin', ratios.grossProfitMarginTTM, 'percent', 1), metric('Operating margin', ratios.operatingProfitMarginTTM, 'percent', 1), metric('Net margin', ratios.netProfitMarginTTM, 'percent', 1), metric('Return on equity', ratios.returnOnEquityTTM, 'percent', 1), metric('Return on assets', ratios.returnOnAssetsTTM, 'percent', 1), metric('Return on capital employed', ratios.returnOnCapitalEmployedTTM, 'percent', 1)] },
+    { id:'balance', name:'Balance sheet', rows:[metric('Current ratio', ratios.currentRatioTTM), metric('Quick ratio', ratios.quickRatioTTM), metric('Debt to equity', ratios.debtToEquityRatioTTM), metric('Debt ratio', ratios.debtRatioTTM), metric('Interest coverage', ratios.interestCoverageTTM), metric('Equity multiplier', ratios.companyEquityMultiplierTTM)] },
+    { id:'cashflow', name:'Cash flow & efficiency', rows:[metric('Operating cash flow / sales', ratios.operatingCashFlowSalesRatioTTM, 'percent', 1), metric('Free cash flow / operating cash flow', ratios.freeCashFlowOperatingCashFlowRatioTTM, 'percent', 1), metric('Asset turnover', ratios.assetTurnoverTTM), metric('Inventory turnover', ratios.inventoryTurnoverTTM), metric('Receivables turnover', ratios.receivablesTurnoverTTM), metric('Payout ratio', ratios.payoutRatioTTM, 'percent', 1)] }
+  ];
+  let activeGroup = 'all';
+  let hideUnavailable = false;
+  const formatValue = row => {
+    if (!row.available) return '&mdash;';
+    const value = Number(row.value);
+    if (row.format === 'percent') return `${(value * 100).toFixed(row.digits)}%`;
+    if (row.format === 'multiple') return `${value.toFixed(row.digits)}x`;
+    return value.toFixed(row.digits);
+  };
+  const draw = () => {
+    const query = holder.querySelector('#ratio-search')?.value.trim().toLowerCase() || '';
+    const visibleGroups = groups.map(group => ({ ...group, rows:group.rows.filter(row => (!query || row.label.toLowerCase().includes(query)) && (!hideUnavailable || row.available)) })).filter(group => (activeGroup === 'all' || group.id === activeGroup) && group.rows.length);
+    holder.innerHTML = `<div class="ratio-filter-bar"><div class="ratio-category-filter"><button class="${activeGroup === 'all' ? 'active' : ''}" data-ratio-group="all">All</button>${groups.map(group => `<button class="${activeGroup === group.id ? 'active' : ''}" data-ratio-group="${group.id}">${group.name}</button>`).join('')}</div><div class="ratio-filter-actions"><label class="ratio-search"><span>⌕</span><input id="ratio-search" value="${escapeHtml(query)}" placeholder="Find a ratio"></label><label class="ratio-hide"><input id="ratio-hide-unavailable" type="checkbox" ${hideUnavailable ? 'checked' : ''}> Hide unavailable</label></div></div><div class="ratio-explorer">${visibleGroups.map(group => `<section data-ratio-section="${group.id}"><h3>${group.name}</h3>${group.rows.map(row => `<div data-ratio-name="${escapeHtml(row.label.toLowerCase())}"><span>${row.label}</span><b>${formatValue(row)}</b></div>`).join('')}</section>`).join('') || '<p class="data-empty">No ratios match this filter.</p>'}</div>`;
+    holder.querySelectorAll('[data-ratio-group]').forEach(button => button.onclick = () => { activeGroup = button.dataset.ratioGroup; draw(); });
+    const search = holder.querySelector('#ratio-search');
+    if (search) { search.oninput = draw; search.focus(); search.setSelectionRange(search.value.length, search.value.length); }
+    const hide = holder.querySelector('#ratio-hide-unavailable');
+    if (hide) hide.onchange = () => { hideUnavailable = hide.checked; draw(); };
+  };
+  draw();
+}
+
+hydrateCompanyExtras = function(ticker) {
+  originalHydrateCompanyExtras(ticker);
+  const holder = $('#company-ratios');
+  if (!holder) return;
+  getJson(`/data/company?symbol=${encodeURIComponent(ticker)}`)
+    .then(data => renderFilteredRatioExplorer(holder, data.ratios || {}))
+    .catch(() => { holder.innerHTML = '<p class="data-empty">Detailed ratios are temporarily unavailable for this company.</p>'; });
+};
+
+document.head.insertAdjacentHTML('beforeend', `<style>
+  .company-overview-stack{display:grid;gap:14px;margin-bottom:16px}
+  .overview-ratios{overflow:hidden}
+  .ratio-filter-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 16px 14px;border-bottom:1px solid #2d395a}
+  .ratio-category-filter{display:flex;gap:6px;flex-wrap:wrap}
+  .ratio-category-filter button{border:1px solid #334163;border-radius:999px;background:#111a2e;color:#aebad3;padding:7px 10px;font:600 10px Inter;cursor:pointer}
+  .ratio-category-filter button.active,.ratio-category-filter button:hover{background:#536cec;border-color:#7186ff;color:#fff}
+  .ratio-filter-actions{display:flex;align-items:center;gap:10px}
+  .ratio-search{display:flex;align-items:center;gap:6px;min-width:180px;border:1px solid #334163;border-radius:7px;background:#0d1527;padding:0 9px;color:#94a3c4}
+  .ratio-search input{width:100%;border:0;outline:0;background:transparent;color:#f3f6ff;padding:8px 0;font:500 10px Inter}
+  .ratio-hide{display:flex;align-items:center;gap:6px;color:#aebad3;font-size:10px;white-space:nowrap}
+  .overview-ratios .ratio-explorer{grid-template-columns:repeat(4,minmax(0,1fr));padding-top:16px}
+  @media(max-width:1100px){.overview-ratios .ratio-explorer{grid-template-columns:repeat(2,minmax(0,1fr))}.ratio-filter-bar{align-items:flex-start;flex-direction:column}.ratio-filter-actions{width:100%}.ratio-search{flex:1}}
+  @media(max-width:650px){.overview-ratios .ratio-explorer{grid-template-columns:1fr}.ratio-filter-actions{align-items:flex-start;flex-direction:column}.ratio-search{box-sizing:border-box;width:100%}}
+</style>`);
+
 setupSearch();
 render();
