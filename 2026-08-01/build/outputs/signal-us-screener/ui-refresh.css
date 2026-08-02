@@ -1,16 +1,16 @@
 :root {
-  --dd-bg: #090f1d;
-  --dd-surface: #111a2d;
-  --dd-surface-2: #0d1527;
-  --dd-surface-3: #17223a;
-  --dd-line: #293654;
-  --dd-line-soft: #202c46;
-  --dd-text: #f1f5ff;
-  --dd-muted: #99a7c4;
-  --dd-accent: #7187ff;
-  --dd-accent-soft: #202e57;
-  --dd-green: #54ddb4;
-  --dd-red: #ff8498;
+  --dd-bg: #090d12;
+  --dd-surface: #111820;
+  --dd-surface-2: #0d141b;
+  --dd-surface-3: #17212a;
+  --dd-line: #29343e;
+  --dd-line-soft: #202a33;
+  --dd-text: #edf3f7;
+  --dd-muted: #93a2ad;
+  --dd-accent: #43c6a2;
+  --dd-accent-soft: #17372f;
+  --dd-green: #4ad6a7;
+  --dd-red: #ff7d88;
   --dd-radius: 12px;
 }
 
@@ -18,7 +18,7 @@ html { scroll-behavior: smooth; }
 body {
   min-height: 100vh;
   background:
-    radial-gradient(700px 360px at 8% -8%, rgba(72, 96, 170, .27), transparent 72%),
+    radial-gradient(760px 380px at 8% -8%, rgba(35, 112, 94, .2), transparent 72%),
     var(--dd-bg) !important;
   color: var(--dd-text) !important;
   font-size: 12px;
@@ -27,7 +27,7 @@ body {
 }
 
 .site-header {
-  background: rgba(9, 15, 29, .94) !important;
+  background: rgba(9, 13, 18, .94) !important;
   border-bottom: 1px solid var(--dd-line) !important;
   box-shadow: 0 14px 38px rgba(0, 0, 0, .28) !important;
 }
@@ -45,8 +45,8 @@ body {
 .universal-search {
   width: min(390px, 34vw) !important;
   height: 39px !important;
-  background: #111a2d !important;
-  border-color: #334263 !important;
+  background: #111820 !important;
+  border-color: #34414a !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025);
 }
 .universal-search:focus-within {
@@ -82,7 +82,7 @@ body {
 .query-card {
   border: 1px solid var(--dd-line) !important;
   border-radius: var(--dd-radius) !important;
-  background: linear-gradient(145deg, #121b2f, #0f1729) !important;
+  background: linear-gradient(145deg, #121a22, #0e151c) !important;
   box-shadow: 0 14px 34px rgba(0, 0, 0, .15) !important;
 }
 .panel-head {
@@ -100,8 +100,8 @@ body {
 .solid-btn {
   min-height: 35px;
   border-radius: 8px !important;
-  background: linear-gradient(135deg, #7187ff, #536be7) !important;
-  box-shadow: 0 8px 20px rgba(68, 90, 205, .22) !important;
+  background: linear-gradient(135deg, #38bd98, #238e74) !important;
+  box-shadow: 0 8px 20px rgba(26, 137, 108, .2) !important;
 }
 .solid-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
 .link-button { color: #aebaff !important; text-decoration: none !important; }
@@ -114,7 +114,7 @@ body {
   min-height: 42px;
   margin-bottom: 15px !important;
   padding: 5px 7px !important;
-  background: rgba(13, 21, 39, .94) !important;
+  background: rgba(12, 18, 24, .94) !important;
   backdrop-filter: blur(12px);
 }
 .company-tabs a {
@@ -196,8 +196,8 @@ body {
   border-color: #334263 !important;
 }
 .ratio-category-filter button.active {
-  background: #536cec !important;
-  border-color: #7186ff !important;
+  background: #238e74 !important;
+  border-color: #43c6a2 !important;
 }
 .overview-ratios .ratio-explorer {
   gap: 10px !important;
@@ -235,7 +235,7 @@ th {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: #111a2d;
+  background: #111820;
   color: #8f9dbb !important;
   font-size: 9px !important;
   text-transform: uppercase;
@@ -244,7 +244,7 @@ th {
 th,
 td { height: 42px; padding: 9px 10px !important; border-color: var(--dd-line-soft) !important; }
 tbody tr:nth-child(even) td { background: rgba(255, 255, 255, .012); }
-.company-row:hover td { background: #182541 !important; }
+.company-row:hover td { background: #152720 !important; }
 
 .filters { background: var(--dd-surface-2) !important; border-color: var(--dd-line) !important; }
 .filters select,
@@ -286,4 +286,137 @@ tbody tr:nth-child(even) td { background: rgba(255, 255, 255, .012); }
   .ratio-cell { min-height: 50px !important; }
   .market-grid,
   .index-grid { grid-template-columns: 1fr !important; }
+}
+
+/* Calm market-terminal palette overrides */
+.mark {
+  background: linear-gradient(145deg, #45caa7, #227d69) !important;
+  box-shadow: 0 8px 22px rgba(35, 155, 124, .22) !important;
+}
+.brand-word em,
+.link-button,
+.about-meta a,
+.filings-inline b,
+.ratio-explorer h3,
+.about-label { color: #73d9bd !important; }
+.brand-word small { color: #7f968f !important; }
+.nav b { background: #1e5f50 !important; color: #dffff5 !important; }
+.company-tabs a:hover,
+.nav:hover,
+.nav.active { background: #17372f !important; }
+.crumb { color: #68cdb1 !important; }
+.chart-line { stroke: #4ad6a7 !important; }
+.chart-volume rect { fill: #355b53 !important; }
+.chart-controls button.selected {
+  background: #17493d !important;
+  border-color: #3bb995 !important;
+  color: #e9fff8 !important;
+}
+.ratio-cell:hover { border-color: #356355 !important; background: #11231e !important; }
+.ratio-search:focus-within {
+  border-color: #3bb995 !important;
+  box-shadow: 0 0 0 3px rgba(67, 198, 162, .1);
+}
+.workflow button:hover {
+  background: #14251f !important;
+  border-color: #356a59 !important;
+}
+.workflow button > b { background: #17372f !important; color: #79dec2 !important; }
+.market-card::before,
+.index-card::before { background: linear-gradient(90deg, #48d0aa, #6ea5c8) !important; }
+.page > section.panel:first-child h1 span { color: #66d5b6 !important; }
+.page > section.panel:first-child > div:first-child {
+  background: radial-gradient(circle, rgba(57, 177, 145, .2) 0%, transparent 68%) !important;
+}
+
+/* Motion: noticeable enough to feel polished, quiet enough for research */
+@keyframes dd-page-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes dd-card-in {
+  from { opacity: 0; transform: translateY(10px) scale(.995); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes dd-price-in {
+  0% { opacity: .2; transform: translateY(4px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes dd-chart-draw {
+  from { stroke-dashoffset: 2200; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes dd-volume-rise {
+  from { opacity: 0; transform: scaleY(.1); }
+  to { opacity: 1; transform: scaleY(1); }
+}
+@keyframes dd-soft-pulse {
+  0%, 100% { opacity: .65; }
+  50% { opacity: 1; }
+}
+
+#content > .page { animation: dd-page-in .42s cubic-bezier(.2,.75,.25,1) both; }
+.panel,
+.market-card,
+.index-card { animation: dd-card-in .42s cubic-bezier(.2,.75,.25,1) both; }
+.market-card:nth-child(2),
+.index-card:nth-child(2) { animation-delay: .045s; }
+.market-card:nth-child(3),
+.index-card:nth-child(3) { animation-delay: .09s; }
+.market-card:nth-child(4),
+.index-card:nth-child(4) { animation-delay: .135s; }
+
+.nav,
+.solid-btn,
+.link-button,
+.workflow button,
+.market-card,
+.index-card,
+.ratio-cell,
+.ratio-category-filter button,
+.company-tabs a,
+.filings-inline a,
+.compact-list > a {
+  transition: color .18s ease, background-color .18s ease, border-color .18s ease, transform .18s ease, box-shadow .18s ease, filter .18s ease;
+}
+.market-card:hover,
+.index-card:hover {
+  transform: translateY(-3px);
+  border-color: #3d6459 !important;
+  box-shadow: 0 18px 38px rgba(0, 0, 0, .24) !important;
+}
+.solid-btn:active,
+.ratio-category-filter button:active { transform: translateY(1px) scale(.985); }
+.mark { transition: transform .28s cubic-bezier(.2,.8,.2,1), box-shadow .28s ease; }
+.brand:hover .mark { transform: rotate(-5deg) scale(1.05); box-shadow: 0 10px 28px rgba(35, 155, 124, .3) !important; }
+.ratio-cell.price-cell b,
+#company-price { animation: dd-price-in .36s ease both; }
+.chart-line {
+  stroke-dasharray: 2200;
+  stroke-dashoffset: 2200;
+  animation: dd-chart-draw 1.15s cubic-bezier(.25,.7,.2,1) .12s forwards;
+}
+.chart-volume rect {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: dd-volume-rise .55s ease both;
+}
+.market-card strong:empty,
+.index-card strong:empty,
+.data-empty:has(+ .loading) { animation: dd-soft-pulse 1.2s ease-in-out infinite; }
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid #56d3b2 !important;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
 }
