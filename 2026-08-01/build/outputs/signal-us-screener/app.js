@@ -987,6 +987,17 @@ function setAuthMessage(message = '', kind = '') {
   holder.className = `auth-message${kind ? ` ${kind}` : ''}`;
 }
 
+function friendlyAuthError(error) {
+  const raw = String(error?.message || error?.error_description || error || 'Could not complete that request.');
+  if (/invalid login credentials/i.test(raw)) return 'Email or password is incorrect. If you just created the account, confirm your email first.';
+  if (/email not confirmed/i.test(raw)) return 'Please confirm your email address, then try logging in again.';
+  if (/provider is not enabled|unsupported provider/i.test(raw)) return 'Google sign-in is not enabled in Supabase yet. Enable Google under Authentication → Providers.';
+  if (/redirect|redirect_uri|site url|not allowed/i.test(raw)) return `This website URL is not approved for sign-in yet. Add ${window.location.origin} to Supabase Authentication → URL Configuration.`;
+  if (/pkce|code verifier|exchange/i.test(raw)) return 'The sign-in callback expired. Close this window, reopen Log in, and try again.';
+  if (/network|fetch|failed to fetch|load failed/i.test(raw)) return 'The sign-in service could not be reached. Check your connection and try again.';
+  return raw;
+}
+
 function setAuthBusy(busy) {
   ['#auth-submit', '#auth-google', '#auth-magic', '#auth-forgot', '#auth-signout'].forEach(selector => {
     const control = $(selector);
@@ -1072,8 +1083,11 @@ async function setupAuth() {
   try { config = await getJson('/data/auth-config'); }
   catch { config = null; }
   if (!config?.enabled || !window.supabase?.createClient) {
-    accountButton.onclick = () => { openAuth('login'); setAuthMessage('Account login needs one final configuration step from the site owner.', 'error'); };
-    setAuthBusy(true);
+    const reason = !window.supabase?.createClient
+      ? 'The sign-in library did not load. Refresh the page and try again.'
+      : `Sign-in is not connected on this deployment. Add SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in Render, then redeploy. Current site: ${window.location.origin}`;
+    accountButton.onclick = () => { openAuth('login'); setAuthMessage(reason, 'error'); setAuthBusy(false); };
+    setAuthBusy(false);
     return;
   }
 
@@ -1088,11 +1102,18 @@ async function setupAuth() {
   // session, otherwise the page comes back from Google but still says “Log in”.
   const callbackUrl = new URL(window.location.href);
   const callbackCode = callbackUrl.searchParams.get('code');
+  let callbackError = callbackUrl.searchParams.get('error_description') || callbackUrl.searchParams.get('error') || '';
   if (callbackCode) {
     try {
       const { error } = await authClient.auth.exchangeCodeForSession(callbackCode);
-      if (error) console.warn(`Could not restore Google session: ${error.message}`);
-    } catch (error) { console.warn(`Could not restore Google session: ${error.message}`); }
+      if (error) {
+        callbackError = error.message;
+        console.warn(`Could not restore Google session: ${error.message}`);
+      }
+    } catch (error) {
+      callbackError = error.message;
+      console.warn(`Could not restore Google session: ${error.message}`);
+    }
     callbackUrl.searchParams.delete('code');
     callbackUrl.searchParams.delete('error');
     callbackUrl.searchParams.delete('error_code');
@@ -1111,6 +1132,10 @@ async function setupAuth() {
     if (!initialSession && attempt < 2) await new Promise(resolve => setTimeout(resolve, 250));
   }
   updateAuthUI(initialSession);
+  if (callbackError && !initialSession) {
+    openAuth('login');
+    setAuthMessage(friendlyAuthError(callbackError), 'error');
+  }
   if (recoveryReturn && initialSession) {
     setAuthMode('recovery');
     openAuth('recovery');
@@ -1150,7 +1175,7 @@ async function setupAuth() {
         if (error) throw error;
         updateAuthUI(data.session);
       }
-    } catch (error) { setAuthMessage(error.message || 'Could not complete that request.', 'error'); }
+    } catch (error) { setAuthMessage(friendlyAuthError(error), 'error'); }
     finally { setAuthBusy(false); }
   };
 
@@ -1158,7 +1183,7 @@ async function setupAuth() {
     setAuthBusy(true);
     setAuthMessage();
     const { error } = await authClient.auth.signInWithOAuth({ provider:'google', options:{ redirectTo } });
-    if (error) { setAuthMessage(error.message, 'error'); setAuthBusy(false); }
+    if (error) { setAuthMessage(friendlyAuthError(error), 'error'); setAuthBusy(false); }
   };
 
   $('#auth-magic').onclick = async () => {
@@ -1166,7 +1191,7 @@ async function setupAuth() {
     if (!email) { $('#auth-email').focus(); setAuthMessage('Enter your email address first.', 'error'); return; }
     setAuthBusy(true);
     const { error } = await authClient.auth.signInWithOtp({ email, options:{ emailRedirectTo:redirectTo, shouldCreateUser:true } });
-    setAuthMessage(error ? error.message : 'Login link sent. Check your email.', error ? 'error' : 'success');
+    setAuthMessage(error ? friendlyAuthError(error) : 'Login link sent. Check your email.', error ? 'error' : 'success');
     setAuthBusy(false);
   };
 
@@ -1175,14 +1200,14 @@ async function setupAuth() {
     if (!email) { $('#auth-email').focus(); setAuthMessage('Enter your email address first.', 'error'); return; }
     setAuthBusy(true);
     const { error } = await authClient.auth.resetPasswordForEmail(email, { redirectTo });
-    setAuthMessage(error ? error.message : 'Password reset email sent.', error ? 'error' : 'success');
+    setAuthMessage(error ? friendlyAuthError(error) : 'Password reset email sent.', error ? 'error' : 'success');
     setAuthBusy(false);
   };
 
   $('#auth-signout').onclick = async () => {
     setAuthBusy(true);
     const { error } = await authClient.auth.signOut();
-    if (error) setAuthMessage(error.message, 'error');
+    if (error) setAuthMessage(friendlyAuthError(error), 'error');
     else { updateAuthUI(null); closeAuth(); }
     setAuthBusy(false);
   };
