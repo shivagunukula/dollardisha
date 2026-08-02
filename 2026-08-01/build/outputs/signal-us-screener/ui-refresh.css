@@ -104,6 +104,12 @@ body {
   box-shadow: 0 8px 20px rgba(26, 137, 108, .2) !important;
 }
 .solid-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.company-top .solid-btn.saved {
+  color: #86e7ca !important;
+  background: #122d29 !important;
+  border: 1px solid #3aa98c !important;
+  box-shadow: inset 0 0 0 1px rgba(86, 211, 178, .08) !important;
+}
 .link-button { color: #aebaff !important; text-decoration: none !important; }
 
 .company-top { margin-bottom: 13px !important; }

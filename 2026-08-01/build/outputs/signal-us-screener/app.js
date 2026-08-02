@@ -15,6 +15,7 @@ const money = (value) => { const number = Number(value || 0); return number >= 1
 const percent = (value) => Number.isFinite(Number(value)) ? `${Number(value) >= 0 ? '+' : ''}${Number(value).toFixed(2)}%` : '—';
 let page = 'dashboard';
 let watchlist = JSON.parse(localStorage.getItem('dd-watchlist') || '[]');
+let watchlistRefreshTimer;
 let basket = JSON.parse(localStorage.getItem('dd-custom-index') || '{"name":"DollarDisha Research 10","symbols":[]}');
 let notes = JSON.parse(localStorage.getItem('dd-research-notes') || '[]');
 let alerts = JSON.parse(localStorage.getItem('dd-price-alerts') || '[]');
@@ -66,7 +67,7 @@ function researchView() {
 }
 
 function compareView() { return `<div class="page">${pageHeader('RESEARCH SIDE BY SIDE', 'Compare companies', 'Compare basic price, valuation and profitability data before you form a view.')}<section class="panel compare-panel"><div class="compare-controls"><input id="compare-a" value="AAPL" maxlength="10"><span>vs</span><input id="compare-b" value="MSFT" maxlength="10"><button id="compare-run" class="solid-btn">Compare</button></div><div id="comparison"></div></section></div>`; }
-function watchlistView() { const items = watchlist.map((ticker) => stocks.find((stock) => stock.ticker === ticker) || { ticker, name: ticker }); return `<div class="page">${pageHeader('YOUR RESEARCH', 'Watchlist', 'Your saved research ideas live in this browser.')}<section class="panel"><div class="table-wrap"><table><thead><tr><th>Company</th><th>Price</th><th>Market cap</th><th>P/E</th><th>Today</th><th></th></tr></thead><tbody>${items.map(row).join('') || '<tr><td colspan="6">Your watchlist is empty. Add a company from any scan.</td></tr>'}</tbody></table></div></section></div>`; }
+function watchlistView() { const placeholders = watchlist.map(ticker => `<tr class="company-row" data-stock="${ticker}"><td class="company">${ticker}<span class="ticker">Updating live data…</span></td><td colspan="4">Loading latest values…</td><td>${watchButton(ticker)}</td></tr>`).join(''); return `<div class="page">${pageHeader('YOUR RESEARCH', 'Watchlist', 'Latest available prices and fundamentals. Values refresh every minute while this page is open.')}<section class="panel"><div class="table-wrap"><table><thead><tr><th>Company</th><th>Price</th><th>Market cap</th><th>P/E</th><th>Today</th><th></th></tr></thead><tbody id="watchlist-body">${placeholders || '<tr><td colspan="6">Your watchlist is empty. Add a company from any scan.</td></tr>'}</tbody></table></div></section></div>`; }
 function companyView(ticker) { const stock = stocks.find((item) => item.ticker === ticker) || { ticker, name: ticker, sector: 'US Equity' }; return `<div class="page">${pageHeader(`US STOCKS / ${escapeHtml(stock.sector).toUpperCase()}`, escapeHtml(stock.name), `${ticker} · US EQUITY`)}<section class="detail-grid"><div><section class="panel"><div class="panel-head"><div><h2>Company research</h2><p id="company-description">Loading company profile and latest available quote…</p></div>${watchButton(ticker)}</div><div class="key-metrics"><div><span>Price</span><b id="company-price">${stock.price ? `$${stock.price.toFixed(2)}` : '—'}</b></div><div><span>Today</span><b id="company-change" class="${stock.change >= 0 ? 'positive' : 'down'}">${percent(stock.change)}</b></div><div><span>Market cap</span><b id="company-cap">${money(stock.cap * 1e9)}</b></div><div><span>P/E ratio</span><b id="company-pe">${stock.pe ? `${stock.pe}x` : '—'}</b></div><div><span>ROE</span><b>${stock.roe ? `${stock.roe}%` : '—'}</b></div></div></section><section class="panel" style="margin-top:18px"><div class="panel-head"><div><h2>Research checklist</h2><p>Keep your decision process consistent</p></div></div><div class="checklist"><label><input type="checkbox"> Understand the business</label><label><input type="checkbox"> Review revenue and profit trend</label><label><input type="checkbox"> Compare valuation and peers</label><label><input type="checkbox"> Write the risk case</label></div></section></div><aside class="panel"><div class="panel-head"><div><h2>Next steps</h2><p>Use the Research Hub for filings and notes.</p></div></div><button data-page="research" class="solid-btn">Open Research Hub</button></aside></section></div>`; }
 
 const usd = (value) => Number.isFinite(Number(value)) ? new Intl.NumberFormat('en-US', { style:'currency', currency:'USD', notation:'compact', maximumFractionDigits:2 }).format(Number(value)) : '—';
@@ -86,6 +87,8 @@ function render() {
   if (page === 'indexlab') setupIndex();
   if (page === 'research') setupResearch();
   if (page === 'compare') setupCompare();
+  if (page === 'watchlist') hydrateWatchlist();
+  else { clearTimeout(watchlistRefreshTimer); watchlistRefreshTimer = null; }
   if (!['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist'].includes(page)) { hydrateCompany(page); hydrateCompanyExtras(page); }
 }
 
@@ -94,7 +97,30 @@ function wireCommon() {
   document.querySelectorAll('[data-stock]').forEach((element) => element.onclick = (event) => { if (!event.target.closest('[data-watch]')) { page = element.dataset.stock; render(); window.scrollTo(0, 0); } });
   document.querySelectorAll('[data-watch]').forEach((button) => button.onclick = (event) => { event.stopPropagation(); const ticker = button.dataset.watch; watchlist = watchlist.includes(ticker) ? watchlist.filter((item) => item !== ticker) : [...watchlist, ticker]; localStorage.setItem('dd-watchlist', JSON.stringify(watchlist)); render(); });
 }
-async function getJson(url) { const response = await fetch(url, { signal: AbortSignal.timeout(9000) }); if (!response.ok) throw new Error('Request failed'); return response.json(); }
+async function getJson(url, timeout = 9000) { const response = await fetch(url, { signal: AbortSignal.timeout(timeout) }); if (!response.ok) throw new Error('Request failed'); return response.json(); }
+async function hydrateWatchlist() {
+  clearTimeout(watchlistRefreshTimer);
+  watchlistRefreshTimer = null;
+  const holder = $('#watchlist-body');
+  const requested = [...watchlist];
+  if (!holder || !requested.length) return;
+  try {
+    const rows = await getJson(`/data/watchlist?symbols=${encodeURIComponent(requested.join(','))}`, 20000);
+    const currentHolder = $('#watchlist-body');
+    if (page !== 'watchlist' || !currentHolder) return;
+    const byTicker = new Map(rows.map(item => [item.symbol || item.ticker, item]));
+    currentHolder.innerHTML = requested.map(ticker => row(byTicker.get(ticker) || { ticker, name:ticker })).join('');
+    wireCommon();
+  } catch {
+    const currentHolder = $('#watchlist-body');
+    if (page === 'watchlist' && currentHolder) {
+      currentHolder.innerHTML = requested.map(ticker => row({ ticker, name:ticker })).join('');
+      wireCommon();
+    }
+  } finally {
+    if (page === 'watchlist') watchlistRefreshTimer = setTimeout(hydrateWatchlist, 60000);
+  }
+}
 async function hydrateDashboard() { try { const quotes = await getJson('/data/market'); document.querySelectorAll('#market-cards .market-card').forEach((card, index) => { const quote = quotes[index]; if (!quote) return; card.querySelector('strong').textContent = quote.price ? `$${Number(quote.price).toFixed(2)}` : '—'; const rawChange = quote.changesPercentage; const hasChange = Number.isFinite(Number(rawChange)); const change = Number(rawChange || 0); card.classList.toggle('gain', hasChange && change >= 0); card.classList.toggle('loss', hasChange && change < 0); const note = card.querySelector('b'); note.textContent = hasChange ? `${percent(change)} today` : 'Latest quote available'; note.className = hasChange ? (change >= 0 ? 'positive' : 'down') : ''; }); } catch { document.querySelectorAll('#market-cards .market-card').forEach((card) => { card.classList.remove('gain', 'loss'); card.querySelector('strong').textContent = 'Unavailable'; card.querySelector('b').textContent = 'Live quote unavailable'; }); } }
 async function setupMarkets() { let universe = stocks; const draw = (mode) => { const list = [...universe].sort((a, b) => mode === 'largest' ? Number(b.marketCap || b.cap * 1e9 || 0) - Number(a.marketCap || a.cap * 1e9 || 0) : mode === 'losers' ? Number(a.change || 0) - Number(b.change || 0) : Number(b.change || 0) - Number(a.change || 0)); $('#market-table').innerHTML = list.slice(0, 20).map(row).join('') || '<tr><td colspan="6">No results.</td></tr>'; wireCommon(); };
   document.querySelectorAll('.market-mode').forEach((button) => button.onclick = () => draw(button.dataset.mode));
@@ -141,7 +167,7 @@ function companyView(ticker) {
   return `<div class="page company-page">
     <div class="company-top">
       <div><p class="crumb">US EQUITY RESEARCH</p><h1 class="page-title" id="company-title">${escapeHtml(ticker)}</h1><p class="sub" id="company-subtitle">${escapeHtml(ticker)} · Loading company research…</p></div>
-      <button class="solid-btn" data-watch="${ticker}">Follow</button>
+      <button class="solid-btn ${watchlist.includes(ticker) ? 'saved' : ''}" data-watch="${ticker}">${watchlist.includes(ticker) ? 'Following' : 'Follow'}</button>
     </div>
     <nav class="company-tabs"><a href="#overview">Overview</a><a href="#chart">Chart</a><a href="#financials">Financials</a><a href="#peers">Peers</a><a href="#intelligence">Intelligence</a><a href="#updates">Updates</a><a href="#documents">Filings</a></nav>
     <div id="overview" class="company-overview-stack">

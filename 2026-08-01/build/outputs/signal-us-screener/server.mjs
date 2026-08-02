@@ -422,6 +422,32 @@ createServer(async (req, res) => {
       const [earnings, dividends, ipos] = await Promise.all([optional('earnings-calendar'), optional('dividends-calendar'), optional('ipos-calendar')]);
       return send(res, 200, { earnings, dividends, ipos });
     }
+    if (url.pathname === '/data/watchlist') {
+      const tickers = [...new Set(String(url.searchParams.get('symbols') || '').split(',').map(symbol).filter(Boolean))].slice(0, 30);
+      if (!tickers.length) return send(res, 200, []);
+      const rows = await Promise.all(tickers.map(async ticker => {
+        const [quoteRows, ratioRows] = await Promise.all([
+          fmp('quote', { symbol:ticker }).catch(() => []),
+          fmp('ratios-ttm', { symbol:ticker }).catch(() => [])
+        ]);
+        let quote = quoteRows[0] || {};
+        if (!finiteValue(quote.price)) quote = { ...quote, ...await liveQuote(ticker).catch(() => ({})) };
+        let profile = {};
+        if (!quote.name || !finiteValue(quote.marketCap)) profile = (await fmp('profile', { symbol:ticker }).catch(() => []))[0] || {};
+        const ratios = ratioRows[0] || {};
+        const eps = finiteValue(ratios.netIncomePerShareTTM, quote.eps);
+        return {
+          symbol:ticker,
+          companyName:quote.name || quote.companyName || profile.companyName || ticker,
+          price:finiteValue(quote.price),
+          marketCap:finiteValue(quote.marketCap, profile.mktCap, profile.marketCap),
+          pe:finiteValue(ratios.peRatioTTM, ratios.priceToEarningsRatioTTM, quote.pe, quote.priceEarningsRatio, safeDivide(quote.price, eps)),
+          change:finiteValue(quote.changesPercentage, quote.changePercentage),
+          sector:profile.sector || null
+        };
+      }));
+      return send(res, 200, rows);
+    }
     if (url.pathname === '/data/market' || url.pathname === '/api/market') {
       // Broad-market ETFs are not available under every FMP plan. These liquid US equities
       // give the dashboard reliable live quotes while keeping its free-tier usage low.
