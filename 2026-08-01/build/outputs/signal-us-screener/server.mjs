@@ -88,6 +88,16 @@ async function liveQuote(ticker) {
     }
   }
 }
+async function liveIndex(symbol) {
+  try {
+    const rows = await fmp('quote', { symbol });
+    if (rows[0]?.price) return rows[0];
+    throw new Error('FMP returned no index quote');
+  } catch (error) {
+    console.warn(`FMP index unavailable for ${symbol}: ${error.message}`);
+    return yahooQuote(symbol);
+  }
+}
 async function database(path, { method = 'GET', body, prefer } = {}) {
   if (!supabaseUrl || !supabaseKey) return null;
   const response = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
@@ -164,9 +174,9 @@ createServer(async (req, res) => {
     }
     if (url.pathname === '/data/indices') {
       const indices = [
-        ['S&P 500 ETF', 'SPY'], ['Nasdaq-100 ETF', 'QQQ'], ['Dow Jones ETF', 'DIA'], ['Russell 2000 ETF', 'IWM']
+        ['S&P 500', '^GSPC'], ['Nasdaq Composite', '^IXIC'], ['Dow Jones Industrial Average', '^DJI'], ['Russell 2000', '^RUT']
       ];
-      const quotes = await Promise.all(indices.map(([, ticker]) => liveQuote(ticker)));
+      const quotes = await Promise.all(indices.map(([, ticker]) => liveIndex(ticker)));
       return send(res, 200, indices.map(([name], index) => ({ name, symbol: indices[index][1], ...quotes[index] })));
     }
     if (url.pathname === '/data/filings') {
