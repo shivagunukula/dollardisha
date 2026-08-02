@@ -290,8 +290,19 @@ tbody tr:nth-child(even) td { background: rgba(255, 255, 255, .012); }
 
 /* Calm market-terminal palette overrides */
 .mark {
-  background: linear-gradient(145deg, #45caa7, #227d69) !important;
-  box-shadow: 0 8px 22px rgba(35, 155, 124, .22) !important;
+  width: 46px !important;
+  height: 46px !important;
+  padding: 2px !important;
+  overflow: hidden;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 12px !important;
+}
+.mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 .brand-word em,
 .link-button,
@@ -388,7 +399,10 @@ tbody tr:nth-child(even) td { background: rgba(255, 255, 255, .012); }
 .solid-btn:active,
 .ratio-category-filter button:active { transform: translateY(1px) scale(.985); }
 .mark { transition: transform .28s cubic-bezier(.2,.8,.2,1), box-shadow .28s ease; }
-.brand:hover .mark { transform: rotate(-5deg) scale(1.05); box-shadow: 0 10px 28px rgba(35, 155, 124, .3) !important; }
+.brand:hover .mark {
+  transform: translateY(-2px) rotate(-3deg) scale(1.05);
+  filter: drop-shadow(0 9px 13px rgba(35, 155, 124, .28));
+}
 .ratio-cell.price-cell b,
 #company-price { animation: dd-price-in .36s ease both; }
 .chart-line {
