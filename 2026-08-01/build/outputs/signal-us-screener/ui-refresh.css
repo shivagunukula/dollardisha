@@ -1497,6 +1497,46 @@ html[data-theme="light"] .auth-profile-note {
   color: #20302b !important;
 }
 
+/* Cross-asset market pulse */
+.market-section { margin: 0 0 22px; }
+.market-section-heading { display:flex; align-items:end; justify-content:space-between; gap:16px; margin: 0 0 11px; padding: 0 2px; }
+.market-section-heading h2 { margin: 3px 0 0; color: var(--dd-text); font-size: 18px; letter-spacing: -.025em; }
+.market-section-heading .crumb { margin:0; font-size:9px; letter-spacing:.14em; }
+.market-freshness { color: var(--dd-muted); font-size:10px; }
+.cross-market-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.cross-market-card,
+.region-card { position:relative; isolation:isolate; display:flex; min-height:106px; flex-direction:column; justify-content:center; overflow:hidden; padding:16px 17px; border:1px solid var(--dd-line); border-radius:var(--dd-radius); background:linear-gradient(145deg,#121a22,#0e151c); box-shadow:0 12px 27px rgba(0,0,0,.14); transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease,background .18s ease; }
+.cross-market-card::before,
+.region-card::before { content:''; position:absolute; z-index:0; top:0; left:0; right:0; height:3px; background:linear-gradient(90deg,#667cff,#42c5a5); }
+.cross-market-card > *, .region-card > * { position:relative; z-index:1; }
+.cross-market-card:hover,.region-card:hover { transform:translateY(-3px); border-color:#4d6a7b; box-shadow:0 18px 36px rgba(0,0,0,.24); }
+.cross-market-card span,.region-card span { color:#a4b4cf; font-size:10px; font-weight:700; letter-spacing:.035em; }
+.cross-market-card strong,.region-card strong { margin-top:8px; color:var(--dd-text); font-size:20px; letter-spacing:-.035em; }
+.cross-market-card b,.region-card b { width:max-content; max-width:100%; margin-top:7px; padding:4px 7px; border-radius:999px; color:#aebbd0; background:rgba(143,161,189,.10); font-size:9px; font-weight:700; }
+.cross-market-card b.positive,.region-card b.positive { color:#bff5df; background:rgba(50,206,162,.15); }
+.cross-market-card b.down,.region-card b.down { color:#ffd0d5; background:rgba(255,100,120,.15); }
+.cross-market-card.gain,.region-card.gain { border-color:rgba(67,220,174,.58); background:linear-gradient(135deg,rgba(22,105,81,.6),#101d1a 68%,#0e151c); }
+.cross-market-card.loss,.region-card.loss { border-color:rgba(255,125,136,.58); background:linear-gradient(135deg,rgba(119,42,55,.6),#241418 68%,#0e151c); }
+.region-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.region-card { min-height:122px; }
+.region-card strong { font-size:24px; }
+.region-card small { margin-top:9px; color:var(--dd-muted); font-size:9px; }
+.cross-market-empty { display:flex; min-height:90px; grid-column:1/-1; align-items:center; justify-content:center; padding:14px; border:1px dashed var(--dd-line); border-radius:var(--dd-radius); color:var(--dd-muted); font-size:11px; }
+@media (max-width: 1080px) { .cross-market-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } .region-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width: 650px) { .market-section-heading { align-items:flex-start; flex-direction:column; gap:4px; } .cross-market-grid,.region-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; } .cross-market-card,.region-card { min-height:96px; padding:13px; } .cross-market-card strong,.region-card strong { font-size:17px; } }
+html[data-theme="light"] .cross-market-card,
+html[data-theme="light"] .region-card { background:linear-gradient(145deg,#fff,#f3f8f6); border-color:#ccd9d5; box-shadow:0 10px 24px rgba(30,60,52,.08); }
+html[data-theme="light"] .cross-market-card span,
+html[data-theme="light"] .region-card span { color:#536b61; }
+html[data-theme="light"] .cross-market-card strong,
+html[data-theme="light"] .region-card strong { color:#17231f; }
+html[data-theme="light"] .cross-market-card b,
+html[data-theme="light"] .region-card b { color:#5d7168; background:rgba(78,123,106,.08); }
+html[data-theme="light"] .cross-market-card.gain,
+html[data-theme="light"] .region-card.gain { background:linear-gradient(135deg,#e9fbf4,#fff); border-color:#71b9a4; }
+html[data-theme="light"] .cross-market-card.loss,
+html[data-theme="light"] .region-card.loss { background:linear-gradient(135deg,#fff1f2,#fff); border-color:#d77986; }
+
 html[data-theme="light"] .auth-tabs { background: #eef4f2 !important; }
 html[data-theme="light"] .auth-tabs button { color: #65766f !important; }
 html[data-theme="light"] .auth-tabs button.active {

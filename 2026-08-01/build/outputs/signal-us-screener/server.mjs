@@ -259,6 +259,76 @@ async function liveIndex(symbol) {
     return normalizeQuote(symbol, await yahooQuote(symbol));
   }
 }
+
+// Cross-asset market pulse. Yahoo symbols are used as a resilient fallback
+// for exchanges, futures and crypto pairs that are not covered consistently by
+// every FMP/Twelve Data plan.
+const globalMarketDefinitions = {
+  indices: [
+    { name:'S&P 500', symbol:'^GSPC', region:'US' },
+    { name:'Nasdaq Composite', symbol:'^IXIC', region:'US' },
+    { name:'Dow Jones', symbol:'^DJI', region:'US' },
+    { name:'Russell 2000', symbol:'^RUT', region:'US' },
+    { name:'FTSE 100', symbol:'^FTSE', region:'Europe' },
+    { name:'DAX', symbol:'^GDAXI', region:'Europe' },
+    { name:'CAC 40', symbol:'^FCHI', region:'Europe' },
+    { name:'Nikkei 225', symbol:'^N225', region:'Asia' },
+    { name:'Hang Seng', symbol:'^HSI', region:'Asia' },
+    { name:'Shanghai Composite', symbol:'000001.SS', region:'Asia' },
+    { name:'Nifty 50', symbol:'^NSEI', region:'India' },
+    { name:'BSE Sensex', symbol:'^BSESN', region:'India' }
+  ],
+  commodities: [
+    { name:'Gold', symbol:'GC=F', fmp:'GCUSD', twelve:'XAU/USD' },
+    { name:'Silver', symbol:'SI=F', fmp:'SIUSD', twelve:'XAG/USD' },
+    { name:'Crude oil', symbol:'CL=F', fmp:'CLUSD', twelve:'WTI/USD' },
+    { name:'Brent crude', symbol:'BZ=F', fmp:'BZOUSD', twelve:'BRENT/USD' },
+    { name:'Natural gas', symbol:'NG=F', fmp:'NGUSD', twelve:'NATURALGAS/USD' },
+    { name:'Copper', symbol:'HG=F', fmp:'HGUSD', twelve:'COPPER/USD' }
+  ],
+  crypto: [
+    { name:'Bitcoin', symbol:'BTC-USD', fmp:'BTCUSD', twelve:'BTC/USD' },
+    { name:'Ethereum', symbol:'ETH-USD', fmp:'ETHUSD', twelve:'ETH/USD' },
+    { name:'Solana', symbol:'SOL-USD', fmp:'SOLUSD', twelve:'SOL/USD' },
+    { name:'XRP', symbol:'XRP-USD', fmp:'XRPUSD', twelve:'XRP/USD' },
+    { name:'BNB', symbol:'BNB-USD', fmp:'BNBUSD', twelve:'BNB/USD' },
+    { name:'Dogecoin', symbol:'DOGE-USD', fmp:'DOGEUSD', twelve:'DOGE/USD' }
+  ]
+};
+const globalMarketCache = { value:null, expiresAt:0 };
+async function globalAssetQuote(asset) {
+  try {
+    const rows = await fmp('quote', { symbol:asset.fmp || asset.symbol });
+    if (rows?.[0]?.price) return normalizeQuote(asset.symbol, { ...rows[0], provider:'fmp' });
+  } catch { /* Try Twelve Data and Yahoo below. */ }
+  if (twelveDataKey && asset.twelve) {
+    try { return normalizeQuote(asset.symbol, { ...await twelveDataQuote(asset.twelve), provider:'twelve-data' }); }
+    catch { /* Try Yahoo below. */ }
+  }
+  try { return normalizeQuote(asset.symbol, { ...await yahooQuote(asset.symbol), provider:'yahoo' }); }
+  catch { return normalizeQuote(asset.symbol); }
+}
+async function globalMarketPulse() {
+  if (globalMarketCache.value && Date.now() < globalMarketCache.expiresAt) return globalMarketCache.value;
+  const load = group => Promise.all(group.map(async asset => ({
+    ...asset,
+    ...(await globalAssetQuote(asset))
+  })));
+  const [indices, commodities, crypto] = await Promise.all([
+    load(globalMarketDefinitions.indices),
+    load(globalMarketDefinitions.commodities),
+    load(globalMarketDefinitions.crypto)
+  ]);
+  const regions = [...new Set(globalMarketDefinitions.indices.map(item => item.region))].map(region => {
+    const rows = indices.filter(item => item.region === region);
+    const changes = rows.map(item => Number(item.changesPercentage)).filter(Number.isFinite);
+    return { region, change:changes.length ? changes.reduce((sum, value) => sum + value, 0) / changes.length : null, breadth:rows.filter(item => Number(item.changesPercentage) >= 0).length, total:rows.length };
+  });
+  const result = { updatedAt:new Date().toISOString(), indices, commodities, crypto, regions };
+  globalMarketCache.value = result;
+  globalMarketCache.expiresAt = Date.now() + 60 * 1000;
+  return result;
+}
 const marketScanCache = new Map();
 async function marketScan(mode) {
   const cached = marketScanCache.get(mode);
@@ -653,6 +723,9 @@ createServer(async (req, res) => {
       ];
       const quotes = await Promise.all(indices.map(([, ticker]) => liveIndex(ticker).catch(() => normalizeQuote(ticker))));
       return send(res, 200, indices.map(([name], index) => ({ name, symbol: indices[index][1], ...quotes[index] })));
+    }
+    if (url.pathname === '/data/global-markets') {
+      return send(res, 200, await globalMarketPulse());
     }
     if (url.pathname === '/data/filings') {
       const ticker = symbol(url.searchParams.get('symbol'));

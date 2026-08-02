@@ -112,9 +112,14 @@ function dashboardView() {
 }
 
 function marketsView() {
-  return `<div class="page">${pageHeader('US MARKET INTELLIGENCE', 'Market scans', 'A fast starting point for new company research. These scans are not buy or sell signals.')}
-  <section class="index-grid" id="index-cards">${[['S&P 500', '^GSPC'], ['Nasdaq Composite', '^IXIC'], ['Dow Jones Industrial Average', '^DJI'], ['Russell 2000', '^RUT']].map(([name, ticker]) => `<article class="index-card" data-index="${ticker}"><span>${name}</span><strong>Loading…</strong><b>Latest available index level</b></article>`).join('')}</section>
-  <section class="panel"><div class="panel-head"><div><h2>Discover companies</h2><p id="market-scan-status" role="status" aria-live="polite">Loading live gainers…</p></div><div><button class="link-button market-mode selected" data-mode="gainers">Top gainers</button><button class="link-button market-mode" data-mode="losers">Top losers</button><button class="link-button market-mode" data-mode="largest">Largest</button></div></div><div class="table-wrap"><table><thead><tr><th>Company</th><th>Price</th><th>Market cap</th><th>P/E</th><th>Today</th><th></th></tr></thead><tbody id="market-table"><tr><td colspan="6">Loading live market scan…</td></tr></tbody></table></div></section></div>`;
+  const us = [['S&P 500', '^GSPC'], ['Nasdaq Composite', '^IXIC'], ['Dow Jones Industrial Average', '^DJI'], ['Russell 2000', '^RUT']];
+  return `<div class="page">${pageHeader('GLOBAL MARKET INTELLIGENCE', 'Market scans', 'See the world’s major exchanges, commodities and crypto in one live research view. Moves are reference data, not buy or sell signals.')}
+  <section class="market-section"><div class="market-section-heading"><div><p class="crumb">UNITED STATES</p><h2>US indices</h2></div><span class="market-freshness" id="us-market-freshness">Loading live data…</span></div><section class="index-grid" id="index-cards">${us.map(([name, ticker]) => `<article class="index-card" data-index="${ticker}"><span>${name}</span><strong>Loading…</strong><b>Latest available index level</b></article>`).join('')}</section></section>
+  <section class="market-section"><div class="market-section-heading"><div><p class="crumb">AROUND THE WORLD</p><h2>Global exchanges</h2></div><span class="market-freshness">Indexes from Europe, Asia and India</span></div><section class="cross-market-grid" id="global-indices"><article class="cross-market-empty">Loading global exchanges…</article></section></section>
+  <section class="market-section"><div class="market-section-heading"><div><p class="crumb">REGIONAL PULSE</p><h2>Which regions are leading?</h2></div><span class="market-freshness">Average move across representative indexes</span></div><section class="region-grid" id="region-pulse"><article class="cross-market-empty">Calculating regional breadth…</article></section></section>
+  <section class="market-section"><div class="market-section-heading"><div><p class="crumb">REAL ASSETS</p><h2>Commodities</h2></div><span class="market-freshness">Gold, energy and industrial metals</span></div><section class="cross-market-grid" id="global-commodities"><article class="cross-market-empty">Loading commodities…</article></section></section>
+  <section class="market-section"><div class="market-section-heading"><div><p class="crumb">DIGITAL ASSETS</p><h2>Crypto</h2></div><span class="market-freshness">Reference USD pairs</span></div><section class="cross-market-grid" id="global-crypto"><article class="cross-market-empty">Loading crypto…</article></section></section>
+  <section class="panel"><div class="panel-head"><div><h2>Discover US companies</h2><p id="market-scan-status" role="status" aria-live="polite">Loading live gainers…</p></div><div><button class="link-button market-mode selected" data-mode="gainers">Top gainers</button><button class="link-button market-mode" data-mode="losers">Top losers</button><button class="link-button market-mode" data-mode="largest">Largest</button></div></div><div class="table-wrap"><table><thead><tr><th>Company</th><th>Price</th><th>Market cap</th><th>P/E</th><th>Today</th><th></th></tr></thead><tbody id="market-table"><tr><td colspan="6">Loading live market scan…</td></tr></tbody></table></div></section></div>`;
 }
 
 function screenerView() {
@@ -339,6 +344,26 @@ async function setupMarkets() {
       note.className = rawChange === null ? '' : Number(rawChange) >= 0 ? 'positive' : 'down';
     });
   };
+  const renderGlobalMarkets = data => {
+    const allIndices = Array.isArray(data?.indices) ? data.indices : [];
+    const globalIndices = allIndices.filter(item => item.region !== 'US');
+    const renderList = (holder, rows, empty) => {
+      if (!holder) return;
+      holder.innerHTML = rows.length ? rows.map(item => `<article class="cross-market-card" data-global-kind="asset" data-global-symbol="${escapeHtml(item.symbol)}"><span>${escapeHtml(item.name)}</span><strong>${scanNumber(item.price) !== null ? Number(item.price).toLocaleString('en-US', { maximumFractionDigits:4 }) : 'Quote unavailable'}</strong><b class="${scanNumber(item.changesPercentage, item.changePercentage) === null ? '' : Number(scanNumber(item.changesPercentage, item.changePercentage)) >= 0 ? 'positive' : 'down'}">${scanNumber(item.changesPercentage, item.changePercentage) !== null ? `${percent(scanNumber(item.changesPercentage, item.changePercentage))} today` : 'Daily change not reported'}</b></article>`).join('') : `<article class="cross-market-empty">${empty}</article>`;
+    };
+    renderList($('#global-indices'), globalIndices, 'Global exchange quotes are temporarily unavailable.');
+    renderList($('#global-commodities'), Array.isArray(data?.commodities) ? data.commodities : [], 'Commodity quotes are temporarily unavailable.');
+    renderList($('#global-crypto'), Array.isArray(data?.crypto) ? data.crypto : [], 'Crypto quotes are temporarily unavailable.');
+    const regions = Array.isArray(data?.regions) ? data.regions.slice().sort((a, b) => Number(b.change ?? -Infinity) - Number(a.change ?? -Infinity)) : [];
+    const regionHolder = $('#region-pulse');
+    if (regionHolder) regionHolder.innerHTML = regions.length ? regions.map((item, index) => {
+      const change = scanNumber(item.change);
+      const breadth = Number.isFinite(Number(item.breadth)) && Number.isFinite(Number(item.total)) ? `${item.breadth}/${item.total} indexes higher` : 'Breadth unavailable';
+      return `<article class="region-card ${change === null ? '' : Number(change) >= 0 ? 'gain' : 'loss'}"><span>${escapeHtml(item.region)}</span><strong>${change !== null ? percent(change) : 'Unavailable'}</strong><b>${breadth}</b><small>${index === 0 && change !== null ? 'Leading region' : index === regions.length - 1 && change !== null ? 'Lagging region' : 'Regional average'}</small></article>`;
+    }).join('') : '<article class="cross-market-empty">Regional performance is temporarily unavailable.</article>';
+    const freshness = $('#us-market-freshness');
+    if (freshness) freshness.textContent = data?.updatedAt ? `Updated ${new Date(data.updatedAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}` : 'Latest available data';
+  };
   const loadMode = async mode => {
     document.querySelectorAll('.market-mode').forEach(button => button.classList.toggle('selected', button.dataset.mode === mode));
     const holder = $('#market-table');
@@ -363,6 +388,9 @@ async function setupMarkets() {
       card.querySelector('strong').textContent = 'Quote unavailable';
       card.querySelector('b').textContent = 'Select refresh to try again';
     });
+  });
+  getJson('/data/global-markets', 60000).then(renderGlobalMarkets).catch(() => {
+    ['#global-indices', '#global-commodities', '#global-crypto', '#region-pulse'].forEach(selector => { const holder = $(selector); if (holder) holder.innerHTML = '<article class="cross-market-empty">Live market data is temporarily unavailable. Try again shortly.</article>'; });
   });
   await loadMode('gainers');
 }
