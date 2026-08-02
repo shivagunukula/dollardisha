@@ -52,6 +52,21 @@ async function cacheCompany(ticker, profile, quote, statements = {}) {
     }})
   ]).catch(error => console.warn(`Could not cache ${ticker}: ${error.message}`));
 }
+async function cacheScreenerRows(rows) {
+  if (!supabaseUrl || !supabaseKey || !rows.length) return;
+  const companies = rows.filter(row => symbol(row.symbol) && row.companyName).map(row => ({
+    symbol: symbol(row.symbol), company_name: row.companyName, exchange: row.exchangeShortName || row.exchange,
+    sector: row.sector, industry: row.industry, market_cap: row.marketCap, source_updated_at: new Date().toISOString()
+  }));
+  const quotes = rows.filter(row => symbol(row.symbol)).map(row => ({
+    symbol: symbol(row.symbol), price: row.price, change_percent: row.change,
+    market_cap: row.marketCap, volume: row.volume, as_of: new Date().toISOString()
+  }));
+  await Promise.all([
+    database('companies?on_conflict=symbol', { method: 'POST', prefer: 'resolution=merge-duplicates', body: companies }),
+    database('company_quotes?on_conflict=symbol', { method: 'POST', prefer: 'resolution=merge-duplicates', body: quotes })
+  ]).catch(error => console.warn(`Could not cache screener rows: ${error.message}`));
+}
 function send(res, status, data, type = 'application/json; charset=utf-8') { res.writeHead(status, { 'Content-Type': type, 'Cache-Control':'no-store' }); res.end(typeof data === 'string' ? data : JSON.stringify(data)); }
 
 createServer(async (req, res) => {
@@ -90,7 +105,9 @@ createServer(async (req, res) => {
       if (cap === 'large') parameters.marketCapMoreThan = 10000000000;
       const exchanges = ['NASDAQ', 'NYSE', 'AMEX'];
       const results = await Promise.all(exchanges.map(exchange => fmp('company-screener', { ...parameters, exchange })));
-      return send(res, 200, results.flat());
+      const rows = results.flat();
+      await cacheScreenerRows(rows);
+      return send(res, 200, rows);
     }
     const requested = url.pathname === '/' ? 'index.html' : normalize(url.pathname).replace(/^([.][.][\\/])+/, '');
     if (requested.startsWith('.') || requested.includes('..')) return send(res, 403, 'Forbidden', 'text/plain; charset=utf-8');
