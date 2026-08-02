@@ -278,10 +278,11 @@ createServer(async (req, res) => {
       const ticker = symbol(url.searchParams.get('symbol'));
       if (!ticker) return send(res, 400, { error:'Invalid ticker.' });
       const optional = path => fmp(path, { symbol:ticker, limit: 8 }).catch(() => []);
-      const [profile, quote, metrics, income, balance, cashflow, ratios, secData] = await Promise.all([
+      const optionalQuarterly = path => fmp(path, { symbol:ticker, period:'quarter', limit: 8 }).catch(() => []);
+      const [profile, quote, metrics, income, balance, cashflow, ratios, quarterlyIncome, secData] = await Promise.all([
         optional('profile'), liveQuote(ticker),
         optional('key-metrics-ttm'), optional('income-statement')
-        , optional('balance-sheet-statement'), optional('cash-flow-statement'), optional('ratios-ttm'), secFactsForTicker(ticker).catch(() => null)
+        , optional('balance-sheet-statement'), optional('cash-flow-statement'), optional('ratios-ttm'), optionalQuarterly('income-statement'), secFactsForTicker(ticker).catch(() => null)
       ]);
       const secValues = secData ? secFinancials(secData.facts) : { income:[], balance:[], cashflow:[] };
       const fallbackProfile = { companyName: secData?.facts?.entityName || secData?.company?.title || ticker, cik: secData?.company?.cik_str, sector: 'US Equity', description: secData ? 'Financial statement figures are sourced from this company’s SEC filings.' : 'Latest available price is shown below. Detailed fundamentals are unavailable for this company right now.' };
@@ -340,7 +341,7 @@ createServer(async (req, res) => {
       const finalBalance = balance.length ? balance : secValues.balance;
       const finalCashflow = cashflow.length ? cashflow : secValues.cashflow;
       await cacheCompany(ticker, finalProfile, quote, { income:finalIncome, balance:finalBalance, cashflow:finalCashflow, ratios:finalRatios });
-      return send(res, 200, { profile: finalProfile, quote: quote || {}, metrics: finalMetrics, income:finalIncome, balance:finalBalance, cashflow:finalCashflow, ratios: finalRatios });
+      return send(res, 200, { profile: finalProfile, quote: quote || {}, metrics: finalMetrics, income:finalIncome, quarterlyIncome, balance:finalBalance, cashflow:finalCashflow, ratios: finalRatios });
     }
     if (url.pathname === '/data/chart') {
       const ticker = symbol(url.searchParams.get('symbol'));

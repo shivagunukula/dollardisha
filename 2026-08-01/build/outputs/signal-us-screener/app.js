@@ -76,6 +76,52 @@ function companyView(ticker) { const stock = stocks.find((item) => item.ticker =
 const usd = (value) => Number.isFinite(Number(value)) ? new Intl.NumberFormat('en-US', { style:'currency', currency:'USD', notation:'compact', maximumFractionDigits:2 }).format(Number(value)) : '—';
 const whole = (value) => Number.isFinite(Number(value)) ? new Intl.NumberFormat('en-US', { maximumFractionDigits:0 }).format(Number(value)) : '—';
 const financialTable = (title, rows, fields) => `<section class="panel financial-panel"><div class="panel-head"><div><h2>${title}</h2><p>USD millions · annual reports</p></div></div>${rows.length ? `<div class="table-wrap"><table><thead><tr><th>Metric</th>${rows.map(item => `<th>${escapeHtml(item.calendarYear || String(item.date || '').slice(0, 4) || 'TTM')}</th>`).join('')}</tr></thead><tbody>${fields.map(([label, key]) => `<tr><td>${label}</td>${rows.map(item => `<td>${whole(item[key])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<p class="data-empty">Financial data is not available from the current provider for this company.</p>'}</section>`;
+
+const quarterlyPeriodLabel = (row) => {
+  const rawDate = row.date || row.fiscalDateEnding;
+  if (rawDate) {
+    const date = new Date(`${String(rawDate).slice(0, 10)}T00:00:00Z`);
+    if (!Number.isNaN(date.getTime())) return date.toLocaleDateString('en-US', { month:'short', year:'numeric', timeZone:'UTC' });
+  }
+  const year = row.calendarYear || row.fiscalYear || '';
+  return [row.period, year].filter(Boolean).join(' ') || 'Quarter';
+};
+
+const quarterlyNumber = (value, perShare = false) => {
+  if (value === null || value === undefined || value === '' || !Number.isFinite(Number(value))) return '&mdash;';
+  const number = perShare ? Number(value) : Number(value) / 1e6;
+  return new Intl.NumberFormat('en-US', { minimumFractionDigits:perShare ? 2 : 0, maximumFractionDigits:perShare ? 2 : 1 }).format(number);
+};
+
+function quarterlyResultsTable(rows) {
+  const quarters = (Array.isArray(rows) ? rows : []).slice(0, 8).reverse();
+  if (!quarters.length) return '<p class="data-empty">Quarterly results are not available from the current provider for this company.</p>';
+  const value = (row, ...keys) => keys.map(key => row[key]).find(item => item !== null && item !== undefined && item !== '' && Number.isFinite(Number(item)));
+  const expenses = row => value(row, 'costAndExpenses') ?? (() => {
+    const cost = value(row, 'costOfRevenue');
+    const operating = value(row, 'operatingExpenses');
+    return Number.isFinite(Number(cost)) && Number.isFinite(Number(operating)) ? Number(cost) + Number(operating) : null;
+  })();
+  const calculatedPercent = (numerator, denominator) => {
+    const top = Number(numerator);
+    const bottom = Number(denominator);
+    return Number.isFinite(top) && Number.isFinite(bottom) && bottom !== 0 ? `${((top / bottom) * 100).toFixed(1)}%` : '&mdash;';
+  };
+  const metrics = [
+    ['Revenue', row => quarterlyNumber(value(row, 'revenue'))],
+    ['Expenses', row => quarterlyNumber(expenses(row))],
+    ['Operating profit', row => quarterlyNumber(value(row, 'operatingIncome')), 'quarter-key-row'],
+    ['Operating margin', row => calculatedPercent(value(row, 'operatingIncome'), value(row, 'revenue'))],
+    ['Other income / expense', row => quarterlyNumber(value(row, 'totalOtherIncomeExpensesNet', 'totalOtherIncomeExpenses'))],
+    ['Interest expense', row => quarterlyNumber(value(row, 'interestExpense', 'interestExpenseNonOperating'))],
+    ['Depreciation & amortisation', row => quarterlyNumber(value(row, 'depreciationAndAmortization', 'depreciationAndAmortizationInIncomeStatement'))],
+    ['Profit before tax', row => quarterlyNumber(value(row, 'incomeBeforeTax')), 'quarter-key-row'],
+    ['Effective tax rate', row => calculatedPercent(value(row, 'incomeTaxExpense'), value(row, 'incomeBeforeTax'))],
+    ['Net income', row => quarterlyNumber(value(row, 'netIncome')), 'quarter-key-row'],
+    ['Diluted EPS', row => quarterlyNumber(value(row, 'epsdiluted', 'epsDiluted', 'eps'), true)]
+  ];
+  return `<div class="table-wrap quarterly-table-wrap"><table class="quarterly-table"><thead><tr><th>Metric</th>${quarters.map((row, index) => `<th class="${index === quarters.length - 1 ? 'latest-quarter' : ''}">${escapeHtml(quarterlyPeriodLabel(row))}${index === quarters.length - 1 ? '<small>Latest</small>' : ''}</th>`).join('')}</tr></thead><tbody>${metrics.map(([label, format, className = '']) => `<tr class="${className}"><td>${label}</td>${quarters.map((row, index) => `<td class="${index === quarters.length - 1 ? 'latest-quarter' : ''}">${format(row)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
 function companyView(ticker) { return `<div class="page company-page"><div class="company-top"><div><p class="crumb">US EQUITY RESEARCH</p><h1 class="page-title" id="company-title">${escapeHtml(ticker)}</h1><p class="sub" id="company-subtitle">${escapeHtml(ticker)} · Loading company research…</p></div><button class="solid-btn" data-watch="${ticker}">Follow</button></div><nav class="company-tabs"><a href="#overview">Overview</a><a href="#chart">Chart</a><a href="#financials">Financials</a><a href="#ratios">Ratios</a><a href="#documents">Documents</a></nav><section id="overview" class="panel company-summary"><div class="summary-main"><div><b id="company-price">—</b><span id="company-change">Quote loading…</span></div><p id="company-description">Loading company profile and latest available quote…</p></div><div class="company-metrics"><div><span>Market cap</span><b id="company-cap">—</b></div><div><span>P/E ratio</span><b id="company-pe">—</b></div><div><span>Day high / low</span><b id="company-range">—</b></div><div><span>Volume</span><b id="company-volume">—</b></div><div><span>Sector</span><b id="company-sector">—</b></div><div><span>Website</span><b id="company-site">—</b></div></div></section><section id="chart" class="panel chart-panel"><div class="panel-head"><div><h2>Price & volume</h2><p>One-year daily history · latest available market data</p></div></div><div id="company-chart" class="chart-area">Loading chart…</div></section><div id="financials" class="financial-stack"></div><section id="ratios" class="panel ratios-panel"><div class="panel-head"><div><h2>Key ratios</h2><p>Trailing twelve months where available</p></div></div><div id="company-ratios" class="ratio-grid"><span>Loading ratios…</span></div></section><section class="research-grid"><div class="panel"><div class="panel-head"><div><h2>Research points</h2><p>Automatically calculated only from reported data</p></div></div><div id="company-points" class="research-points"><p class="data-empty">Loading reported financial data…</p></div></div><div class="panel"><div class="panel-head"><div><h2>Peers & ownership</h2><p>Provider coverage varies by company</p></div></div><div class="data-empty">Peer comparison and institutional ownership will appear once the connected data plan supports this company.</div></div></section><section id="documents" class="panel documents-panel"><div class="panel-head"><div><h2>SEC documents</h2><p>Official company filings</p></div><button class="link-button" data-page="research">Open filing search</button></div><div id="company-documents" class="data-empty">Search this ticker in Research Hub to view 10-K, 10-Q and other SEC filings.</div></section></div>`; }
 function companyView(ticker) { return `<div class="page company-page"><div class="company-top"><div><p class="crumb">US EQUITY RESEARCH</p><h1 class="page-title" id="company-title">${escapeHtml(ticker)}</h1><p class="sub" id="company-subtitle">${escapeHtml(ticker)} · Loading company research…</p></div><button class="solid-btn" data-watch="${ticker}">Follow</button></div><nav class="company-tabs"><a href="#overview">Overview</a><a href="#chart">Chart</a><a href="#financials">Financials</a><a href="#ratios">Ratios</a><a href="#peers">Peers</a><a href="#documents">Documents</a></nav><section id="overview" class="panel company-summary"><div class="summary-main"><div><b id="company-price">—</b><span id="company-change">Quote loading…</span></div><p id="company-description">Loading company profile and latest available quote…</p></div><div class="company-metrics"><div><span>Market cap</span><b id="company-cap">—</b></div><div><span>P/E ratio</span><b id="company-pe">—</b></div><div><span>Day high / low</span><b id="company-range">—</b></div><div><span>Volume</span><b id="company-volume">—</b></div><div><span>Sector</span><b id="company-sector">—</b></div><div><span>Website</span><b id="company-site">—</b></div></div></section><section id="chart" class="panel chart-panel"><div class="panel-head"><div><h2>Price & volume</h2><p>One-year daily history · latest available market data</p></div></div><div id="company-chart" class="chart-area">Loading chart…</div></section><div id="financials" class="financial-stack"></div><section id="ratios" class="panel ratios-panel"><div class="panel-head"><div><h2>Key ratios</h2><p>Trailing twelve months where available</p></div></div><div id="company-ratios" class="ratio-grid"><span>Loading ratios…</span></div></section><section id="peers" class="panel documents-panel"><div class="panel-head"><div><h2>Peer comparison</h2><p>Companies in the same sector and industry</p></div></div><div id="company-peers" class="data-empty">Peer data is loading…</div></section><section id="documents" class="panel documents-panel"><div class="panel-head"><div><h2>Recent SEC filings</h2><p>Official documents, direct from the SEC</p></div></div><div id="company-documents" class="data-empty">Loading recent filings…</div></section></div>`; }
 function render() {
@@ -100,7 +146,22 @@ function wireCommon() {
   document.querySelectorAll('[data-stock]').forEach((element) => element.onclick = (event) => { if (!event.target.closest('[data-watch]')) { page = element.dataset.stock; render(); window.scrollTo(0, 0); } });
   document.querySelectorAll('[data-watch]').forEach((button) => button.onclick = (event) => { event.stopPropagation(); const ticker = button.dataset.watch; watchlist = watchlist.includes(ticker) ? watchlist.filter((item) => item !== ticker) : [...watchlist, ticker]; localStorage.setItem('dd-watchlist', JSON.stringify(watchlist)); render(); });
 }
-async function getJson(url, timeout = 9000) { const response = await fetch(url, { signal: AbortSignal.timeout(timeout) }); if (!response.ok) throw new Error('Request failed'); return response.json(); }
+const jsonRequestCache = new Map();
+async function getJson(url, timeout = 9000) {
+  const cacheable = url.startsWith('/data/company?');
+  if (cacheable && jsonRequestCache.has(url)) return jsonRequestCache.get(url);
+  const request = (async () => {
+    const response = await fetch(url, { signal: AbortSignal.timeout(timeout) });
+    if (!response.ok) throw new Error('Request failed');
+    return response.json();
+  })();
+  if (cacheable) {
+    jsonRequestCache.set(url, request);
+    setTimeout(() => jsonRequestCache.delete(url), 30000);
+    request.catch(() => jsonRequestCache.delete(url));
+  }
+  return request;
+}
 async function hydrateWatchlist() {
   clearTimeout(watchlistRefreshTimer);
   watchlistRefreshTimer = null;
@@ -240,7 +301,7 @@ function companyView(ticker) {
       <div><p class="crumb">US EQUITY RESEARCH</p><h1 class="page-title" id="company-title">${escapeHtml(ticker)}</h1><p class="sub" id="company-subtitle">${escapeHtml(ticker)} · Loading company research…</p></div>
       <button class="solid-btn ${watchlist.includes(ticker) ? 'saved' : ''}" data-watch="${ticker}">${watchlist.includes(ticker) ? 'Following' : 'Follow'}</button>
     </div>
-    <nav class="company-tabs"><a href="#overview">Overview</a><a href="#chart">Chart</a><a href="#financials">Financials</a><a href="#peers">Peers</a><a href="#intelligence">Intelligence</a><a href="#updates">Updates</a><a href="#documents">Filings</a></nav>
+    <nav class="company-tabs"><a href="#overview">Overview</a><a href="#chart">Chart</a><a href="#quarterly">Quarterly</a><a href="#financials">Financials</a><a href="#peers">Peers</a><a href="#intelligence">Intelligence</a><a href="#updates">Updates</a><a href="#documents">Filings</a></nav>
     <div id="overview" class="company-overview-stack">
       <section class="panel company-summary company-research-card">
         <div class="summary-main ratio-board">
@@ -265,6 +326,7 @@ function companyView(ticker) {
       </section>
     </div>
     <section id="chart" class="panel chart-panel"><div class="panel-head"><div><h2>Price & volume</h2><p>Historical market data · select the time range below</p></div></div><div id="company-chart" class="chart-area">Loading chart…</div></section>
+    <section id="quarterly" class="panel financial-panel quarterly-panel"><div class="panel-head"><div><h2>Quarterly results</h2><p>USD millions except per-share data · latest reported quarters</p></div><span class="quarterly-source">Reported data</span></div><div id="company-quarterly"><p class="data-empty">Loading quarterly results…</p></div></section>
     <div id="financials" class="financial-stack"></div>
     <section id="peers" class="panel documents-panel"><div class="panel-head"><div><h2>Peer comparison</h2><p>Companies in the same sector and industry</p></div></div><div id="company-peers" class="data-empty">Peer data is loading…</div></section>
     <section id="intelligence" class="research-grid intelligence-grid"><div class="panel"><div class="panel-head"><div><h2>Analyst & financial strength</h2><p>Consensus, financial scores and owner earnings</p></div></div><div id="company-intel" class="data-empty">Loading analyst and financial-strength data…</div></div><div class="panel"><div class="panel-head"><div><h2>Company leadership</h2><p>Executives reported by the provider</p></div></div><div id="company-executives" class="data-empty">Loading executive data…</div></div></section>
@@ -306,10 +368,17 @@ function renderFilteredRatioExplorer(holder, ratios) {
 hydrateCompanyExtras = function(ticker) {
   originalHydrateCompanyExtras(ticker);
   const holder = $('#company-ratios');
-  if (!holder) return;
+  const quarterlyHolder = $('#company-quarterly');
+  if (!holder && !quarterlyHolder) return;
   getJson(`/data/company?symbol=${encodeURIComponent(ticker)}`)
-    .then(data => renderFilteredRatioExplorer(holder, data.ratios || {}))
-    .catch(() => { holder.innerHTML = '<p class="data-empty">Detailed ratios are temporarily unavailable for this company.</p>'; });
+    .then(data => {
+      if (holder) renderFilteredRatioExplorer(holder, data.ratios || {});
+      if (quarterlyHolder) quarterlyHolder.innerHTML = quarterlyResultsTable(data.quarterlyIncome || []);
+    })
+    .catch(() => {
+      if (holder) holder.innerHTML = '<p class="data-empty">Detailed ratios are temporarily unavailable for this company.</p>';
+      if (quarterlyHolder) quarterlyHolder.innerHTML = '<p class="data-empty">Quarterly results are temporarily unavailable for this company.</p>';
+    });
 };
 
 document.head.insertAdjacentHTML('beforeend', `<style>

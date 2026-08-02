@@ -728,6 +728,76 @@ select:focus-visible {
   outline-offset: 2px;
 }
 
+.quarterly-panel {
+  margin: 0 0 16px !important;
+  border-color: #344263 !important;
+  overflow: hidden;
+}
+.quarterly-panel .panel-head {
+  align-items: center;
+  border-bottom: 1px solid var(--dd-line);
+  background: linear-gradient(135deg, rgba(90, 112, 222, .09), transparent 44%);
+}
+.quarterly-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid #33554f;
+  border-radius: 999px;
+  background: #102521;
+  color: #6ed6b8;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.quarterly-source::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #55d8b2;
+  box-shadow: 0 0 0 4px rgba(85, 216, 178, .1);
+}
+.quarterly-table-wrap { overflow-x: auto; }
+.quarterly-table { min-width: 840px; font-variant-numeric: tabular-nums; }
+.quarterly-table th,
+.quarterly-table td { min-width: 108px; text-align: right; }
+.quarterly-table th:first-child,
+.quarterly-table td:first-child {
+  min-width: 180px;
+  width: 180px;
+  text-align: left;
+}
+.quarterly-table th {
+  height: 48px;
+  color: #aebde1 !important;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.quarterly-table th small {
+  display: block;
+  margin-top: 3px;
+  color: #5bd2b1;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.quarterly-table tbody td { color: #dce4f7; }
+.quarterly-table tbody td:first-child { color: #b9c5df; font-weight: 600; }
+.quarterly-table .quarter-key-row td {
+  border-top: 1px solid #3b496d !important;
+  color: #f6f8ff;
+  font-weight: 750;
+}
+.quarterly-table .latest-quarter { background: rgba(88, 109, 222, .09) !important; }
+.quarterly-table th.latest-quarter { color: #7ee0c2 !important; }
+.quarterly-table tbody tr:hover td { background: rgba(91, 211, 179, .045); }
+.quarterly-table tbody tr:hover td.latest-quarter { background: rgba(91, 211, 179, .08) !important; }
+
 /* Responsive layout — final overrides stay after dynamically enhanced desktop rules */
 @media (max-width: 1050px) {
   .dashboard-grid,
