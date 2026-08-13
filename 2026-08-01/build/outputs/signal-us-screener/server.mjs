@@ -338,7 +338,7 @@ async function globalMarketPulse() {
       name: asset.name, symbol: asset.symbol, region: asset.region || null,
       exchange: asset.exchange || null,
       ...quote,
-      dataStatus: Number.isFinite(Number(quote.price)) ? 'live-or-latest' : 'unavailable'
+      dataStatus: quote.price !== null && quote.price !== undefined && quote.price !== '' && Number.isFinite(Number(quote.price)) ? 'live-or-latest' : 'unavailable'
     };
   }));
   const [indices, commodities, crypto] = await Promise.all([
