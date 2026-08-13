@@ -28,6 +28,8 @@ const mime = {
   '.webp':'image/webp',
   '.jpg':'image/jpeg',
   '.jpeg':'image/jpeg'
+  ,'.txt':'text/plain; charset=utf-8'
+  ,'.xml':'application/xml; charset=utf-8'
 };
 // Tickers are not US-only: global listings can contain digits, dots, slashes
 // and hyphens (for example 000001 or RY.TO). Keep the allow-list tight while
