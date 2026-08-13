@@ -1701,8 +1701,8 @@ const chartModeButtons = active => `<div class="chart-mode-switch" role="group" 
 const chartMetricRows = (values, key) => values.map((item, index) => ({ ...item, index, metric:Number(item[key]) })).filter(item => Number.isFinite(item.metric));
 const chartEpsBars = values => values.map((item, index) => ({ ...item, index, metric:Number(item.epsBar) })).filter(item => Number.isFinite(item.metric));
 function epsGrowth(values) {
-  const points = values.map(item => Number(item.eps)).filter(value => Number.isFinite(value));
-  if (points.length < 2 || points[points.length - 2] <= 0) return null;
+  const points = chartEpsBars(values).map(item => item.metric);
+  if (points.length < 2 || points[points.length - 2] === 0) return null;
   return ((points[points.length - 1] - points[points.length - 2]) / Math.abs(points[points.length - 2])) * 100;
 }
 function drawMetricChart(values, mode) {
@@ -1722,14 +1722,13 @@ function drawMetricChart(values, mode) {
   const path = rows.map((item, index) => `${index ? 'L' : 'M'} ${scaleX(item.index).toFixed(1)} ${scaleY(item.metric).toFixed(1)}`).join(' ');
   const peTrend = peRows.map(item => `${scaleX(item.index).toFixed(1)},${(174 - ((item.metric - peMin) / Math.max(peMax - peMin, 0.01)) * 135).toFixed(1)}`).join(' ');
   const zeroY = mode === 'eps' ? (min > 0 ? 174 : max < 0 ? 39 : scaleY(0)) : 174;
-  const bars = mode === 'eps' ? epsRows.map((item, rowIndex) => {
+  const bars = mode === 'eps' ? epsRows.map((item) => {
     const startX = scaleX(item.index);
-    const endX = rowIndex < epsRows.length - 1 ? scaleX(epsRows[rowIndex + 1].index) : 772;
-    const barWidth = Math.max(3, (endX - startX) * 0.94);
+    const barWidth = Math.max(5, Math.min(18, 744 / Math.max(epsRows.length, 1) * 0.56));
     const valueY = 174 - ((item.metric - epsMin) / Math.max(epsMax - epsMin, 0.01)) * 135;
     const y = Math.min(valueY, zeroY);
     const height = Math.max(1, Math.abs(zeroY - valueY));
-    return `<rect class="metric-bars ${item.metric >= 0 ? 'positive' : 'negative'}" x="${(startX + 1).toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(2, barWidth - 2).toFixed(1)}" height="${height.toFixed(1)}"/>`;
+    return `<rect class="metric-bars ${item.metric >= 0 ? 'positive' : 'negative'}" x="${(startX - barWidth / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${height.toFixed(1)}"><title>${escapeHtml(item.epsReportDate || item.date || 'Reported quarter')}: EPS ${item.metric.toFixed(2)}</title></rect>`;
   }).join('') : '';
   const pePath = mode === 'eps' && peRows.length ? peRows.map((item, index) => `${index ? 'L' : 'M'} ${scaleX(item.index).toFixed(1)} ${(174 - ((item.metric - peMin) / Math.max(peMax - peMin, 0.01)) * 135).toFixed(1)}`).join(' ') : '';
   const axisTicks = [0, 1, 2, 3, 4].map(step => {
@@ -1766,14 +1765,17 @@ drawCompanyChart = function(values) {
   const metricOutput = drawMetricChart(values, companyChartMode);
   if (companyChartMode === 'eps') {
     const peRows = chartMetricRows(values, 'pe');
+    const epsLabels = chartEpsBars(values).map(item => `<text class="metric-axis-label" x="${(28 + (item.index / Math.max(values.length - 1, 1)) * 744).toFixed(1)}" y="193">${escapeHtml(String(item.epsReportDate || item.date || '').slice(0, 7))}</text>`).join('');
+    const labeledOutput = epsLabels ? metricOutput.replace('<text x="28" y="193">', `${epsLabels}<text x="28" y="193">`) : metricOutput;
     if (peRows.length) {
       const peMin = Math.min(...peRows.map(item => item.metric));
       const peMax = Math.max(...peRows.map(item => item.metric));
       const x = index => 28 + (index / Math.max(values.length - 1, 1)) * 744;
       const y = value => 174 - ((value - peMin) / Math.max(peMax - peMin, 0.01)) * 135;
       const line = peRows.map((item, index) => `${index ? 'L' : 'M'} ${x(item.index).toFixed(1)} ${y(item.metric).toFixed(1)}`).join(' ');
-      return metricOutput.replace('<g class="chart-hover-points">', `<path class="chart-line metric-line metric-pe-overlay" d="${line}"/><g class="chart-hover-points">`);
+      return labeledOutput.replace('<g class="chart-hover-points">', `<path class="chart-line metric-line metric-pe-overlay" d="${line}"/><g class="chart-hover-points">`);
     }
+    return labeledOutput;
   }
   const epsAxis = chartEpsBars(values);
   const peAxis = chartMetricRows(values, 'pe');

@@ -1900,6 +1900,7 @@ html[data-theme="light"] .filings-inline strong { color: #147b63 !important; }
 .metric-bars.positive { fill: rgba(92, 205, 165, .58); }
 .metric-bars.negative { fill: rgba(238, 126, 139, .56); }
 .metric-bars:hover { filter: brightness(1.18); }
+.metric-axis-label { fill: var(--dd-muted); font-size: 8px; text-anchor: middle; }
 .metric-chart { display:block; width:100%; min-height:210px; }
 .metric-axis-label { fill: var(--dd-muted); font-size: 8px; letter-spacing: .04em; }
 .metric-axis-right { text-anchor: end; }

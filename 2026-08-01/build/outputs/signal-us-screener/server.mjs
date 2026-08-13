@@ -760,10 +760,10 @@ createServer(async (req, res) => {
       const ticker = symbol(url.searchParams.get('symbol'));
       if (!ticker) return send(res, 400, { error:'Invalid ticker.' });
       const requested = Number(url.searchParams.get('points'));
-      const points = [22, 130, 260, 780, 1300, 2600].includes(requested) ? requested : 260;
+      const points = [22, 130, 260, 780, 1300, 2600, 3900].includes(requested) ? requested : 260;
       const [history, quarterly, quote] = await Promise.all([
         priceHistory(ticker, points),
-        fmp('income-statement', { symbol:ticker, period:'quarter', limit:20 }).catch(() => []),
+        fmp('income-statement', { symbol:ticker, period:'quarter', limit:80 }).catch(() => []),
         liveQuote(ticker).catch(() => normalizeQuote(ticker))
       ]);
       const reports = (Array.isArray(quarterly) ? quarterly : []).map(row => ({
