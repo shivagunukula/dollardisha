@@ -269,15 +269,31 @@ async function twelveStockSearch(query) {
     symbol: row.symbol, name: row.instrument_name || row.name || row.symbol, exchangeShortName: row.exchange || row.mic_code || 'US', type: row.type
   }));
 }
+const liveQuoteCache = new Map();
 async function liveQuote(ticker, exchange = '', twelveSymbol = ticker, fmpSymbol = ticker) {
-  try { return await combinedQuote({ symbol:ticker, twelveSymbol, exchange, fmpSymbol }); }
-  catch (error) {
-    console.warn(`Combined quote unavailable for ${ticker}: ${error.message}`);
-    try { return normalizeQuote(ticker, await yahooQuote(ticker)); }
-    catch (yahooError) {
-      console.warn(`Yahoo quote unavailable for ${ticker}: ${yahooError.message}`);
-      return normalizeQuote(ticker, await nasdaqQuote(ticker));
+  const cacheKey = `${ticker}|${exchange}|${twelveSymbol}|${fmpSymbol}`;
+  const cached = liveQuoteCache.get(cacheKey);
+  if (cached?.value && Date.now() < cached.expiresAt) return cached.value;
+  if (cached?.refreshing) return cached.value || cached.refreshing;
+  const refreshing = (async () => {
+    try { return await combinedQuote({ symbol:ticker, twelveSymbol, exchange, fmpSymbol }); }
+    catch (error) {
+      console.warn(`Combined quote unavailable for ${ticker}: ${error.message}`);
+      try { return normalizeQuote(ticker, { ...await yahooQuote(ticker), provider:'yahoo', providers:['yahoo'] }); }
+      catch (yahooError) {
+        console.warn(`Yahoo quote unavailable for ${ticker}: ${yahooError.message}`);
+        return normalizeQuote(ticker, { ...await nasdaqQuote(ticker), provider:'nasdaq', providers:['nasdaq'] });
+      }
     }
+  })();
+  liveQuoteCache.set(cacheKey, { value:cached?.value || null, refreshing });
+  try {
+    const value = await refreshing;
+    liveQuoteCache.set(cacheKey, { value, expiresAt:Date.now() + 15 * 1000 });
+    return value;
+  } catch (error) {
+    liveQuoteCache.delete(cacheKey);
+    throw error;
   }
 }
 async function liveIndex(symbol) {
@@ -330,7 +346,7 @@ const globalMarketDefinitions = {
     { name:'Dogecoin', symbol:'DOGE-USD', fmp:'DOGEUSD', twelve:'DOGE/USD' }
   ]
 };
-const globalMarketCache = { value:null, expiresAt:0 };
+const globalMarketCache = { value:null, expiresAt:0, refreshing:null };
 async function globalAssetQuote(asset) {
   try {
     return await combinedQuote({
@@ -344,30 +360,37 @@ async function globalAssetQuote(asset) {
   catch { return normalizeQuote(asset.symbol); }
 }
 async function globalMarketPulse() {
-  if (globalMarketCache.value && Date.now() < globalMarketCache.expiresAt) return globalMarketCache.value;
-  const load = group => Promise.all(group.map(async asset => {
-    const quote = await globalAssetQuote(asset);
-    return {
-      name: asset.name, symbol: asset.symbol, region: asset.region || null,
-      exchange: asset.exchange || null,
-      ...quote,
-      dataStatus: quote.price !== null && quote.price !== undefined && quote.price !== '' && Number.isFinite(Number(quote.price)) ? 'live-or-latest' : 'unavailable'
-    };
-  }));
-  const [indices, commodities, crypto] = await Promise.all([
-    load(globalMarketDefinitions.indices),
-    load(globalMarketDefinitions.commodities),
-    load(globalMarketDefinitions.crypto)
-  ]);
-  const regions = [...new Set(globalMarketDefinitions.indices.map(item => item.region))].map(region => {
-    const rows = indices.filter(item => item.region === region);
-    const changes = rows.map(item => Number(item.changesPercentage)).filter(Number.isFinite);
-    return { region, change:changes.length ? changes.reduce((sum, value) => sum + value, 0) / changes.length : null, breadth:rows.filter(item => Number(item.changesPercentage) >= 0).length, total:rows.length };
-  });
-  const result = { updatedAt:new Date().toISOString(), indices, commodities, crypto, regions };
-  globalMarketCache.value = result;
-  globalMarketCache.expiresAt = Date.now() + 60 * 1000;
-  return result;
+  const now = Date.now();
+  if (globalMarketCache.value && now < globalMarketCache.expiresAt) return globalMarketCache.value;
+  if (!globalMarketCache.refreshing) {
+    globalMarketCache.refreshing = (async () => {
+      const load = group => Promise.all(group.map(async asset => {
+        const quote = await globalAssetQuote(asset);
+        return {
+          name: asset.name, symbol: asset.symbol, region: asset.region || null,
+          exchange: asset.exchange || null,
+          ...quote,
+          dataStatus: quote.price !== null && quote.price !== undefined && quote.price !== '' && Number.isFinite(Number(quote.price)) ? 'live-or-latest' : 'unavailable'
+        };
+      }));
+      const [indices, commodities, crypto] = await Promise.all([
+        load(globalMarketDefinitions.indices),
+        load(globalMarketDefinitions.commodities),
+        load(globalMarketDefinitions.crypto)
+      ]);
+      const regions = [...new Set(globalMarketDefinitions.indices.map(item => item.region))].map(region => {
+        const rows = indices.filter(item => item.region === region);
+        const changes = rows.map(item => Number(item.changesPercentage)).filter(Number.isFinite);
+        return { region, change:changes.length ? changes.reduce((sum, value) => sum + value, 0) / changes.length : null, breadth:rows.filter(item => Number(item.changesPercentage) >= 0).length, total:rows.length };
+      });
+      const result = { updatedAt:new Date().toISOString(), indices, commodities, crypto, regions };
+      globalMarketCache.value = result;
+      globalMarketCache.expiresAt = Date.now() + 60 * 1000;
+      return result;
+    })().finally(() => { globalMarketCache.refreshing = null; });
+  }
+  if (globalMarketCache.value) return { ...globalMarketCache.value, stale:true };
+  return globalMarketCache.refreshing;
 }
 const marketScanCache = new Map();
 async function marketScan(mode) {

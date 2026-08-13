@@ -2107,3 +2107,6 @@ html[data-theme="light"] .signal-empty { color: #65766f !important; }
 .basket-search-item{display:flex;width:100%;gap:10px;align-items:center;padding:10px 12px;border:0;border-top:1px solid var(--dd-line-soft);background:transparent;color:var(--dd-text);text-align:left;cursor:pointer}
 .basket-search-item:first-child{border-top:0}.basket-search-item:hover{background:var(--dd-surface-3)}
 .basket-search-item b{min-width:58px;color:var(--dd-accent)}.basket-search-item span,.basket-search-loading{color:var(--dd-muted);font-size:11px}.basket-search-loading{padding:12px}
+.page{animation:page-in .24s ease-out both}.panel,.market-card,.index-card,.cross-market-card{transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}.panel:hover,.market-card:hover,.index-card:hover,.cross-market-card:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(0,0,0,.12)}
+button,.link-button,.solid-btn{transition:transform .15s ease,background-color .15s ease,box-shadow .15s ease}button:active,.link-button:active,.solid-btn:active{transform:scale(.98)}
+@keyframes page-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}

@@ -367,7 +367,8 @@ function wireCommon() {
 }
 const jsonRequestCache = new Map();
 async function getJson(url, timeout = 9000) {
-  const cacheable = url.startsWith('/data/company?');
+  const cacheable = url.startsWith('/data/company?') || url.startsWith('/data/market') || url.startsWith('/data/indices') || url.startsWith('/data/global-markets') || url.startsWith('/data/watchlist?');
+  const maxAge = url.startsWith('/data/company?') ? 30000 : url.startsWith('/data/watchlist?') ? 15000 : 10000;
   if (cacheable && jsonRequestCache.has(url)) return jsonRequestCache.get(url);
   const request = (async () => {
     let lastError;
@@ -380,7 +381,7 @@ async function getJson(url, timeout = 9000) {
         return await response.json();
       } catch (error) {
         lastError = error;
-        if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 700));
+        if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 180));
       } finally {
         clearTimeout(timer);
       }
@@ -389,7 +390,7 @@ async function getJson(url, timeout = 9000) {
   })();
   if (cacheable) {
     jsonRequestCache.set(url, request);
-    setTimeout(() => jsonRequestCache.delete(url), 30000);
+    setTimeout(() => jsonRequestCache.delete(url), maxAge);
     request.catch(() => jsonRequestCache.delete(url));
   }
   return request;
