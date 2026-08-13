@@ -1110,8 +1110,11 @@ async function setupAuth() {
   const callbackParams = new URLSearchParams(window.location.search);
   const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
   const recoveryReturn = callbackParams.get('type') === 'recovery' || hashParams.get('type') === 'recovery';
+  const confirmationReturn = hashParams.get('type') === 'signup' || callbackParams.get('type') === 'signup';
   const callbackUrl = new URL(window.location.href);
   const callbackCode = callbackUrl.searchParams.get('code');
+  const hashAccessToken = hashParams.get('access_token');
+  const hashRefreshToken = hashParams.get('refresh_token');
   let callbackError = callbackUrl.searchParams.get('error_description') || callbackUrl.searchParams.get('error') || hashParams.get('error_description') || hashParams.get('error') || '';
   let initialSession = null;
   if (callbackCode) {
@@ -1123,6 +1126,18 @@ async function setupAuth() {
       callbackError = error?.message || 'The sign-in callback could not be completed.';
     }
   }
+  // Email confirmation links return access and refresh tokens in the URL hash
+  // when the Supabase client is configured with detectSessionInUrl disabled.
+  // Store that session explicitly, then remove the tokens from the address bar.
+  if (!callbackCode && hashAccessToken && hashRefreshToken && !callbackError) {
+    try {
+      const { data, error } = await authClient.auth.setSession({ access_token: hashAccessToken, refresh_token: hashRefreshToken });
+      initialSession = data?.session || null;
+      if (error) callbackError = error.message || 'Your email was confirmed, but the session could not be started.';
+    } catch (error) {
+      callbackError = error?.message || 'Your email was confirmed, but the session could not be started.';
+    }
+  }
   for (let attempt = 0; attempt < 8 && !initialSession; attempt += 1) {
     try {
       const { data } = await authClient.auth.getSession();
@@ -1130,7 +1145,7 @@ async function setupAuth() {
     } catch (error) { console.warn(`Could not read account session: ${error.message}`); }
     if (!initialSession && attempt < 7) await new Promise(resolve => setTimeout(resolve, 250));
   }
-  if (callbackCode || callbackError) {
+  if (callbackCode || hashAccessToken || callbackError) {
     if (callbackCode && !initialSession && !callbackError) {
       callbackError = 'The sign-in callback could not be completed. Please start Google sign-in again.';
     }
@@ -1138,7 +1153,7 @@ async function setupAuth() {
     callbackUrl.searchParams.delete('error');
     callbackUrl.searchParams.delete('error_code');
     callbackUrl.searchParams.delete('error_description');
-    if (callbackError && /^#?(error|error_description)=/i.test(callbackUrl.hash)) callbackUrl.hash = '';
+    if (hashAccessToken || callbackError) callbackUrl.hash = '';
     window.history.replaceState({}, document.title, `${callbackUrl.pathname}${callbackUrl.search}${callbackUrl.hash}`);
   }
   updateAuthUI(initialSession);
@@ -1149,6 +1164,10 @@ async function setupAuth() {
   if (recoveryReturn && initialSession) {
     setAuthMode('recovery');
     openAuth('recovery');
+  } else if (confirmationReturn && initialSession) {
+    // The confirmation link has completed account creation. Keep the user on
+    // the site and let the normal account button reflect the signed-in state.
+    setAuthMessage('Email confirmed. Your DollarDisha account is ready.', 'success');
   }
 
   authClient.auth.onAuthStateChange((event, session) => {
