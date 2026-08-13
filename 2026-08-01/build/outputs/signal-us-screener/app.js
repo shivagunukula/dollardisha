@@ -769,7 +769,7 @@ function companyView(ticker) {
       <div><p class="crumb">US EQUITY RESEARCH</p><h1 class="page-title" id="company-title">${escapeHtml(ticker)}</h1><p class="sub" id="company-subtitle">${escapeHtml(ticker)} · Loading company research…</p></div>
       <button class="solid-btn ${watchlist.includes(ticker) ? 'saved' : ''}" data-watch="${ticker}">${watchlist.includes(ticker) ? 'Following' : 'Follow'}</button>
     </div>
-    <nav class="company-tabs"><a href="#overview">Overview</a><a href="#chart">Chart</a><a href="#strengths">Pros &amp; cons</a><a href="#quarterly">Quarterly</a><a href="#ownership">Shareholding</a><a href="#financials">Financials</a><a href="#peers">Peers</a><a href="#intelligence">Intelligence</a><a href="#updates">Updates</a><a href="#documents">Filings</a></nav>
+    <nav class="company-tabs"><a href="#overview">Overview</a><a href="#chart">Chart</a><a href="#strengths">Pros &amp; cons</a><a href="#quarterly">Quarterly</a><a href="#financials">Financials</a><a href="#peers">Peers</a><a href="#intelligence">Intelligence</a><a href="#updates">Updates</a><a href="#documents">Filings</a></nav>
     <div id="overview" class="company-overview-stack">
       <section class="panel company-summary company-research-card">
         <div class="summary-main ratio-board">
@@ -799,7 +799,6 @@ function companyView(ticker) {
       <div id="company-signals" class="company-signals-loading">Analysing the latest reported figures...</div>
     </section>
     <section id="quarterly" class="panel financial-panel quarterly-panel"><div class="panel-head"><div><h2>Quarterly results</h2><p>USD millions except per-share data · latest reported quarters</p></div><span class="quarterly-source">Reported data</span></div><div id="company-quarterly"><p class="data-empty">Loading quarterly results…</p></div></section>
-    <section id="ownership" class="panel ownership-panel"><div class="panel-head"><div><h2>Shareholding pattern</h2><p>Institutional ownership and insider activity by reported period</p></div><span class="quarterly-source">Quarterly &amp; yearly</span></div><div id="company-ownership"><p class="data-empty">Loading shareholding updatesâ€¦</p></div></section>
     <div id="financials" class="financial-stack"></div>
     <section id="peers" class="panel documents-panel"><div class="panel-head"><div><h2>Peer comparison</h2><p>Companies in the same sector and industry</p></div></div><div id="company-peers" class="data-empty">Peer data is loading…</div></section>
     <section id="intelligence" class="research-grid intelligence-grid"><div class="panel"><div class="panel-head"><div><h2>Analyst & financial strength</h2><p>Consensus, financial scores and owner earnings</p></div></div><div id="company-intel" class="data-empty">Loading analyst and financial-strength data…</div></div><div class="panel"><div class="panel-head"><div><h2>Company leadership</h2><p>Executives reported by the provider</p></div></div><div id="company-executives" class="data-empty">Loading executive data…</div></div></section>
