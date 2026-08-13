@@ -1046,11 +1046,18 @@ function setupIndex() {
           const matches = await getJson(`/data/search?q=${encodeURIComponent(query)}`, 15000);
           if (requestId !== searchRequest) return;
           const list = Array.isArray(matches) ? matches.slice(0, 8) : [];
+          const symbols = list.map(item => item.symbol || item.ticker).filter(Boolean);
+          const liveRows = symbols.length ? await getJson(`/data/watchlist?symbols=${encodeURIComponent(symbols.join(','))}`, 15000).catch(() => []) : [];
+          const liveBySymbol = new Map((Array.isArray(liveRows) ? liveRows : []).map(item => [String(item.symbol || item.ticker || '').toUpperCase(), item]));
           results.innerHTML = list.length ? list.map(item => {
             const symbol = item.symbol || item.ticker || '';
             const name = item.name || item.companyName || symbol;
             const venue = item.exchange || item.exchangeShortName || item.country || 'US listing';
-            return `<button type="button" class="basket-search-item" data-basket-symbol="${escapeHtml(symbol)}"><b>${escapeHtml(symbol)}</b><span>${escapeHtml(name)} · ${escapeHtml(venue)}</span></button>`;
+            const live = liveBySymbol.get(String(symbol).toUpperCase()) || {};
+            const price = scanNumber(live.price);
+            const change = scanNumber(live.change, live.changesPercentage, live.changePercentage);
+            const quote = price !== null ? `$${Number(price).toFixed(2)}${change !== null ? ` · ${percent(change)}` : ''}` : 'Quote unavailable';
+            return `<button type="button" class="basket-search-item" data-basket-symbol="${escapeHtml(symbol)}"><b>${escapeHtml(symbol)}</b><span>${escapeHtml(name)} · ${escapeHtml(venue)} · <strong>${escapeHtml(quote)}</strong></span></button>`;
           }).join('') : '<div class="basket-search-loading">No matching listing found.</div>';
           results.querySelectorAll('[data-basket-symbol]').forEach(button => button.onclick = () => {
             selectedTicker = button.dataset.basketSymbol.toUpperCase();
