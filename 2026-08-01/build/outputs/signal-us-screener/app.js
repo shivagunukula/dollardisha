@@ -428,6 +428,8 @@ async function hydrateWatchlist() {
 async function hydrateDashboard() { try { const quotes = await getJson('/data/market'); document.querySelectorAll('#market-cards .market-card').forEach((card, index) => { const quote = quotes[index]; if (!quote) return; card.querySelector('strong').textContent = quote.price ? `$${Number(quote.price).toFixed(2)}` : '—'; const rawChange = quote.changesPercentage; const hasChange = Number.isFinite(Number(rawChange)); const change = Number(rawChange || 0); card.classList.toggle('gain', hasChange && change >= 0); card.classList.toggle('loss', hasChange && change < 0); const note = card.querySelector('b'); note.textContent = hasChange ? `${percent(change)} today` : 'Latest quote available'; note.className = hasChange ? (change >= 0 ? 'positive' : 'down') : ''; }); } catch { document.querySelectorAll('#market-cards .market-card').forEach((card) => { card.classList.remove('gain', 'loss'); card.querySelector('strong').textContent = 'Unavailable'; card.querySelector('b').textContent = 'Live quote unavailable'; }); } }
 async function setupMarkets() {
   const scanCache = new Map();
+  const globalSection = $('#global-indices')?.closest('.market-section');
+  if (globalSection) globalSection.hidden = true;
   const status = () => $('#market-scan-status');
   const renderIndices = rows => {
     (rows || []).forEach(quote => {
@@ -443,7 +445,10 @@ async function setupMarkets() {
   };
   const renderGlobalMarkets = data => {
     const allIndices = Array.isArray(data?.indices) ? data.indices : [];
-    const globalIndices = allIndices.filter(item => item.region !== 'US');
+    // Do not show a global-market panel full of placeholders. A market is
+    // considered usable only when the provider returned a real quote.
+    const globalIndices = allIndices.filter(item => item.region !== 'US' && item.provider && scanNumber(item.price) !== null);
+    if (globalSection) globalSection.hidden = globalIndices.length === 0;
     const renderList = (holder, rows, empty) => {
       if (!holder) return;
       holder.innerHTML = rows.length ? rows.map(item => {
