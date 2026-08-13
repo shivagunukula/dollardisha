@@ -2102,3 +2102,8 @@ html[data-theme="light"] .signal-empty { color: #65766f !important; }
 .feed-status small[data-mode="dual-provider"]{color:#59d7a5}
 .feed-status small[data-mode="fmp-only"],.feed-status small[data-mode="twelve-data-only"]{color:#f2c66d}
 .provider-source{margin-top:4px}
+.basket-search{position:relative;flex:1;min-width:240px}
+.basket-search-results{position:absolute;z-index:20;top:calc(100% + 6px);left:0;right:0;border:1px solid var(--dd-line);border-radius:10px;background:var(--dd-surface);box-shadow:0 16px 35px rgba(0,0,0,.28);overflow:hidden}
+.basket-search-item{display:flex;width:100%;gap:10px;align-items:center;padding:10px 12px;border:0;border-top:1px solid var(--dd-line-soft);background:transparent;color:var(--dd-text);text-align:left;cursor:pointer}
+.basket-search-item:first-child{border-top:0}.basket-search-item:hover{background:var(--dd-surface-3)}
+.basket-search-item b{min-width:58px;color:var(--dd-accent)}.basket-search-item span,.basket-search-loading{color:var(--dd-muted);font-size:11px}.basket-search-loading{padding:12px}

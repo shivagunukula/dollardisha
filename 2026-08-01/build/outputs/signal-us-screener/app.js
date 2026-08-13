@@ -1018,6 +1018,51 @@ function indexView() {
 
 function setupIndex() {
   const save = () => localStorage.setItem('dd-custom-index', JSON.stringify(basket));
+  const tickerInput = $('#basket-ticker');
+  let selectedTicker = '';
+  let searchTimer;
+  let searchRequest = 0;
+  const results = document.createElement('div');
+  results.className = 'basket-search-results';
+  results.hidden = true;
+  if (tickerInput) {
+    tickerInput.setAttribute('autocomplete', 'off');
+    tickerInput.setAttribute('placeholder', 'Search ticker or company, e.g. TSLA');
+    const searchWrap = document.createElement('div');
+    searchWrap.className = 'basket-search';
+    tickerInput.parentElement?.insertBefore(searchWrap, tickerInput);
+    searchWrap.appendChild(tickerInput);
+    searchWrap.appendChild(results);
+    tickerInput.addEventListener('input', () => {
+      selectedTicker = '';
+      clearTimeout(searchTimer);
+      const query = tickerInput.value.trim();
+      if (query.length < 2) { results.hidden = true; results.innerHTML = ''; return; }
+      searchTimer = setTimeout(async () => {
+        const requestId = ++searchRequest;
+        results.hidden = false;
+        results.innerHTML = '<div class="basket-search-loading">Searching live directory…</div>';
+        try {
+          const matches = await getJson(`/data/search?q=${encodeURIComponent(query)}`, 15000);
+          if (requestId !== searchRequest) return;
+          const list = Array.isArray(matches) ? matches.slice(0, 8) : [];
+          results.innerHTML = list.length ? list.map(item => {
+            const symbol = item.symbol || item.ticker || '';
+            const name = item.name || item.companyName || symbol;
+            const venue = item.exchange || item.exchangeShortName || item.country || 'US listing';
+            return `<button type="button" class="basket-search-item" data-basket-symbol="${escapeHtml(symbol)}"><b>${escapeHtml(symbol)}</b><span>${escapeHtml(name)} · ${escapeHtml(venue)}</span></button>`;
+          }).join('') : '<div class="basket-search-loading">No matching listing found.</div>';
+          results.querySelectorAll('[data-basket-symbol]').forEach(button => button.onclick = () => {
+            selectedTicker = button.dataset.basketSymbol.toUpperCase();
+            tickerInput.value = selectedTicker;
+            results.hidden = true;
+            tickerInput.focus();
+          });
+        } catch { results.innerHTML = '<div class="basket-search-loading">Directory unavailable. Enter a ticker manually.</div>'; }
+      }, 220);
+    });
+    document.addEventListener('click', event => { if (!tickerInput.contains(event.target) && !results.contains(event.target)) results.hidden = true; });
+  }
   const defaultIndexNames = new Set(['DollarDisha Research 10', 'DollarDisha', 'Shiva']);
   if (!basket.symbols.length && defaultIndexNames.has(String(basket.name || '').trim())) {
     const name = window.prompt('Name your index', '');
@@ -1035,7 +1080,7 @@ function setupIndex() {
     render();
   });
   $('#basket-add').onclick = () => {
-    const ticker = $('#basket-ticker').value.trim().toUpperCase();
+    const ticker = (selectedTicker || $('#basket-ticker').value.trim()).toUpperCase();
     if (/^[A-Z.]{1,10}$/.test(ticker) && !basket.symbols.includes(ticker)) { basket.symbols.push(ticker); save(); render(); }
   };
   $('#basket-rename').onclick = () => { const name = prompt('Name your index', basket.name); if (name?.trim()) { basket.name = name.trim(); save(); render(); } };
