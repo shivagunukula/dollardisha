@@ -62,6 +62,10 @@ let page = 'dashboard';
 let watchlist = JSON.parse(localStorage.getItem('dd-watchlist') || '[]');
 let watchlistRefreshTimer;
 let basket = JSON.parse(localStorage.getItem('dd-custom-index') || '{"name":"DollarDisha Research 10","symbols":[]}');
+const legacyIndexNames = new Set(['DollarDisha Research 10', 'DollarDisha', 'Shiva']);
+let indexNameConfirmed = (() => {
+  try { return localStorage.getItem('dd-custom-index-name-set') === '1'; } catch { return false; }
+})();
 let notes = JSON.parse(localStorage.getItem('dd-research-notes') || '[]');
 let alerts = JSON.parse(localStorage.getItem('dd-price-alerts') || '[]');
 let authClient = null;
@@ -1014,7 +1018,7 @@ async function hydrateDashboard() {
 
 function indexView() {
   const equal = basket.symbols.length ? (100 / basket.symbols.length).toFixed(1) : '0.0';
-  const legacyNames = new Set(['Shiva', 'DollarDisha', 'DollarDisha Research 10']);
+  const legacyNames = legacyIndexNames;
   const visibleName = authSession?.user && legacyNames.has(String(basket.name || '').trim())
     ? accountDisplayName(authSession.user)
     : basket.name;
@@ -1024,6 +1028,44 @@ function indexView() {
 
 function setupIndex() {
   const save = () => localStorage.setItem('dd-custom-index', JSON.stringify(basket));
+  const nameInput = document.createElement('input');
+  const nameSave = document.createElement('button');
+  const namePanel = document.createElement('section');
+  if (!indexNameConfirmed) {
+    namePanel.className = 'panel index-name-setup';
+    namePanel.innerHTML = '<p class="crumb">ONE-TIME SETUP</p><h2>Name your index</h2><p>Give this basket a name before adding companies. You can change it later.</p>';
+    const form = document.createElement('div');
+    form.className = 'index-name-form';
+    nameInput.id = 'basket-name-input';
+    nameInput.maxLength = 60;
+    nameInput.placeholder = 'e.g. Long-term compounders';
+    nameSave.type = 'button';
+    nameSave.className = 'solid-btn';
+    nameSave.textContent = 'Save index name';
+    form.append(nameInput, nameSave);
+    namePanel.appendChild(form);
+    document.querySelector('.index-hero')?.before(namePanel);
+    const ticker = $('#basket-ticker');
+    const add = $('#basket-add');
+    if (ticker) ticker.disabled = true;
+    if (add) add.disabled = true;
+    const saveIndexName = () => {
+      const name = nameInput.value.trim();
+      if (name.length < 2) {
+        nameInput.setCustomValidity('Enter an index name with at least 2 characters.');
+        nameInput.reportValidity();
+        return;
+      }
+      nameInput.setCustomValidity('');
+      basket.name = name.slice(0, 60);
+      indexNameConfirmed = true;
+      try { localStorage.setItem('dd-custom-index-name-set', '1'); } catch {}
+      save();
+      render();
+    };
+    nameSave.onclick = saveIndexName;
+    nameInput.onkeydown = event => { if (event.key === 'Enter') saveIndexName(); };
+  }
   const tickerInput = $('#basket-ticker');
   let selectedTicker = '';
   let searchTimer;
@@ -1075,16 +1117,6 @@ function setupIndex() {
       }, 220);
     });
     document.addEventListener('click', event => { if (!tickerInput.contains(event.target) && !results.contains(event.target)) results.hidden = true; });
-  }
-  const defaultIndexNames = new Set(['DollarDisha Research 10', 'DollarDisha', 'Shiva']);
-  if (!basket.symbols.length && defaultIndexNames.has(String(basket.name || '').trim())) {
-    const name = window.prompt('Name your index', '');
-    if (name?.trim()) {
-      basket.name = name.trim().slice(0, 60);
-      save();
-      render();
-      return;
-    }
   }
   const wireRemovals = () => document.querySelectorAll('[data-remove-basket]').forEach(button => button.onclick = event => {
     event.stopPropagation();
