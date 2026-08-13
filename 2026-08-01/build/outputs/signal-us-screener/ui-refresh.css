@@ -2017,3 +2017,82 @@ html[data-theme="light"] .ownership-table td:first-child { color: #25332f !impor
   .auth-dialog { max-height: 92vh; padding: 24px 18px 26px; border-radius: 22px 22px 0 0; }
   .auth-confirmation-actions { align-items: flex-start; flex-direction: column; }
 }
+
+/* Keep the index workspace readable in every theme. The legacy stylesheet has
+   a pale index hero, so these explicit theme rules must come last. */
+.index-hero {
+  color: var(--dd-text) !important;
+  border-color: var(--dd-line) !important;
+  background: linear-gradient(135deg, var(--dd-panel-strong), var(--dd-panel)) !important;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, .16) !important;
+}
+.index-hero > div:first-child > span {
+  display: block;
+  color: var(--dd-accent) !important;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+.index-hero h2 {
+  color: var(--dd-text) !important;
+  text-shadow: none !important;
+}
+.index-hero p { color: var(--dd-muted) !important; }
+.index-hero p b { color: var(--dd-text) !important; }
+.index-actions input {
+  color: var(--dd-text) !important;
+  background: var(--dd-bg) !important;
+  border-color: var(--dd-line) !important;
+}
+.index-actions input:focus {
+  border-color: var(--dd-accent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dd-accent) 18%, transparent) !important;
+}
+.index-actions input::placeholder { color: var(--dd-muted) !important; }
+.index-lab-grid .panel-head h2,
+.index-lab-grid .panel-head p { color: var(--dd-text) !important; }
+.index-lab-grid .panel-head p { color: var(--dd-muted) !important; }
+.data-empty,
+.empty-small,
+.company-signals-loading,
+.signal-empty {
+  color: var(--dd-muted) !important;
+}
+.company-signals-loading::before {
+  content: '•';
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--dd-accent);
+  animation: dd-soft-pulse 1.3s ease-in-out infinite;
+}
+.company-signals-loading:empty::before { display: none; }
+.data-empty,
+.company-signals-loading { min-height: 18px; }
+
+html[data-theme="light"] .index-hero {
+  background: linear-gradient(135deg, #ffffff, #edf8f4) !important;
+  border-color: #cdded8 !important;
+  box-shadow: 0 16px 32px rgba(30, 62, 53, .08) !important;
+}
+html[data-theme="light"] .index-hero h2,
+html[data-theme="light"] .index-hero p b { color: #17231f !important; }
+html[data-theme="light"] .index-hero p { color: #65766f !important; }
+html[data-theme="light"] .index-hero > div:first-child > span { color: #147b63 !important; }
+html[data-theme="light"] .index-actions input {
+  background: #fff !important;
+  border-color: #cbd8d4 !important;
+  color: #17231f !important;
+}
+html[data-theme="light"] .index-lab-grid .panel-head h2 { color: #17231f !important; }
+html[data-theme="light"] .index-lab-grid .panel-head p,
+html[data-theme="light"] .data-empty,
+html[data-theme="light"] .empty-small,
+html[data-theme="light"] .company-signals-loading,
+html[data-theme="light"] .signal-empty { color: #65766f !important; }
+
+@media (max-width: 650px) {
+  .index-hero { gap: 16px !important; padding: 20px !important; }
+  .index-actions { width: 100%; }
+  .index-actions input { flex: 1 1 100%; min-width: 0; }
+  .index-actions .solid-btn { flex: 1 1 100%; }
+}
