@@ -1561,6 +1561,56 @@ drawCompanyChart = function(values) {
   return output.includes('data-chart-tooltip') ? output : `${output}<div class="chart-hover-tooltip" data-chart-tooltip hidden>Hover over the chart to inspect a historical point.</div>`;
 };
 
+// Valuation chart modes: keep the price chart as the default, but let a
+// researcher switch to the reported P/E or EPS series without leaving the
+// company page. EPS growth is calculated only when two positive reported EPS
+// observations are available.
+let companyChartMode = 'price';
+const chartModeButtons = active => `<div class="chart-mode-switch" role="group" aria-label="Chart metric"><button type="button" data-chart-mode="price" class="${active === 'price' ? 'selected' : ''}">Price</button><button type="button" data-chart-mode="pe" class="${active === 'pe' ? 'selected' : ''}">PE Ratio</button><button type="button" data-chart-mode="eps" class="${active === 'eps' ? 'selected' : ''}">EPS</button></div>`;
+const chartMetricRows = (values, key) => values.map((item, index) => ({ ...item, index, metric:Number(item[key]) })).filter(item => Number.isFinite(item.metric));
+function epsGrowth(values) {
+  const points = values.map(item => Number(item.eps)).filter(value => Number.isFinite(value));
+  if (points.length < 2 || points[points.length - 2] <= 0) return null;
+  return ((points[points.length - 1] - points[points.length - 2]) / Math.abs(points[points.length - 2])) * 100;
+}
+function drawMetricChart(values, mode) {
+  const key = mode === 'pe' ? 'pe' : 'eps';
+  const rows = chartMetricRows(values, key);
+  if (!rows.length) return `<div class="chart-mode-header">${chartModeButtons(mode)}</div><p class="data-empty">${mode === 'pe' ? 'Historical P/E data is unavailable for this company.' : 'Reported EPS history is unavailable for this company.'}</p>`;
+  const min = Math.min(...rows.map(item => item.metric));
+  const max = Math.max(...rows.map(item => item.metric));
+  const scaleX = index => 28 + (index / Math.max(values.length - 1, 1)) * 744;
+  const scaleY = value => 174 - ((value - min) / Math.max(max - min, 0.01)) * 135;
+  const path = rows.map((item, index) => `${index ? 'L' : 'M'} ${scaleX(item.index).toFixed(1)} ${scaleY(item.metric).toFixed(1)}`).join(' ');
+  const bars = mode === 'eps' ? rows.map(item => `<rect class="metric-bars" x="${(scaleX(item.index) - 4).toFixed(1)}" y="${scaleY(item.metric).toFixed(1)}" width="8" height="${Math.max(1, 174 - scaleY(item.metric)).toFixed(1)}"/>`).join('') : '';
+  const latest = rows[rows.length - 1];
+  const growth = epsGrowth(values);
+  const label = mode === 'pe' ? 'P/E (TTM)' : 'EPS (reported)';
+  const value = Number(latest.metric).toLocaleString('en-US', { maximumFractionDigits:2 });
+  const growthLabel = growth === null ? 'Unavailable' : `${growth >= 0 ? '+' : ''}${growth.toFixed(1)}%`;
+  const targets = values.map((item, index) => `<rect class="chart-hover-target" tabindex="0" data-chart-index="${index}" x="${(scaleX(index) - 3).toFixed(1)}" y="20" width="6" height="158"/>`).join('');
+  setTimeout(() => {
+    const holder = $('#company-chart');
+    if (!holder) return;
+    holder.querySelectorAll('[data-chart-mode]').forEach(button => { button.onclick = () => { companyChartMode = button.dataset.chartMode; holder.innerHTML = drawCompanyChart(values); }; });
+    holder.querySelectorAll('[data-chart-points]').forEach(button => { button.onclick = async () => { companyChartOptions.points = Number(button.dataset.chartPoints); holder.innerHTML = '<p class="data-empty">Loading chart…</p>'; try { const chart = await getJson(`/data/chart?symbol=${encodeURIComponent(page)}&points=${companyChartOptions.points}`); holder.innerHTML = drawCompanyChart(chart.values || []); } catch { holder.innerHTML = '<p class="data-empty">Chart data is unavailable.</p>'; } }; });
+    const tooltip = holder.querySelector('[data-chart-tooltip]');
+    const show = target => { const item = values[Number(target.dataset.chartIndex)]; if (!item || !tooltip) return; const fmt = (v, suffix = '') => Number.isFinite(Number(v)) ? `${Number(v).toLocaleString('en-US', { maximumFractionDigits:2 })}${suffix}` : 'Unavailable'; tooltip.innerHTML = `<b>${escapeHtml(item.date || 'Historical point')}</b><span>Price: <strong>${fmt(item.close, ' USD')}</strong></span><span>P/E: <strong>${fmt(item.pe, 'x')}</strong></span><span>EPS: <strong>${fmt(item.eps, ' USD')}</strong></span>`; tooltip.hidden = false; };
+    holder.querySelectorAll('.chart-hover-target').forEach(target => { target.addEventListener('mouseenter', () => show(target)); target.addEventListener('focus', () => show(target)); target.addEventListener('mouseleave', () => { if (tooltip) tooltip.hidden = true; }); target.addEventListener('blur', () => { if (tooltip) tooltip.hidden = true; }); });
+  }, 0);
+  return `<div class="chart-mode-header"><div><b>${mode === 'pe' ? 'Valuation history' : 'EPS history'}</b><span>Reported values aligned to daily market dates</span></div>${chartModeButtons(mode)}</div><div class="chart-live-stats metric-stats"><div><span>${label}</span><b>${value}${mode === 'pe' ? 'x' : ' USD'}</b></div><div><span>EPS growth</span><b>${growthLabel}</b></div><div><span>Latest report</span><b>${escapeHtml(String(latest.date || '—'))}</b></div></div><div class="chart-controls"><div>${[[22,'1M'],[130,'6M'],[260,'1Y'],[780,'3Y'],[1300,'5Y'],[2600,'10Y']].map(([points,labelText]) => `<button class="${companyChartOptions.points === points ? 'selected' : ''}" data-chart-points="${points}">${labelText}</button>`).join('')}</div></div><svg class="metric-chart" viewBox="0 0 800 200" role="img" aria-label="Historical ${mode === 'pe' ? 'price to earnings ratio' : 'earnings per share'} chart"><path class="chart-grid" d="M28 30H772M28 78H772M28 126H772M28 174H772"/><g>${bars}</g><path class="chart-line metric-line" d="${path}"/><g class="chart-hover-points">${targets}</g><text x="28" y="193">${escapeHtml(String(values[0].date || ''))}</text><text x="676" y="193">${escapeHtml(String(values[values.length - 1].date || ''))}</text><text x="720" y="30">${max.toFixed(2)}</text><text x="720" y="174">${min.toFixed(2)}</text></svg><div class="chart-legend"><span class="legend-price">${mode === 'pe' ? 'P/E' : 'EPS'}</span><span>Hover for price, P/E and EPS</span></div><div class="chart-hover-tooltip" data-chart-tooltip hidden></div>`;
+}
+const metricAwareChart = drawCompanyChart;
+drawCompanyChart = function(values) {
+  if (companyChartMode === 'price') {
+    const output = metricAwareChart(values);
+    const markup = output.replace('<div class="chart-controls">', `${chartModeButtons('price')}<div class="chart-controls">`);
+    setTimeout(() => document.querySelectorAll('#company-chart [data-chart-mode]').forEach(button => { button.onclick = () => { companyChartMode = button.dataset.chartMode; const holder = $('#company-chart'); if (holder) holder.innerHTML = drawCompanyChart(values); }; }), 0);
+    return markup;
+  }
+  return drawMetricChart(values, companyChartMode);
+};
+
 // Issuer document workspace: keep the visual grouping close to the reference
 // while limiting content to SEC/company-reported material.
 const baseCompanyView = companyView;
