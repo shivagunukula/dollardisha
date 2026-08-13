@@ -1414,7 +1414,7 @@ async function setupAuth() {
     const email = $('#auth-email').value.trim();
     if (!email) { $('#auth-email').focus(); setAuthMessage('Enter your email address first.', 'error'); return; }
     setAuthBusy(true);
-    const { error } = await authClient.auth.signInWithOtp({ email, options:{ emailRedirectTo:redirectTo, shouldCreateUser:true } });
+    const { error } = await authClient.auth.signInWithOtp({ email, options:{ emailRedirectTo:redirectTo, shouldCreateUser:false } });
     setAuthMessage(error ? friendlyAuthError(error) : 'Login link sent. Check your email.', error ? 'error' : 'success');
     setAuthBusy(false);
   };
