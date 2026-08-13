@@ -475,11 +475,14 @@ async function marketPerformance(period = 'day') {
       const ytdStart = selected === 'ytd' ? `${new Date().getFullYear()}-01-01` : null;
       const points = history.filter(item => Number.isFinite(Number(item.close)) && (!ytdStart || String(item.date) >= ytdStart));
       if (points.length < 2) return { region:asset.region, change:null, breadth:null, total:1, benchmark:benchmarkDetails(asset) };
-      const start = Number(points[Math.max(0, points.length - (window + 1))].close);
-      const end = Number(points.at(-1).close);
+      const startPoint = points[Math.max(0, points.length - (window + 1))];
+      const endPoint = points.at(-1);
+      const start = Number(startPoint.close);
+      const end = Number(endPoint.close);
       const change = start > 0 ? ((end - start) / start) * 100 : null;
-      const observations = Math.max(1, points.length - 1);
-      const cagr = start > 0 && end > 0 ? (Math.pow(end / start, 252 / observations) - 1) * 100 : null;
+      const elapsedDays = Math.max(1, (new Date(endPoint.date) - new Date(startPoint.date)) / 86400000);
+      const elapsedYears = elapsedDays / 365.2425;
+      const cagr = start > 0 && end > 0 && elapsedYears > 0.01 ? (Math.pow(end / start, 1 / elapsedYears) - 1) * 100 : null;
       return { region:asset.region, change:Number.isFinite(change) ? change : null, cagr:Number.isFinite(cagr) ? cagr : null, breadth:Number.isFinite(change) && change >= 0 ? 1 : 0, total:1, benchmark:benchmarkDetails(asset, { change, cagr }) };
     } catch {
       return { region:asset.region, change:null, breadth:null, total:1, benchmark:benchmarkDetails(asset) };

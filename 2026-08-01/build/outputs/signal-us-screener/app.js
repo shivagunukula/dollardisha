@@ -1039,12 +1039,15 @@ async function hydrateMarketLeaders(period = 'day') {
     const data = await getJson(`/data/market-performance?period=${encodeURIComponent(period)}`, 60000);
     const regionFilter = document.querySelector('#market-region-filter')?.value || 'all';
     const moveFilter = Number(document.querySelector('#market-move-filter')?.value || 0);
-    const rows = (data.regions || []).filter(row => row && row.region && (regionFilter === 'all' || row.region === regionFilter)).sort((a, b) => {
-      const left = Number(a.change); const right = Number(b.change);
-      return marketLeadersDirection === 'leaders' ? (right || -Infinity) - (left || -Infinity) : (left || Infinity) - (right || Infinity);
-    }).filter(row => {
+    const rows = (data.regions || []).filter(row => {
+      if (!row || !row.region || (regionFilter !== 'all' && row.region !== regionFilter)) return false;
       const change = Number(row.change);
-      return !moveFilter || (Number.isFinite(change) && Math.abs(change) >= moveFilter);
+      if (!Number.isFinite(change)) return false;
+      const inDirection = marketLeadersDirection === 'leaders' ? change >= 0 : change < 0;
+      return inDirection && (!moveFilter || Math.abs(change) >= moveFilter);
+    }).sort((a, b) => {
+      const left = Number(a.change); const right = Number(b.change);
+      return marketLeadersDirection === 'leaders' ? right - left : left - right;
     }).slice(0, 5);
     holder.innerHTML = rows.length ? rows.map((row, index) => {
       const change = scanNumber(row.change);
