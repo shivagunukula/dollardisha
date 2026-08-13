@@ -66,6 +66,13 @@ const normalizeQuote = (ticker, value = {}) => {
     marketCap:finiteValue(value.marketCap, value.mktCap)
   };
 };
+const liveData = (quote, extra = {}) => ({
+  ...extra,
+  quote: quote || {},
+  live: quote?.price !== null && quote?.price !== undefined && Number.isFinite(Number(quote.price)),
+  provider: quote?.provider || null,
+  providers: quote?.providers || []
+});
 
 async function fmp(path, parameters = {}) {
   if (!key) throw new Error('FMP_API_KEY is not configured');
@@ -607,16 +614,17 @@ createServer(async (req, res) => {
       const finalBalance = balance.length ? balance : secValues.balance;
       const finalCashflow = cashflow.length ? cashflow : secValues.cashflow;
       await cacheCompany(ticker, finalProfile, quote, { income:finalIncome, balance:finalBalance, cashflow:finalCashflow, ratios:finalRatios });
-      return send(res, 200, { profile: finalProfile, quote: quote || {}, metrics: finalMetrics, income:finalIncome, quarterlyIncome, balance:finalBalance, cashflow:finalCashflow, ratios: finalRatios });
+      return send(res, 200, { profile: finalProfile, quote: quote || {}, live: quote?.price !== null && quote?.price !== undefined && Number.isFinite(Number(quote.price)), providers: quote?.providers || [], metrics: finalMetrics, income:finalIncome, quarterlyIncome, balance:finalBalance, cashflow:finalCashflow, ratios: finalRatios });
     }
     if (url.pathname === '/data/chart') {
       const ticker = symbol(url.searchParams.get('symbol'));
       if (!ticker) return send(res, 400, { error:'Invalid ticker.' });
       const requested = Number(url.searchParams.get('points'));
       const points = [22, 130, 260, 780, 1300, 2600].includes(requested) ? requested : 260;
-      const [history, quarterly] = await Promise.all([
+      const [history, quarterly, quote] = await Promise.all([
         priceHistory(ticker, points),
-        fmp('income-statement', { symbol:ticker, period:'quarter', limit:20 }).catch(() => [])
+        fmp('income-statement', { symbol:ticker, period:'quarter', limit:20 }).catch(() => []),
+        liveQuote(ticker).catch(() => normalizeQuote(ticker))
       ]);
       const reports = (Array.isArray(quarterly) ? quarterly : []).map(row => ({
         date:row.date || row.filingDate || row.calendarYear,
@@ -627,7 +635,7 @@ createServer(async (req, res) => {
         const eps = report?.eps ?? null;
         return { ...point, eps, pe:eps !== null && eps > 0 ? point.close / eps : null };
       });
-      return send(res, 200, { symbol:ticker, values });
+      return send(res, 200, { symbol:ticker, values, quote, live:quote?.price !== null && quote?.price !== undefined && Number.isFinite(Number(quote.price)), providers:quote?.providers || history.providers || [], provider:history.provider || quote?.provider || null });
     }
     if (url.pathname === '/data/peers') {
       const ticker = symbol(url.searchParams.get('symbol'));
