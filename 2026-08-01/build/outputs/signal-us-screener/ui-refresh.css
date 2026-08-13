@@ -1901,6 +1901,8 @@ html[data-theme="light"] .filings-inline strong { color: #147b63 !important; }
 .metric-bars.negative { fill: rgba(238, 126, 139, .56); }
 .metric-bars:hover { filter: brightness(1.18); }
 .metric-chart { display:block; width:100%; min-height:210px; }
+.metric-axis-label { fill: var(--dd-muted); font-size: 8px; letter-spacing: .04em; }
+.metric-axis-right { text-anchor: end; }
 html[data-theme="light"] .chart-mode-switch button { background:#f5f9f7; color:#5d726a; }
 html[data-theme="light"] .chart-mode-switch button.selected { background:#dff5ec; color:#173c31; }
 html[data-theme="light"] .metric-bars { stroke: #4e9dc5; }

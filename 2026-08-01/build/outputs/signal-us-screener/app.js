@@ -1698,21 +1698,29 @@ function epsGrowth(values) {
 function drawMetricChart(values, mode) {
   const key = mode === 'pe' ? 'pe' : 'eps';
   const rows = chartMetricRows(values, key);
+  const epsRows = chartMetricRows(values, 'eps');
+  const peRows = chartMetricRows(values, 'pe');
   if (!rows.length) return `<div class="chart-mode-header">${chartModeButtons(mode)}</div><p class="data-empty">${mode === 'pe' ? 'Historical P/E data is unavailable for this company.' : 'Reported EPS history is unavailable for this company.'}</p>`;
   const min = Math.min(...rows.map(item => item.metric));
   const max = Math.max(...rows.map(item => item.metric));
+  const epsMin = epsRows.length ? Math.min(...epsRows.map(item => item.metric)) : 0;
+  const epsMax = epsRows.length ? Math.max(...epsRows.map(item => item.metric)) : 1;
+  const peMin = peRows.length ? Math.min(...peRows.map(item => item.metric)) : 0;
+  const peMax = peRows.length ? Math.max(...peRows.map(item => item.metric)) : 1;
   const scaleX = index => 28 + (index / Math.max(values.length - 1, 1)) * 744;
   const scaleY = value => 174 - ((value - min) / Math.max(max - min, 0.01)) * 135;
   const path = rows.map((item, index) => `${index ? 'L' : 'M'} ${scaleX(item.index).toFixed(1)} ${scaleY(item.metric).toFixed(1)}`).join(' ');
+  const peTrend = peRows.map(item => `${scaleX(item.index).toFixed(1)},${(174 - ((item.metric - peMin) / Math.max(peMax - peMin, 0.01)) * 135).toFixed(1)}`).join(' ');
   const zeroY = mode === 'eps' ? (min > 0 ? 174 : max < 0 ? 39 : scaleY(0)) : 174;
   const barWidth = Math.max(3, Math.min(11, (744 / Math.max(rows.length, 1)) * 0.72));
-  const bars = mode === 'eps' ? rows.map(item => {
-    const valueY = scaleY(item.metric);
+  const bars = mode === 'eps' ? epsRows.map(item => {
+    const valueY = 174 - ((item.metric - epsMin) / Math.max(epsMax - epsMin, 0.01)) * 135;
     const y = Math.min(valueY, zeroY);
     const height = Math.max(1, Math.abs(zeroY - valueY));
     return `<rect class="metric-bars ${item.metric >= 0 ? 'positive' : 'negative'}" x="${(scaleX(item.index) - barWidth / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${height.toFixed(1)}"/>`;
   }).join('') : '';
-  const latest = rows[rows.length - 1];
+  const pePath = mode === 'eps' && peRows.length ? peRows.map((item, index) => `${index ? 'L' : 'M'} ${scaleX(item.index).toFixed(1)} ${(174 - ((item.metric - peMin) / Math.max(peMax - peMin, 0.01)) * 135).toFixed(1)}`).join(' ') : '';
+  const latest = rows[rows.length - 1] || epsRows[epsRows.length - 1] || peRows[peRows.length - 1];
   const growth = epsGrowth(values);
   const label = mode === 'pe' ? 'P/E (TTM)' : 'EPS (reported)';
   const value = Number(latest.metric).toLocaleString('en-US', { maximumFractionDigits:2 });
@@ -1737,7 +1745,19 @@ drawCompanyChart = function(values) {
     setTimeout(() => document.querySelectorAll('#company-chart [data-chart-mode]').forEach(button => { button.onclick = () => { companyChartMode = button.dataset.chartMode; const holder = $('#company-chart'); if (holder) holder.innerHTML = drawCompanyChart(values); }; }), 0);
     return markup;
   }
-  return drawMetricChart(values, companyChartMode);
+  const metricOutput = drawMetricChart(values, companyChartMode);
+  if (companyChartMode === 'eps') {
+    const peRows = chartMetricRows(values, 'pe');
+    if (peRows.length) {
+      const peMin = Math.min(...peRows.map(item => item.metric));
+      const peMax = Math.max(...peRows.map(item => item.metric));
+      const x = index => 28 + (index / Math.max(values.length - 1, 1)) * 744;
+      const y = value => 174 - ((value - peMin) / Math.max(peMax - peMin, 0.01)) * 135;
+      const line = peRows.map((item, index) => `${index ? 'L' : 'M'} ${x(item.index).toFixed(1)} ${y(item.metric).toFixed(1)}`).join(' ');
+      return metricOutput.replace('<g class="chart-hover-points">', `<path class="chart-line metric-line metric-pe-overlay" d="${line}"/><g class="chart-hover-points">`);
+    }
+  }
+  return metricOutput;
 };
 
 // Issuer document workspace: keep the visual grouping close to the reference
