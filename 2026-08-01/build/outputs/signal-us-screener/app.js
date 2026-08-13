@@ -1765,8 +1765,21 @@ drawCompanyChart = function(values) {
   const metricOutput = drawMetricChart(values, companyChartMode);
   if (companyChartMode === 'eps') {
     const peRows = chartMetricRows(values, 'pe');
-    const epsLabels = chartEpsBars(values).map(item => `<text class="metric-axis-label" x="${(28 + (item.index / Math.max(values.length - 1, 1)) * 744).toFixed(1)}" y="193">${escapeHtml(String(item.epsReportDate || item.date || '').slice(0, 7))}</text>`).join('');
-    const labeledOutput = epsLabels ? metricOutput.replace('<text x="28" y="193">', `${epsLabels}<text x="28" y="193">`) : metricOutput;
+    // A 10-year chart contains many quarterly reports. Label only a small,
+    // evenly spaced set of years; the exact quarter remains in the hover card.
+    const reportRows = chartEpsBars(values);
+    const years = [];
+    reportRows.forEach(item => {
+      const year = String(item.epsReportDate || item.date || '').slice(0, 4);
+      if (year && (!years.length || years[years.length - 1].year !== year)) years.push({ year, item });
+    });
+    const labelStep = Math.max(1, Math.ceil(years.length / 7));
+    const visibleYears = years.filter((row, index) => index % labelStep === 0 || index === years.length - 1);
+    const epsLabels = visibleYears.map(row => `<text class="metric-axis-label" x="${(28 + (row.item.index / Math.max(values.length - 1, 1)) * 744).toFixed(1)}" y="193">${escapeHtml(row.year)}</text>`).join('');
+    const labeledOutput = metricOutput
+      .replace(/<text x="28" y="193">.*?<\/text>/, '')
+      .replace(/<text x="676" y="193">.*?<\/text>/, '')
+      .replace('<text x="720" y="30">', `${epsLabels}<text x="720" y="30">`);
     if (peRows.length) {
       const peMin = Math.min(...peRows.map(item => item.metric));
       const peMax = Math.max(...peRows.map(item => item.metric));
