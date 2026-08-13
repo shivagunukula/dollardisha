@@ -993,6 +993,7 @@ function friendlyAuthError(error) {
   if (/email not confirmed/i.test(raw)) return 'Please confirm your email address, then try logging in again.';
   if (/provider is not enabled|unsupported provider/i.test(raw)) return 'Google sign-in is not enabled in Supabase yet. Enable Google under Authentication → Providers.';
   if (/redirect|redirect_uri|site url|not allowed/i.test(raw)) return `This website URL is not approved for sign-in yet. Add ${window.location.origin} to Supabase Authentication → URL Configuration.`;
+  if (/unable to exchange external code|external code/i.test(raw)) return 'Google returned an invalid sign-in response. In Supabase, check the Google Client ID/secret and make sure the callback URL is configured exactly.';
   if (/pkce|code verifier|exchange/i.test(raw)) return 'The sign-in callback expired. Close this window, reopen Log in, and try again.';
   if (/network|fetch|failed to fetch|load failed/i.test(raw)) return 'The sign-in service could not be reached. Check your connection and try again.';
   return raw;
@@ -1085,7 +1086,7 @@ async function setupAuth() {
   if (!config?.enabled || !window.supabase?.createClient) {
     const reason = !window.supabase?.createClient
       ? 'The sign-in library did not load. Refresh the page and try again.'
-      : `Sign-in is not connected on this deployment. Add SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in Render, then redeploy. Current site: ${window.location.origin}`;
+      : config?.reason || `Sign-in is not connected on this deployment. Add SUPABASE_URL and the Supabase publishable key (sb_publishable_…) in Render, then redeploy. Current site: ${window.location.origin}`;
     accountButton.onclick = () => { openAuth('login'); setAuthMessage(reason, 'error'); setAuthBusy(false); };
     setAuthBusy(false);
     return;
@@ -1095,12 +1096,16 @@ async function setupAuth() {
     auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true, flowType:'pkce' }
   });
 
-  const redirectTo = `${window.location.origin}${window.location.pathname}`;
+  const host = window.location.hostname.toLowerCase();
+  const redirectTo = host === 'dollardisha.in' || host === 'www.dollardisha.in'
+    ? 'https://dollardisha.in/'
+    : `${window.location.origin}${window.location.pathname}`;
   const callbackParams = new URLSearchParams(window.location.search);
-  const recoveryReturn = callbackParams.get('type') === 'recovery' || new URLSearchParams(window.location.hash.replace(/^#/, '')).get('type') === 'recovery';
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const recoveryReturn = callbackParams.get('type') === 'recovery' || hashParams.get('type') === 'recovery';
   const callbackUrl = new URL(window.location.href);
   const callbackCode = callbackUrl.searchParams.get('code');
-  let callbackError = callbackUrl.searchParams.get('error_description') || callbackUrl.searchParams.get('error') || '';
+  let callbackError = callbackUrl.searchParams.get('error_description') || callbackUrl.searchParams.get('error') || hashParams.get('error_description') || hashParams.get('error') || '';
   // detectSessionInUrl lets Supabase exchange the one-time PKCE code exactly
   // once. A second manual exchange makes a successful callback look expired.
   // The auth client restores storage asynchronously on a fresh redirect.
@@ -1120,6 +1125,7 @@ async function setupAuth() {
     callbackUrl.searchParams.delete('error');
     callbackUrl.searchParams.delete('error_code');
     callbackUrl.searchParams.delete('error_description');
+    if (callbackError && /^#?(error|error_description)=/i.test(callbackUrl.hash)) callbackUrl.hash = '';
     window.history.replaceState({}, document.title, `${callbackUrl.pathname}${callbackUrl.search}${callbackUrl.hash}`);
   }
   updateAuthUI(initialSession);

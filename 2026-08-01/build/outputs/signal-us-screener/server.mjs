@@ -14,6 +14,8 @@ const twelveDataKey = process.env.TWELVE_DATA_API_KEY || process.env.TWELVE_DATA
 const supabaseUrl = process.env.SUPABASE_URL || process.env.SUPABASE_PROJECT_URL;
 const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabasePublishableKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLIC_KEY;
+const supabasePublishableKeyIsSecret = /^sb_secret_/i.test(supabasePublishableKey || '');
+if (supabasePublishableKeyIsSecret) console.warn('SUPABASE_PUBLISHABLE_KEY contains a secret key. Use the sb_publishable_ key in the browser instead.');
 if (!key) console.warn('FMP_API_KEY is not configured. DollarDisha will use its quote fallback where available.');
 const mime = {
   '.html':'text/html; charset=utf-8',
@@ -441,9 +443,12 @@ createServer(async (req, res) => {
   try {
     if (url.pathname === '/data/auth-config') {
       return send(res, 200, {
-        enabled:Boolean(supabaseUrl && supabasePublishableKey),
+        enabled:Boolean(supabaseUrl && supabasePublishableKey && !supabasePublishableKeyIsSecret),
         url:supabaseUrl || null,
-        publishableKey:supabasePublishableKey || null
+        publishableKey:supabasePublishableKeyIsSecret ? null : (supabasePublishableKey || null),
+        reason:supabasePublishableKeyIsSecret
+          ? 'The deployment has a Supabase secret key in the browser-key setting. Replace it with the project publishable key (sb_publishable_…).'
+          : null
       });
     }
     if (url.pathname === '/data/search' || url.pathname === '/api/search') {
