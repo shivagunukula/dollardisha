@@ -775,6 +775,17 @@ createServer(async (req, res) => {
         const eps = report?.eps ?? null;
         return { ...point, eps, pe:eps !== null && eps > 0 ? point.close / eps : null };
       });
+      // Keep the carried-forward EPS for tooltip/P-E calculations, but mark
+      // only the first daily candle after each reported filing for the EPS
+      // bars. This prevents a quarterly figure from becoming a giant daily
+      // staircase across the whole chart.
+      for (const report of reports) {
+        const index = values.findIndex(point => String(point.date) >= String(report.date));
+        if (index >= 0) {
+          values[index].epsBar = report.eps;
+          values[index].epsReportDate = report.date;
+        }
+      }
       return send(res, 200, { symbol:ticker, values, quote, live:quote?.price !== null && quote?.price !== undefined && Number.isFinite(Number(quote.price)), providers:quote?.providers || history.providers || [], provider:history.provider || quote?.provider || null });
     }
     if (url.pathname === '/data/peers') {

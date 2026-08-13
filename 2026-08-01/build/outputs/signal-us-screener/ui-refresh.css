@@ -1903,6 +1903,10 @@ html[data-theme="light"] .filings-inline strong { color: #147b63 !important; }
 .metric-chart { display:block; width:100%; min-height:210px; }
 .metric-axis-label { fill: var(--dd-muted); font-size: 8px; letter-spacing: .04em; }
 .metric-axis-right { text-anchor: end; }
+.metric-tick { fill: var(--dd-muted); font-size: 8px; }
+.metric-tick-right { text-anchor: end; }
+.metric-pe-overlay { stroke: #8c9dff !important; stroke-width: 1.8 !important; fill: none; }
+.metric-chart-legend { margin-top: 0; }
 html[data-theme="light"] .chart-mode-switch button { background:#f5f9f7; color:#5d726a; }
 html[data-theme="light"] .chart-mode-switch button.selected { background:#dff5ec; color:#173c31; }
 html[data-theme="light"] .metric-bars { stroke: #4e9dc5; }

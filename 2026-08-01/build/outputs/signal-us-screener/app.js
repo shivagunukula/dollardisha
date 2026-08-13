@@ -1690,6 +1690,7 @@ drawCompanyChart = function(values) {
 let companyChartMode = 'price';
 const chartModeButtons = active => `<div class="chart-mode-switch" role="group" aria-label="Chart metric"><button type="button" data-chart-mode="price" class="${active === 'price' ? 'selected' : ''}">Price</button><button type="button" data-chart-mode="pe" class="${active === 'pe' ? 'selected' : ''}">PE Ratio</button><button type="button" data-chart-mode="eps" class="${active === 'eps' ? 'selected' : ''}">EPS</button></div>`;
 const chartMetricRows = (values, key) => values.map((item, index) => ({ ...item, index, metric:Number(item[key]) })).filter(item => Number.isFinite(item.metric));
+const chartEpsBars = values => values.map((item, index) => ({ ...item, index, metric:Number(item.epsBar) })).filter(item => Number.isFinite(item.metric));
 function epsGrowth(values) {
   const points = values.map(item => Number(item.eps)).filter(value => Number.isFinite(value));
   if (points.length < 2 || points[points.length - 2] <= 0) return null;
@@ -1698,7 +1699,7 @@ function epsGrowth(values) {
 function drawMetricChart(values, mode) {
   const key = mode === 'pe' ? 'pe' : 'eps';
   const rows = chartMetricRows(values, key);
-  const epsRows = chartMetricRows(values, 'eps');
+  const epsRows = chartEpsBars(values);
   const peRows = chartMetricRows(values, 'pe');
   if (!rows.length) return `<div class="chart-mode-header">${chartModeButtons(mode)}</div><p class="data-empty">${mode === 'pe' ? 'Historical P/E data is unavailable for this company.' : 'Reported EPS history is unavailable for this company.'}</p>`;
   const min = Math.min(...rows.map(item => item.metric));
@@ -1712,14 +1713,22 @@ function drawMetricChart(values, mode) {
   const path = rows.map((item, index) => `${index ? 'L' : 'M'} ${scaleX(item.index).toFixed(1)} ${scaleY(item.metric).toFixed(1)}`).join(' ');
   const peTrend = peRows.map(item => `${scaleX(item.index).toFixed(1)},${(174 - ((item.metric - peMin) / Math.max(peMax - peMin, 0.01)) * 135).toFixed(1)}`).join(' ');
   const zeroY = mode === 'eps' ? (min > 0 ? 174 : max < 0 ? 39 : scaleY(0)) : 174;
-  const barWidth = Math.max(3, Math.min(11, (744 / Math.max(rows.length, 1)) * 0.72));
-  const bars = mode === 'eps' ? epsRows.map(item => {
+  const bars = mode === 'eps' ? epsRows.map((item, rowIndex) => {
+    const startX = scaleX(item.index);
+    const endX = rowIndex < epsRows.length - 1 ? scaleX(epsRows[rowIndex + 1].index) : 772;
+    const barWidth = Math.max(3, (endX - startX) * 0.94);
     const valueY = 174 - ((item.metric - epsMin) / Math.max(epsMax - epsMin, 0.01)) * 135;
     const y = Math.min(valueY, zeroY);
     const height = Math.max(1, Math.abs(zeroY - valueY));
-    return `<rect class="metric-bars ${item.metric >= 0 ? 'positive' : 'negative'}" x="${(scaleX(item.index) - barWidth / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${height.toFixed(1)}"/>`;
+    return `<rect class="metric-bars ${item.metric >= 0 ? 'positive' : 'negative'}" x="${(startX + 1).toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(2, barWidth - 2).toFixed(1)}" height="${height.toFixed(1)}"/>`;
   }).join('') : '';
   const pePath = mode === 'eps' && peRows.length ? peRows.map((item, index) => `${index ? 'L' : 'M'} ${scaleX(item.index).toFixed(1)} ${(174 - ((item.metric - peMin) / Math.max(peMax - peMin, 0.01)) * 135).toFixed(1)}`).join(' ') : '';
+  const axisTicks = [0, 1, 2, 3, 4].map(step => {
+    const y = 174 - step * 33.75;
+    const epsTick = epsMin + (epsMax - epsMin) * (step / 4);
+    const peTick = peMin + (peMax - peMin) * (step / 4);
+    return `<text class="metric-tick metric-tick-left" x="3" y="${(y + 3).toFixed(1)}">${epsTick.toFixed(1)}</text><text class="metric-tick metric-tick-right" x="797" y="${(y + 3).toFixed(1)}">${peTick.toFixed(1)}</text>`;
+  }).join('');
   const latest = rows[rows.length - 1] || epsRows[epsRows.length - 1] || peRows[peRows.length - 1];
   const growth = epsGrowth(values);
   const label = mode === 'pe' ? 'P/E (TTM)' : 'EPS (reported)';
@@ -1757,7 +1766,14 @@ drawCompanyChart = function(values) {
       return metricOutput.replace('<g class="chart-hover-points">', `<path class="chart-line metric-line metric-pe-overlay" d="${line}"/><g class="chart-hover-points">`);
     }
   }
-  return metricOutput;
+  const epsAxis = chartEpsBars(values);
+  const peAxis = chartMetricRows(values, 'pe');
+  const epsMin = epsAxis.length ? Math.min(...epsAxis.map(item => item.metric)) : 0;
+  const epsMax = epsAxis.length ? Math.max(...epsAxis.map(item => item.metric)) : 1;
+  const peMin = peAxis.length ? Math.min(...peAxis.map(item => item.metric)) : 0;
+  const peMax = peAxis.length ? Math.max(...peAxis.map(item => item.metric)) : 1;
+  const axisTicks = [0, 1, 2, 3, 4].map(step => { const y = 174 - step * 33.75; return `<text class="metric-tick metric-tick-left" x="3" y="${(y + 3).toFixed(1)}">${(epsMin + (epsMax - epsMin) * step / 4).toFixed(1)}</text><text class="metric-tick metric-tick-right" x="797" y="${(y + 3).toFixed(1)}">${(peMin + (peMax - peMin) * step / 4).toFixed(1)}</text>`; }).join('');
+  return metricOutput.replace('<path class="chart-grid"', `${axisTicks}<path class="chart-grid"`);
 };
 
 // Issuer document workspace: keep the visual grouping close to the reference
