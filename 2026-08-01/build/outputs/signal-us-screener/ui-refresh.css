@@ -136,22 +136,24 @@ body {
     linear-gradient(145deg, #141e35, #0e1628) !important;
 }
 .dashboard-hero > div:first-of-type { max-width: none; }
-.dashboard-hero-layout { display: grid; width: 100%; grid-template-columns: minmax(0, 1.1fr) minmax(430px, .9fr); gap: 28px; align-items: stretch; }
+.dashboard-hero-layout { display: grid; width: 100%; grid-template-columns: minmax(0, .88fr) minmax(560px, 1.12fr); gap: 30px; align-items: stretch; }
 .dashboard-hero-copy { min-width: 0; }
 .dashboard-hero-copy > .hero-proof { margin-top: 26px; }
-.market-leaders-panel { min-width: 0; padding: 18px; border: 1px solid rgba(151,170,224,.24); border-radius: 13px; background: rgba(8,15,29,.42); box-shadow: 0 14px 34px rgba(0,0,0,.16); }
+.market-leaders-panel { min-width: 0; min-height: 100%; padding: 22px; border: 1px solid rgba(151,170,224,.24); border-radius: 15px; background: linear-gradient(145deg, rgba(8,15,29,.56), rgba(19,34,62,.55)); box-shadow: 0 18px 42px rgba(0,0,0,.2); }
 .market-leaders-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .market-leaders-head .crumb { margin: 0 0 5px; font-size: 9px; }
 .market-leaders-head h2 { margin: 0; color: #f4f7ff; font: 700 15px/1.2 Inter, sans-serif; }
-.market-leaders-head > small { flex: 0 0 auto; padding-top: 2px; color: #8e9bbb; font-size: 9px; white-space: nowrap; }
-.market-periods { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; margin: 14px 0 8px; }
+.market-leaders-head > small { flex: 0 0 auto; padding-top: 2px; color: #8e9bbb; font-size: 10px; white-space: nowrap; }
+.market-leaders-subtitle { display: block; margin-top: 4px; color: #8190ad; font-size: 10px; }
+.market-periods { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 6px; margin: 17px 0 10px; }
 .market-periods button { min-height: 27px; padding: 5px 4px; border: 1px solid #334163; border-radius: 7px; background: rgba(18,28,49,.82); color: #aebbd7; font: 600 10px Inter, sans-serif; cursor: pointer; }
 .market-periods button:hover, .market-periods button.selected { border-color: rgba(111,232,208,.7); background: rgba(57,190,156,.16); color: #7ae4c4; }
 .market-leader-mode { display: flex; gap: 5px; margin-bottom: 3px; }
 .market-leader-mode button { flex: 1; min-height: 25px; padding: 4px 7px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #8795b2; font: 600 9px Inter, sans-serif; cursor: pointer; }
 .market-leader-mode button:hover, .market-leader-mode button.selected { border-color: rgba(111,232,208,.42); background: rgba(57,190,156,.1); color: #76dfbd; }
-.market-leader-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
-.market-leader-toolbar select { min-height: 25px; padding: 4px 7px; border: 1px solid #334163; border-radius: 6px; background: #121c31; color: #aebbd7; font: 600 9px Inter, sans-serif; }
+.market-leader-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.market-filter-group { display: flex; gap: 6px; }
+.market-leader-toolbar select { min-height: 29px; padding: 5px 9px; border: 1px solid #334163; border-radius: 7px; background: #121c31; color: #aebbd7; font: 600 10px Inter, sans-serif; }
 .market-leaders-content { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(160px, .95fr); gap: 14px; }
 .market-benchmark-details { min-height: 150px; padding: 11px; border-left: 1px solid rgba(151,170,224,.14); background: rgba(16,26,45,.4); }
 .market-benchmark-details .crumb { margin: 0 0 5px; font-size: 8px; }
@@ -2218,8 +2220,14 @@ html[data-theme="light"] .signal-empty { color: #65766f !important; }
   .index-actions .solid-btn { flex: 1 1 100%; }
 }
 @media (max-width: 980px) {
+  .market-periods { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .market-leaders-content { grid-template-columns: 1fr; }
   .market-benchmark-details { border-top: 1px solid rgba(151,170,224,.14); border-left: 0; }
+}
+@media (max-width: 650px) {
+  .market-leader-toolbar { align-items: stretch; flex-direction: column; }
+  .market-filter-group { display: grid; grid-template-columns: 1fr 1fr; }
+  .market-leader-mode { margin-bottom: 0; }
 }
 :root{--provider-muted:#7890b7}
 .feed-status{min-width:150px}
