@@ -1018,7 +1018,7 @@ dashboardView = function() {
 const dashboardViewBaseForLeaders = baseDashboardView;
 dashboardView = function() {
   const html = dashboardViewBaseForLeaders();
-  const panel = '<aside class="market-leaders-panel" id="market-leaders-panel"><div class="market-leaders-head"><div><p class="crumb">GLOBAL MARKET PULSE</p><h2>Best-performing markets</h2></div><small id="market-leaders-updated">Updating...</small></div><div class="market-periods" role="tablist" aria-label="Market performance period"><button type="button" class="selected" data-market-period="day">Day</button><button type="button" data-market-period="month">1M</button><button type="button" data-market-period="3m">3M</button><button type="button" data-market-period="6m">6M</button></div><div id="market-leaders-list" class="market-leaders-list"><div class="market-leader-loading">Loading regional performance...</div></div><button class="link-button market-leaders-link" data-page="markets">View market pulse →</button></aside>';
+  const panel = '<aside class="market-leaders-panel" id="market-leaders-panel"><div class="market-leaders-head"><div><p class="crumb">GLOBAL MARKET PULSE</p><h2>Best-performing markets</h2></div><small id="market-leaders-updated">Updating...</small></div><div class="market-periods" role="tablist" aria-label="Market performance period"><button type="button" class="selected" data-market-period="day">Day</button><button type="button" data-market-period="week">1W</button><button type="button" data-market-period="month">1M</button><button type="button" data-market-period="ytd">YTD</button><button type="button" data-market-period="3m">3M</button><button type="button" data-market-period="6m">6M</button><button type="button" data-market-period="year">1Y</button></div><div class="market-leader-mode"><button type="button" class="selected" data-market-direction="leaders">Leaders</button><button type="button" data-market-direction="laggards">Laggards</button></div><div id="market-leaders-list" class="market-leaders-list"><div class="market-leader-loading">Loading regional performance...</div></div><button class="link-button market-leaders-link" data-page="markets">View market pulse →</button></aside>';
   const match = html.match(/<section class="panel dashboard-hero">([\s\S]*?)<\/section><div class="section-header">/);
   if (!match) return html;
   const insights = '<section class="dashboard-insights"><article class="dashboard-insight"><span class="insight-icon">↗</span><div><p class="crumb">FIND MOMENTUM</p><h3>Market scans</h3><p>Spot today’s leaders, laggards and unusual volume across the US universe.</p><button class="link-button" data-page="markets">Open scans →</button></div></article><article class="dashboard-insight"><span class="insight-icon">⌕</span><div><p class="crumb">BUILD A VIEW</p><h3>Screen your way</h3><p>Combine valuation, growth and quality filters to create a focused shortlist.</p><button class="link-button" data-page="screener">Open screener →</button></div></article><article class="dashboard-insight"><span class="insight-icon">▦</span><div><p class="crumb">GO DEEPER</p><h3>Company research</h3><p>Review financials, ratios, filings and technicals on one company page.</p><button class="link-button" data-page="research">Research hub →</button></div></article></section>';
@@ -1026,6 +1026,7 @@ dashboardView = function() {
   return html.replace(match[0], hero).replace('<section class="dashboard-grid">', `${insights}<section class="dashboard-grid">`);
 };
 
+let marketLeadersDirection = 'leaders';
 async function hydrateMarketLeaders(period = 'day') {
   const holder = document.querySelector('#market-leaders-list');
   if (!holder) return;
@@ -1036,7 +1037,10 @@ async function hydrateMarketLeaders(period = 'day') {
   holder.innerHTML = '<div class="market-leader-loading">Loading regional performance...</div>';
   try {
     const data = await getJson(`/data/market-performance?period=${encodeURIComponent(period)}`, 60000);
-    const rows = (data.regions || []).filter(row => row && row.region).sort((a, b) => (Number(b.change) || -Infinity) - (Number(a.change) || -Infinity)).slice(0, 5);
+    const rows = (data.regions || []).filter(row => row && row.region).sort((a, b) => {
+      const left = Number(a.change); const right = Number(b.change);
+      return marketLeadersDirection === 'leaders' ? (right || -Infinity) - (left || -Infinity) : (left || Infinity) - (right || Infinity);
+    }).slice(0, 5);
     holder.innerHTML = rows.length ? rows.map((row, index) => {
       const change = scanNumber(row.change);
       const label = change === null ? 'Unavailable' : percent(change);
@@ -1052,6 +1056,13 @@ async function hydrateMarketLeaders(period = 'day') {
 function setupMarketLeaders() {
   document.querySelectorAll('[data-market-period]').forEach(button => {
     button.addEventListener('click', () => hydrateMarketLeaders(button.dataset.marketPeriod));
+  });
+  document.querySelectorAll('[data-market-direction]').forEach(button => {
+    button.addEventListener('click', () => {
+      marketLeadersDirection = button.dataset.marketDirection;
+      document.querySelectorAll('[data-market-direction]').forEach(item => item.classList.toggle('selected', item.dataset.marketDirection === marketLeadersDirection));
+      hydrateMarketLeaders(document.querySelector('[data-market-period].selected')?.dataset.marketPeriod || 'day');
+    });
   });
   hydrateMarketLeaders();
 }

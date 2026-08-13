@@ -426,12 +426,12 @@ async function globalMarketPulse() {
 // this server-side means every visitor sees the same provider-backed snapshot
 // and we do not make a burst of requests from every browser tab.
 const marketPerformanceCache = new Map();
-const marketPerformanceWindows = { month:22, '3m':66, '6m':132 };
+const marketPerformanceWindows = { week:5, month:22, ytd:200, '3m':66, '6m':132, year:252 };
 const marketPerformanceAssets = globalMarketDefinitions.indices.filter((asset, index, all) => (
   all.findIndex(candidate => candidate.region === asset.region) === index
 ));
 async function marketPerformance(period = 'day') {
-  const selected = ['day', 'month', '3m', '6m'].includes(period) ? period : 'day';
+  const selected = ['day', 'week', 'month', 'ytd', '3m', '6m', 'year'].includes(period) ? period : 'day';
   const cached = marketPerformanceCache.get(selected);
   if (cached && Date.now() < cached.expiresAt) return cached.value;
   if (selected === 'day') {
@@ -444,7 +444,8 @@ async function marketPerformance(period = 'day') {
   const rows = await Promise.all(marketPerformanceAssets.map(async asset => {
     try {
       const history = await priceHistory(asset.symbol, window + 1);
-      const points = history.filter(item => Number.isFinite(Number(item.close)));
+      const ytdStart = selected === 'ytd' ? `${new Date().getFullYear()}-01-01` : null;
+      const points = history.filter(item => Number.isFinite(Number(item.close)) && (!ytdStart || String(item.date) >= ytdStart));
       if (points.length < 2) return { region:asset.region, change:null, breadth:null, total:1 };
       const start = Number(points[Math.max(0, points.length - (window + 1))].close);
       const end = Number(points.at(-1).close);
