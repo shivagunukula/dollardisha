@@ -1093,7 +1093,7 @@ async function setupAuth() {
   }
 
   authClient = window.supabase.createClient(config.url, config.publishableKey, {
-    auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true, flowType:'pkce' }
+    auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:false, flowType:'pkce' }
   });
 
   // Keep the callback on the exact origin that started OAuth. PKCE stores its
@@ -1105,10 +1105,16 @@ async function setupAuth() {
   const callbackUrl = new URL(window.location.href);
   const callbackCode = callbackUrl.searchParams.get('code');
   let callbackError = callbackUrl.searchParams.get('error_description') || callbackUrl.searchParams.get('error') || hashParams.get('error_description') || hashParams.get('error') || '';
-  // detectSessionInUrl lets Supabase exchange the one-time PKCE code exactly
-  // once. A second manual exchange makes a successful callback look expired.
-  // The auth client restores storage asynchronously on a fresh redirect.
   let initialSession = null;
+  if (callbackCode) {
+    try {
+      const { data, error } = await authClient.auth.exchangeCodeForSession(callbackCode);
+      initialSession = data?.session || null;
+      if (error) callbackError = error.message || 'The sign-in callback could not be completed.';
+    } catch (error) {
+      callbackError = error?.message || 'The sign-in callback could not be completed.';
+    }
+  }
   for (let attempt = 0; attempt < 8 && !initialSession; attempt += 1) {
     try {
       const { data } = await authClient.auth.getSession();
