@@ -1057,6 +1057,17 @@ async function hydrateMarketLeaders(period = 'day') {
     };
     document.querySelectorAll('[data-market-region-row]').forEach(rowButton => rowButton.addEventListener('click', () => showDetails(rowButton.dataset.marketRegionRow)));
     if (rows[0]) showDetails(rows[0].region);
+    if (details) {
+      const allBenchmarks = (data.regions || [])
+        .filter(item => item && item.region && (regionFilter === 'all' || item.region === regionFilter))
+        .flatMap(item => (item.benchmarks || []).map(benchmark => ({ ...benchmark, region: item.region })));
+      const rising = marketLeadersDirection === 'leaders';
+      const matching = allBenchmarks
+        .filter(item => Number.isFinite(Number(item.change)) && (rising ? Number(item.change) >= 0 : Number(item.change) < 0))
+        .sort((a, b) => rising ? Number(b.change) - Number(a.change) : Number(a.change) - Number(b.change))
+        .slice(0, 8);
+      details.innerHTML = `<p class="crumb">${rising ? 'RISING' : 'FALLING'} COUNTRIES</p><strong>${rising ? 'Country benchmarks rising' : 'Country benchmarks falling'}</strong><small>${rising ? 'Benchmarks with a positive return' : 'Benchmarks with a negative return'} for the selected period. Click a region to narrow the list.</small><div class="market-benchmark-list">${matching.map(item => `<div><span><b>${escapeHtml(item.country || item.name)}</b><small>${escapeHtml(item.name)} Â· ${escapeHtml(item.region || 'Global')} Â· ${escapeHtml(item.exchange || 'Global')}</small></span><strong class="${Number(item.change) >= 0 ? 'positive' : 'down'}"><em>${percent(item.change)}</em><small>CAGR ${Number.isFinite(Number(item.cagr)) ? percent(item.cagr) : 'â€”'}</small></strong></div>`).join('') || '<small>No country benchmark matches this filter yet.</small>'}</div>`;
+    }
     const updated = document.querySelector('#market-leaders-updated');
     if (updated) updated.textContent = data.updatedAt ? `Updated ${new Date(data.updatedAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}` : 'Latest snapshot';
   } catch {
