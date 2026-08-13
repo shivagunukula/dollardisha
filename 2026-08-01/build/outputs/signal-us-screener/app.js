@@ -1249,7 +1249,15 @@ function updateAuthUI(session) {
   const avatar = button.querySelector('.account-avatar');
   const firstName = displayName.trim().split(/\s+/)[0] || 'Account';
   if (label) label.textContent = user ? firstName : 'Sign in';
-  if (avatar) avatar.textContent = user ? firstName.slice(0, 1).toUpperCase() : 'S';
+  if (avatar) {
+    if (user) {
+      avatar.classList.remove('account-brand-mark');
+      avatar.textContent = firstName.slice(0, 1).toUpperCase();
+    } else {
+      avatar.classList.add('account-brand-mark');
+      avatar.innerHTML = '<img src="assets/dollardisha-app-icon.png" alt="">';
+    }
+  }
   button.title = user ? `Signed in as ${email || displayName}` : 'Log in or create a DollarDisha account';
   button.setAttribute('aria-label', user ? `Account: ${email || displayName}` : 'Log in or create a DollarDisha account');
   button.classList.toggle('signed-in', Boolean(user));

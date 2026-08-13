@@ -839,6 +839,8 @@ tbody tr:nth-child(even) td { background: rgba(255, 255, 255, .012); }
   color: #061510;
   font-size: 11px;
 }
+.account-brand-mark { overflow:hidden; padding:0; background:#101a25; }
+.account-brand-mark img { display:block; width:100%; height:100%; object-fit:cover; }
 .auth-overlay[hidden] { display: none !important; }
 .auth-overlay {
   position: fixed;
