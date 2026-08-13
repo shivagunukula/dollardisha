@@ -420,6 +420,55 @@ async function globalMarketPulse() {
   return globalMarketCache.refreshing;
 }
 
+// Regional benchmark performance for the dashboard.  The short period uses
+// the same live snapshot as the market pulse; longer periods use one liquid
+// benchmark per region and calculate the return from daily closes.  Keeping
+// this server-side means every visitor sees the same provider-backed snapshot
+// and we do not make a burst of requests from every browser tab.
+const marketPerformanceCache = new Map();
+const marketPerformanceWindows = { month:22, '3m':66, '6m':132 };
+const marketPerformanceAssets = globalMarketDefinitions.indices.filter((asset, index, all) => (
+  all.findIndex(candidate => candidate.region === asset.region) === index
+));
+async function marketPerformance(period = 'day') {
+  const selected = ['day', 'month', '3m', '6m'].includes(period) ? period : 'day';
+  const cached = marketPerformanceCache.get(selected);
+  if (cached && Date.now() < cached.expiresAt) return cached.value;
+  if (selected === 'day') {
+    const pulse = await globalMarketPulse();
+    const value = { updatedAt:pulse.updatedAt, period:selected, regions:pulse.regions || [] };
+    marketPerformanceCache.set(selected, { value, expiresAt:Date.now() + 55 * 1000 });
+    return value;
+  }
+  const window = marketPerformanceWindows[selected];
+  const rows = await Promise.all(marketPerformanceAssets.map(async asset => {
+    try {
+      const history = await priceHistory(asset.symbol, window + 1);
+      const points = history.filter(item => Number.isFinite(Number(item.close)));
+      if (points.length < 2) return { region:asset.region, change:null, breadth:null, total:1 };
+      const start = Number(points[Math.max(0, points.length - (window + 1))].close);
+      const end = Number(points.at(-1).close);
+      const change = start > 0 ? ((end - start) / start) * 100 : null;
+      return { region:asset.region, change:Number.isFinite(change) ? change : null, breadth:Number.isFinite(change) && change >= 0 ? 1 : 0, total:1 };
+    } catch {
+      return { region:asset.region, change:null, breadth:null, total:1 };
+    }
+  }));
+  const regions = [...new Set(marketPerformanceAssets.map(asset => asset.region))].map(region => {
+    const regionRows = rows.filter(row => row.region === region);
+    const changes = regionRows.map(row => row.change).filter(Number.isFinite);
+    return {
+      region,
+      change:changes.length ? changes.reduce((sum, value) => sum + value, 0) / changes.length : null,
+      breadth:regionRows.reduce((sum, row) => sum + (row.breadth || 0), 0),
+      total:regionRows.length
+    };
+  }).sort((a, b) => (Number(b.change) || -Infinity) - (Number(a.change) || -Infinity));
+  const value = { updatedAt:new Date().toISOString(), period:selected, regions };
+  marketPerformanceCache.set(selected, { value, expiresAt:Date.now() + 55 * 1000 });
+  return value;
+}
+
 // Keep the shared server snapshot warm even when no browser tab is open.
 // Visitors then receive a recently refreshed snapshot immediately instead of
 // making the first visitor wait for every provider request to complete.
@@ -874,6 +923,9 @@ createServer(async (req, res) => {
     }
     if (url.pathname === '/data/global-markets') {
       return send(res, 200, await globalMarketPulse());
+    }
+    if (url.pathname === '/data/market-performance') {
+      return send(res, 200, await marketPerformance(String(url.searchParams.get('period') || 'day')));
     }
     if (url.pathname === '/data/filings') {
       const ticker = symbol(url.searchParams.get('symbol'));

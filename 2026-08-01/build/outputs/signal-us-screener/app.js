@@ -1013,7 +1013,51 @@ dashboardView = function() {
   return html.replace('<section class="dashboard-grid">', `${insights}<section class="dashboard-grid">`);
 };
 
+// Correctly replace the hero contents (rather than nesting a second copy of
+// the hero) while preserving the original dashboard markup below it.
+const dashboardViewBaseForLeaders = baseDashboardView;
+dashboardView = function() {
+  const html = dashboardViewBaseForLeaders();
+  const panel = '<aside class="market-leaders-panel" id="market-leaders-panel"><div class="market-leaders-head"><div><p class="crumb">GLOBAL MARKET PULSE</p><h2>Best-performing markets</h2></div><small id="market-leaders-updated">Updating...</small></div><div class="market-periods" role="tablist" aria-label="Market performance period"><button type="button" class="selected" data-market-period="day">Day</button><button type="button" data-market-period="month">1M</button><button type="button" data-market-period="3m">3M</button><button type="button" data-market-period="6m">6M</button></div><div id="market-leaders-list" class="market-leaders-list"><div class="market-leader-loading">Loading regional performance...</div></div><button class="link-button market-leaders-link" data-page="markets">View market pulse →</button></aside>';
+  const match = html.match(/<section class="panel dashboard-hero">([\s\S]*?)<\/section><div class="section-header">/);
+  if (!match) return html;
+  const insights = '<section class="dashboard-insights"><article class="dashboard-insight"><span class="insight-icon">↗</span><div><p class="crumb">FIND MOMENTUM</p><h3>Market scans</h3><p>Spot today’s leaders, laggards and unusual volume across the US universe.</p><button class="link-button" data-page="markets">Open scans →</button></div></article><article class="dashboard-insight"><span class="insight-icon">⌕</span><div><p class="crumb">BUILD A VIEW</p><h3>Screen your way</h3><p>Combine valuation, growth and quality filters to create a focused shortlist.</p><button class="link-button" data-page="screener">Open screener →</button></div></article><article class="dashboard-insight"><span class="insight-icon">▦</span><div><p class="crumb">GO DEEPER</p><h3>Company research</h3><p>Review financials, ratios, filings and technicals on one company page.</p><button class="link-button" data-page="research">Research hub →</button></div></article></section>';
+  const hero = `<section class="panel dashboard-hero"><div class="dashboard-hero-layout"><div class="dashboard-hero-copy">${match[1]}</div>${panel}</div></section><div class="section-header">`;
+  return html.replace(match[0], hero).replace('<section class="dashboard-grid">', `${insights}<section class="dashboard-grid">`);
+};
+
+async function hydrateMarketLeaders(period = 'day') {
+  const holder = document.querySelector('#market-leaders-list');
+  if (!holder) return;
+  document.querySelectorAll('[data-market-period]').forEach(button => {
+    button.classList.toggle('selected', button.dataset.marketPeriod === period);
+    button.setAttribute('aria-selected', button.dataset.marketPeriod === period ? 'true' : 'false');
+  });
+  holder.innerHTML = '<div class="market-leader-loading">Loading regional performance...</div>';
+  try {
+    const data = await getJson(`/data/market-performance?period=${encodeURIComponent(period)}`, 60000);
+    const rows = (data.regions || []).filter(row => row && row.region).sort((a, b) => (Number(b.change) || -Infinity) - (Number(a.change) || -Infinity)).slice(0, 5);
+    holder.innerHTML = rows.length ? rows.map((row, index) => {
+      const change = scanNumber(row.change);
+      const label = change === null ? 'Unavailable' : percent(change);
+      const trend = change === null ? '' : change >= 0 ? 'positive' : 'down';
+      return `<div class="market-leader-row"><span class="market-leader-rank">${index + 1}</span><div><b>${escapeHtml(row.region)}</b><small>${row.breadth !== null && row.total ? `${row.breadth}/${row.total} benchmarks rising` : 'Regional benchmark'}</small></div><strong class="${trend}">${label}</strong></div>`;
+    }).join('') : '<div class="market-leader-loading">Market performance is temporarily unavailable.</div>';
+    const updated = document.querySelector('#market-leaders-updated');
+    if (updated) updated.textContent = data.updatedAt ? `Updated ${new Date(data.updatedAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}` : 'Latest snapshot';
+  } catch {
+    holder.innerHTML = '<div class="market-leader-loading">Market performance is temporarily unavailable.</div>';
+  }
+}
+function setupMarketLeaders() {
+  document.querySelectorAll('[data-market-period]').forEach(button => {
+    button.addEventListener('click', () => hydrateMarketLeaders(button.dataset.marketPeriod));
+  });
+  hydrateMarketLeaders();
+}
+
 async function hydrateDashboard() {
+  setupMarketLeaders();
   hydrateProviderStatus();
   const quoteTask = getJson('/data/market', 45000).then(quotes => {
     const byTicker = new Map((quotes || []).map(quote => [String(quote.symbol || '').toUpperCase(), quote]));
