@@ -144,7 +144,7 @@ body {
 .market-leaders-head .crumb { margin: 0 0 5px; font-size: 9px; }
 .market-leaders-head h2 { margin: 0; color: #f4f7ff; font: 700 15px/1.2 Inter, sans-serif; }
 .market-leaders-head > small { flex: 0 0 auto; padding-top: 2px; color: #8e9bbb; font-size: 9px; white-space: nowrap; }
-.market-periods { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; margin: 14px 0 8px; }
+.market-periods { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; margin: 14px 0 8px; }
 .market-periods button { min-height: 27px; padding: 5px 4px; border: 1px solid #334163; border-radius: 7px; background: rgba(18,28,49,.82); color: #aebbd7; font: 600 10px Inter, sans-serif; cursor: pointer; }
 .market-periods button:hover, .market-periods button.selected { border-color: rgba(111,232,208,.7); background: rgba(57,190,156,.16); color: #7ae4c4; }
 .market-leader-mode { display: flex; gap: 5px; margin-bottom: 3px; }

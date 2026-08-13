@@ -426,7 +426,7 @@ async function globalMarketPulse() {
 // this server-side means every visitor sees the same provider-backed snapshot
 // and we do not make a burst of requests from every browser tab.
 const marketPerformanceCache = new Map();
-const marketPerformanceWindows = { week:5, month:22, ytd:200, '3m':66, '6m':132, year:252 };
+const marketPerformanceWindows = { week:5, month:22, ytd:200, '3m':66, '6m':132, year:252, '3y':756, '5y':1260, '10y':2520 };
 const marketPerformanceAssets = globalMarketDefinitions.indices.filter((asset, index, all) => (
   all.findIndex(candidate => candidate.region === asset.region) === index
 ));
@@ -455,7 +455,7 @@ function countryForMarket(asset) {
 }
 const benchmarkDetails = (asset, row = {}) => ({ name:asset.name, symbol:asset.symbol, exchange:asset.exchange || null, country:countryForMarket(asset), change:Number.isFinite(Number(row.change)) ? Number(row.change) : null, cagr:Number.isFinite(Number(row.cagr)) ? Number(row.cagr) : null });
 async function marketPerformance(period = 'day') {
-  const selected = ['day', 'week', 'month', 'ytd', '3m', '6m', 'year'].includes(period) ? period : 'day';
+  const selected = ['day', 'week', 'month', 'ytd', '3m', '6m', 'year', '3y', '5y', '10y'].includes(period) ? period : 'day';
   const cached = marketPerformanceCache.get(selected);
   if (cached && Date.now() < cached.expiresAt) return cached.value;
   if (selected === 'day') {
