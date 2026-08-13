@@ -424,6 +424,14 @@ tbody tr:nth-child(even) td { background: rgba(255, 255, 255, .012); }
   color: var(--dd-text) !important;
 }
 .workflow button { min-height: 57px; }
+.dashboard-insights { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:0 0 16px; }
+.dashboard-insight { display:flex; align-items:flex-start; gap:12px; min-height:132px; padding:17px; border:1px solid var(--dd-line); border-radius:10px; background:linear-gradient(145deg,var(--dd-panel),var(--dd-panel-strong)); transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease; }
+.dashboard-insight:hover { transform:translateY(-3px); border-color:#4cc9a8; box-shadow:0 14px 30px rgba(0,0,0,.15); }
+.dashboard-insight .insight-icon { display:grid; flex:0 0 32px; width:32px; height:32px; place-items:center; border:1px solid rgba(75,211,171,.35); border-radius:9px; background:rgba(75,211,171,.11); color:#62ddb2; font-size:18px; }
+.dashboard-insight h3 { margin:4px 0 6px; color:var(--dd-text); font-size:15px; }
+.dashboard-insight p:not(.crumb) { margin:0 0 11px; color:var(--dd-muted); font-size:10px; line-height:1.5; }
+.dashboard-insight .link-button { padding:0; font-size:10px; }
+@media(max-width:760px){ .dashboard-insights{grid-template-columns:1fr;} .dashboard-insight{min-height:0;} }
 .compare-panel { overflow: visible !important; padding: 18px !important; }
 .compare-controls {
   display: grid !important;
