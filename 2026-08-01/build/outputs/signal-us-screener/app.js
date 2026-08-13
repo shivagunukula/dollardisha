@@ -853,6 +853,13 @@ function renderOwnership(holder, data) {
   const state = { period: 'quarterly', view: 'snapshots' };
   const formatPercent = value => Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)}%` : '—';
   const formatShares = value => Number.isFinite(Number(value)) ? whole(value) : '—';
+  const hasSnapshots = (Array.isArray(data?.quarterly) && data.quarterly.length) || (Array.isArray(data?.yearly) && data.yearly.length);
+  const hasTrades = Array.isArray(data?.trades) && data.trades.length;
+  if (!hasSnapshots && !hasTrades) {
+    holder.closest('.ownership-panel')?.remove();
+    document.querySelector('.company-tabs a[href="#ownership"]')?.remove();
+    return;
+  }
   const draw = () => {
     const rows = Array.isArray(data[state.period]) ? data[state.period] : [];
     const trades = Array.isArray(data.trades) ? data.trades : [];
