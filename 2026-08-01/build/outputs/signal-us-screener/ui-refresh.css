@@ -437,6 +437,12 @@ tbody tr:nth-child(even) td { background: rgba(255, 255, 255, .012); }
 .auth-dialog:not(.auth-recovery) .auth-provider { width:100%; min-height:56px; font-size:13px; }
 .auth-dialog:not(.auth-recovery) .auth-heading { margin-top:24px; }
 .auth-dialog:not(.auth-recovery) .auth-message { margin-top:16px; }
+.auth-tabs[hidden],
+.auth-divider[hidden],
+#auth-form[hidden],
+#auth-secondary-actions[hidden],
+#auth-signup-note[hidden],
+#auth-confirmation-actions[hidden] { display:none !important; }
 .compare-panel { overflow: visible !important; padding: 18px !important; }
 .compare-controls {
   display: grid !important;
