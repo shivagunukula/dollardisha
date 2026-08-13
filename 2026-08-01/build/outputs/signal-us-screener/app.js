@@ -1096,10 +1096,9 @@ async function setupAuth() {
     auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true, flowType:'pkce' }
   });
 
-  const host = window.location.hostname.toLowerCase();
-  const redirectTo = host === 'dollardisha.in' || host === 'www.dollardisha.in'
-    ? 'https://dollardisha.in/'
-    : `${window.location.origin}${window.location.pathname}`;
+  // Keep the callback on the exact origin that started OAuth. PKCE stores its
+  // verifier per origin, so forcing www/apex/Render to another host loses it.
+  const redirectTo = `${window.location.origin}${window.location.pathname}`;
   const callbackParams = new URLSearchParams(window.location.search);
   const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
   const recoveryReturn = callbackParams.get('type') === 'recovery' || hashParams.get('type') === 'recovery';
