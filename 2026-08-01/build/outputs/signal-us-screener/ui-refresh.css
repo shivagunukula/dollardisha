@@ -2269,6 +2269,9 @@ html[data-theme="light"] .signal-empty { color: #65766f !important; }
 :root{--provider-muted:#7890b7}
 .feed-status{min-width:150px}
 .feed-status small,.provider-source{display:block;color:var(--provider-muted);font-size:10px;line-height:1.35}
+.provider-source,.cross-market-card > small { display:none !important; }
+.feed-status small { font-size:0; }
+.feed-status small::after { content:'Live market data'; font-size:10px; }
 .feed-status small[data-mode="dual-provider"]{color:#59d7a5}
 .feed-status small[data-mode="fmp-only"],.feed-status small[data-mode="twelve-data-only"]{color:#f2c66d}
 .provider-source{margin-top:4px}
