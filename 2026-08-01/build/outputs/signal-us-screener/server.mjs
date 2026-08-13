@@ -414,6 +414,32 @@ async function globalMarketPulse() {
   if (globalMarketCache.value) return { ...globalMarketCache.value, stale:true };
   return globalMarketCache.refreshing;
 }
+
+// Keep the shared server snapshot warm even when no browser tab is open.
+// Visitors then receive a recently refreshed snapshot immediately instead of
+// making the first visitor wait for every provider request to complete.
+const backgroundFeaturedTickers = ['NVDA', 'MSFT', 'AAPL', 'GOOGL'];
+let backgroundRefreshInFlight = false;
+async function refreshLiveSnapshots() {
+  if (backgroundRefreshInFlight) return;
+  backgroundRefreshInFlight = true;
+  try {
+    await Promise.allSettled([
+      Promise.all(backgroundFeaturedTickers.map(ticker => liveQuote(ticker))),
+      globalMarketPulse()
+    ]);
+  } finally {
+    backgroundRefreshInFlight = false;
+  }
+}
+
+// This is deliberately server-side: it runs independently of browser
+// visibility, focus, and reloads while the hosting process is running.
+refreshLiveSnapshots().catch(error => console.warn(`Initial live snapshot refresh failed: ${error.message}`));
+setInterval(() => {
+  refreshLiveSnapshots().catch(error => console.warn(`Background live snapshot refresh failed: ${error.message}`));
+}, 60 * 1000);
+
 const marketScanCache = new Map();
 async function marketScan(mode) {
   const cached = marketScanCache.get(mode);
