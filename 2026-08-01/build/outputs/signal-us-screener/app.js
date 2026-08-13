@@ -11,7 +11,15 @@ const stocks = [
 
 const $ = (selector) => document.querySelector(selector);
 const escapeHtml = (value) => String(value ?? '—').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
-const money = (value) => { const number = Number(value || 0); return number >= 1e12 ? `$${(number / 1e12).toFixed(2)}T` : number >= 1e9 ? `$${(number / 1e9).toFixed(1)}B` : number >= 1e6 ? `$${(number / 1e6).toFixed(1)}M` : '—'; };
+const money = (value) => {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return '—';
+  if (number >= 1e12) return `$${(number / 1e12).toFixed(2)}T`;
+  if (number >= 1e9) return `$${(number / 1e9).toFixed(1)}B`;
+  if (number >= 1e6) return `$${(number / 1e6).toFixed(1)}M`;
+  if (number >= 1e3) return `$${(number / 1e3).toFixed(1)}K`;
+  return `$${number.toFixed(2)}`;
+};
 const percent = (value) => Number.isFinite(Number(value)) ? `${Number(value) >= 0 ? '+' : ''}${Number(value).toFixed(2)}%` : '—';
 let page = 'dashboard';
 let watchlist = JSON.parse(localStorage.getItem('dd-watchlist') || '[]');
