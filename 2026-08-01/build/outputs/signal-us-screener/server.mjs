@@ -208,15 +208,15 @@ function mergeProviderQuotes(symbol, twelveQuote, fmpQuoteValue) {
     providers
   });
 }
-async function combinedQuote({ symbol: outputSymbol, fmpSymbol = outputSymbol, twelveSymbol = outputSymbol, exchange = '' }) {
+async function combinedQuote({ symbol: outputSymbol, fmpSymbol = outputSymbol, twelveSymbol = outputSymbol, exchange = '', quiet = false }) {
   const [twelveResult, fmpResult] = await Promise.allSettled([
     twelveDataKey ? twelveDataQuote(twelveSymbol, exchange) : Promise.reject(new Error('TWELVE_DATA_API_KEY is not configured')),
     key ? fmpQuote(fmpSymbol) : Promise.reject(new Error('FMP_API_KEY is not configured'))
   ]);
   const twelveQuote = twelveResult.status === 'fulfilled' ? twelveResult.value : null;
   const fmpQuoteValue = fmpResult.status === 'fulfilled' ? fmpResult.value : null;
-  if (twelveResult.status === 'rejected') console.warn(`Twelve Data quote unavailable for ${outputSymbol}: ${twelveResult.reason?.message || twelveResult.reason}`);
-  if (fmpResult.status === 'rejected') console.warn(`FMP quote unavailable for ${outputSymbol}: ${fmpResult.reason?.message || fmpResult.reason}`);
+  if (!quiet && twelveResult.status === 'rejected') console.warn(`Twelve Data quote unavailable for ${outputSymbol}: ${twelveResult.reason?.message || twelveResult.reason}`);
+  if (!quiet && fmpResult.status === 'rejected') console.warn(`FMP quote unavailable for ${outputSymbol}: ${fmpResult.reason?.message || fmpResult.reason}`);
   if (twelveQuote || fmpQuoteValue) return mergeProviderQuotes(outputSymbol, twelveQuote, fmpQuoteValue);
   throw new Error(`No configured live quote provider returned data for ${outputSymbol}`);
 }
@@ -373,7 +373,12 @@ async function globalAssetQuote(asset) {
       symbol:asset.symbol,
       twelveSymbol:asset.twelve || asset.symbol,
       fmpSymbol:asset.fmp || asset.symbol,
-      exchange:asset.exchange || ''
+      exchange:asset.exchange || '',
+      // Index providers do not share a symbol format (for example, Yahoo's
+      // ^FTSE is not a valid Twelve Data symbol). Yahoo is the intentional
+      // fallback for these cross-asset rows, so keep expected provider misses
+      // out of the production error log.
+      quiet:true
     });
   } catch { /* Use the public fallback only when both configured providers fail. */ }
   try { return normalizeQuote(asset.symbol, { ...await yahooQuote(asset.symbol), provider:'yahoo' }); }
