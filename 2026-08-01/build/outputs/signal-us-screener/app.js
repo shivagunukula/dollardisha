@@ -1197,22 +1197,28 @@ function setAuthMode(mode = 'login') {
   authMode = mode;
   const recovery = mode === 'recovery';
   const signup = false;
-  $('#auth-tabs').hidden = recovery;
+  const authDialog = document.querySelector('.auth-dialog');
+  if (authDialog) authDialog.classList.toggle('auth-recovery', recovery);
+  // Google is the only visible account entry point. Keep the email form
+  // available internally for password recovery, but do not show a second
+  // sign-in path in the normal auth dialog.
+  $('#auth-tabs').hidden = true;
   $('#auth-name-field').hidden = !signup;
   $('#auth-email-field').hidden = recovery;
   $('#auth-password-field').hidden = recovery;
   $('#auth-email').required = !recovery;
   $('#auth-password').required = !recovery;
-  $('#auth-secondary-actions').hidden = recovery || signup;
+  $('#auth-secondary-actions').hidden = true;
   const confirmationActions = $('#auth-confirmation-actions');
   if (confirmationActions) confirmationActions.hidden = true;
   const signupNote = $('#auth-signup-note');
   if (signupNote) signupNote.hidden = !signup;
   $('#auth-google').hidden = recovery;
-  document.querySelector('.auth-divider').hidden = recovery;
+  document.querySelector('.auth-divider').hidden = true;
+  $('#auth-form').hidden = !recovery;
   document.querySelectorAll('[data-auth-view]').forEach(button => button.classList.toggle('active', button.dataset.authView === mode));
-  $('#auth-title').textContent = recovery ? 'Choose a new password' : signup ? 'Create your account' : 'Welcome back';
-  $('#auth-description').textContent = recovery ? 'Enter a secure new password for your DollarDisha account.' : signup ? 'Save your research identity and access personalised features.' : 'Continue building your US equity research list.';
+  $('#auth-title').textContent = recovery ? 'Choose a new password' : 'Sign in to DollarDisha';
+  $('#auth-description').textContent = recovery ? 'Enter a secure new password for your DollarDisha account.' : signup ? 'Save your research identity and access personalised features.' : 'Use Google to create or access your DollarDisha research account.';
   $('#auth-submit').textContent = recovery ? 'Update password' : signup ? 'Create account' : 'Log in';
   $('#auth-password').autocomplete = recovery ? 'new-password' : signup ? 'new-password' : 'current-password';
   setAuthMessage();
@@ -1242,7 +1248,7 @@ function updateAuthUI(session) {
   const label = button.querySelector('.account-label');
   const avatar = button.querySelector('.account-avatar');
   const firstName = displayName.trim().split(/\s+/)[0] || 'Account';
-  if (label) label.textContent = user ? firstName : 'Log in';
+  if (label) label.textContent = user ? firstName : 'Sign in';
   if (avatar) avatar.textContent = user ? firstName.slice(0, 1).toUpperCase() : 'S';
   button.title = user ? `Signed in as ${email || displayName}` : 'Log in or create a DollarDisha account';
   button.setAttribute('aria-label', user ? `Account: ${email || displayName}` : 'Log in or create a DollarDisha account');
@@ -1267,7 +1273,7 @@ function openAuth(mode = 'login') {
   if (!authSession?.user) setAuthMode(mode);
   modal.hidden = false;
   document.body.style.overflow = 'hidden';
-  setTimeout(() => (authSession?.user ? $('#auth-signout') : mode === 'recovery' ? $('#auth-password') : $('#auth-email'))?.focus(), 30);
+  setTimeout(() => (authSession?.user ? $('#auth-signout') : mode === 'recovery' ? $('#auth-password') : $('#auth-google'))?.focus(), 30);
 }
 
 function closeAuth() {
