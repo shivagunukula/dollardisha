@@ -435,7 +435,7 @@ body {
 .chart-panel,
 .documents-panel,
 .intelligence-grid { margin-top: 14px !important; }
-.chart-area { min-height: 260px !important; padding: 8px 15px 16px !important; }
+.chart-area { position: relative; min-height: 260px !important; padding: 8px 15px 16px !important; }
 .chart-controls { padding: 0 16px 12px; }
 .chart-controls button { min-height: 31px; }
 .financial-stack { gap: 14px !important; }
@@ -1866,11 +1866,16 @@ html[data-theme="light"] .filings-inline strong { color: #147b63 !important; }
 .chart-hover-target { fill: transparent; cursor: crosshair; outline: none; }
 .chart-hover-target:focus { fill: rgba(158, 175, 255, .08); }
 .chart-hover-tooltip {
+  position: absolute;
+  z-index: 8;
+  left: 12px;
+  top: 8px;
+  max-width: min(330px, calc(100% - 24px));
   display: grid;
   grid-template-columns: repeat(4, max-content);
   gap: 6px 16px;
   align-items: center;
-  margin-top: 8px;
+  margin: 0;
   padding: 9px 11px;
   border: 1px solid var(--dd-line);
   border-radius: 7px;
@@ -1891,9 +1896,16 @@ html[data-theme="light"] .filings-inline strong { color: #147b63 !important; }
 .metric-stats { margin:0 16px 12px; }
 .metric-line { stroke:#9eafff !important; }
 .metric-bars { fill:rgba(110,177,235,.45); }
+.metric-bars { stroke: rgba(156, 210, 247, .78); stroke-width: .55; }
+.metric-bars.positive { fill: rgba(92, 205, 165, .58); }
+.metric-bars.negative { fill: rgba(238, 126, 139, .56); }
+.metric-bars:hover { filter: brightness(1.18); }
 .metric-chart { display:block; width:100%; min-height:210px; }
 html[data-theme="light"] .chart-mode-switch button { background:#f5f9f7; color:#5d726a; }
 html[data-theme="light"] .chart-mode-switch button.selected { background:#dff5ec; color:#173c31; }
+html[data-theme="light"] .metric-bars { stroke: #4e9dc5; }
+html[data-theme="light"] .metric-bars.positive { fill: rgba(36, 158, 118, .58); }
+html[data-theme="light"] .metric-bars.negative { fill: rgba(210, 82, 96, .54); }
 @media (max-width: 640px) {
   .chart-hover-tooltip { grid-template-columns: repeat(2, max-content); }
 }

@@ -1634,6 +1634,16 @@ function drawCompanyChart(values) {
   return `<div class="chart-live-heading"><div><b>Live technicals</b><span>Daily close with moving-average trend</span></div><span class="chart-live-badge"><i></i> Feed connected</span></div><div class="chart-live-stats">${stats.map(([label,value,key]) => `<div class="chart-stat-${key}"><span>${label}</span><b${key === 'pe' || key === 'eps' ? ` data-chart-stat="${key}"` : ''}>${value}</b></div>`).join('')}</div><p class="chart-data-note">${averageStatus} DMA values update when the latest daily market candle is available. Intraday quotes do not create a partial DMA.</p><div class="chart-controls"><div>${[[22,'1M'],[130,'6M'],[260,'1Y'],[780,'3Y'],[1300,'5Y'],[2600,'10Y']].map(([points,label]) => `<button class="${companyChartOptions.points === points ? 'selected' : ''}" data-chart-points="${points}">${label}</button>`).join('')}</div><div><button class="${companyChartOptions.ma50 ? 'selected' : ''}" data-chart-toggle="ma50">50 DMA</button><button class="${companyChartOptions.ma200 ? 'selected' : ''}" data-chart-toggle="ma200">200 DMA</button><button class="${companyChartOptions.volume ? 'selected' : ''}" data-chart-toggle="volume">Volume</button></div></div><svg viewBox="0 0 800 200" role="img" aria-label="Historical price, moving averages and volume chart"><path class="chart-grid" d="M28 30H772M28 78H772M28 126H772M28 174H772"/><g class="chart-volume">${bars}</g><path class="chart-line" d="${pathFor(closes)}"/>${companyChartOptions.ma50 ? `<path class="chart-ma50" d="${pathFor(ma50)}"/>` : ''}${companyChartOptions.ma200 ? `<path class="chart-ma200" d="${pathFor(ma200)}"/>` : ''}<text x="28" y="193">${escapeHtml(values[0].date)}</text><text x="676" y="193">${escapeHtml(values[values.length - 1].date)}</text><text x="720" y="30">${max.toFixed(2)}</text><text x="720" y="174">${min.toFixed(2)}</text></svg><div class="chart-legend"><span class="legend-price">Price</span>${companyChartOptions.ma50 ? '<span class="legend-ma50">50 DMA</span>' : ''}${companyChartOptions.ma200 ? '<span class="legend-ma200">200 DMA</span>' : ''}${companyChartOptions.volume ? '<span class="legend-volume">Volume</span>' : ''}</div>`;
 }
 
+function placeChartTooltip(target, tooltip, holder) {
+  if (!target || !tooltip || !holder) return;
+  const point = target.getBoundingClientRect();
+  const box = holder.getBoundingClientRect();
+  const left = point.left - box.left + point.width / 2;
+  const top = point.top - box.top - tooltip.offsetHeight - 10;
+  tooltip.style.left = `${Math.max(12, Math.min(box.width - tooltip.offsetWidth - 12, left))}px`;
+  tooltip.style.top = `${Math.max(8, top)}px`;
+}
+
 const baseDrawCompanyChart = drawCompanyChart;
 drawCompanyChart = function(values) {
   const html = baseDrawCompanyChart(values);
@@ -1654,6 +1664,7 @@ drawCompanyChart = function(values) {
       const dma = (window, offset) => offset < window - 1 ? null : closes.slice(offset - window + 1, offset + 1).reduce((sum, value) => sum + value, 0) / window;
       tooltip.innerHTML = `<b>${escapeHtml(item.date || 'Historical point')}</b><span>Price: <strong>${fmt(item.close, ' USD')}</strong></span><span>50 DMA: <strong>${fmt(item.ma50 ?? dma(50, index), ' USD')}</strong></span><span>200 DMA: <strong>${fmt(item.ma200 ?? dma(200, index), ' USD')}</strong></span><span>P/E: <strong>${fmt(item.pe, 'x')}</strong></span><span>EPS: <strong>${fmt(item.eps, ' USD')}</strong></span>`;
       tooltip.hidden = false;
+      requestAnimationFrame(() => placeChartTooltip(target, tooltip, holder));
     };
     holder.querySelectorAll('.chart-hover-target').forEach(target => {
       target.addEventListener('mouseenter', () => show(target));
@@ -1693,7 +1704,14 @@ function drawMetricChart(values, mode) {
   const scaleX = index => 28 + (index / Math.max(values.length - 1, 1)) * 744;
   const scaleY = value => 174 - ((value - min) / Math.max(max - min, 0.01)) * 135;
   const path = rows.map((item, index) => `${index ? 'L' : 'M'} ${scaleX(item.index).toFixed(1)} ${scaleY(item.metric).toFixed(1)}`).join(' ');
-  const bars = mode === 'eps' ? rows.map(item => `<rect class="metric-bars" x="${(scaleX(item.index) - 4).toFixed(1)}" y="${scaleY(item.metric).toFixed(1)}" width="8" height="${Math.max(1, 174 - scaleY(item.metric)).toFixed(1)}"/>`).join('') : '';
+  const zeroY = mode === 'eps' ? (min > 0 ? 174 : max < 0 ? 39 : scaleY(0)) : 174;
+  const barWidth = Math.max(3, Math.min(11, (744 / Math.max(rows.length, 1)) * 0.72));
+  const bars = mode === 'eps' ? rows.map(item => {
+    const valueY = scaleY(item.metric);
+    const y = Math.min(valueY, zeroY);
+    const height = Math.max(1, Math.abs(zeroY - valueY));
+    return `<rect class="metric-bars ${item.metric >= 0 ? 'positive' : 'negative'}" x="${(scaleX(item.index) - barWidth / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${height.toFixed(1)}"/>`;
+  }).join('') : '';
   const latest = rows[rows.length - 1];
   const growth = epsGrowth(values);
   const label = mode === 'pe' ? 'P/E (TTM)' : 'EPS (reported)';
@@ -1706,10 +1724,10 @@ function drawMetricChart(values, mode) {
     holder.querySelectorAll('[data-chart-mode]').forEach(button => { button.onclick = () => { companyChartMode = button.dataset.chartMode; holder.innerHTML = drawCompanyChart(values); }; });
     holder.querySelectorAll('[data-chart-points]').forEach(button => { button.onclick = async () => { companyChartOptions.points = Number(button.dataset.chartPoints); holder.innerHTML = '<p class="data-empty">Loading chart…</p>'; try { const chart = await getJson(`/data/chart?symbol=${encodeURIComponent(page)}&points=${companyChartOptions.points}`); holder.innerHTML = drawCompanyChart(chart.values || []); } catch { holder.innerHTML = '<p class="data-empty">Chart data is unavailable.</p>'; } }; });
     const tooltip = holder.querySelector('[data-chart-tooltip]');
-    const show = target => { const item = values[Number(target.dataset.chartIndex)]; if (!item || !tooltip) return; const fmt = (v, suffix = '') => Number.isFinite(Number(v)) ? `${Number(v).toLocaleString('en-US', { maximumFractionDigits:2 })}${suffix}` : 'Unavailable'; tooltip.innerHTML = `<b>${escapeHtml(item.date || 'Historical point')}</b><span>Price: <strong>${fmt(item.close, ' USD')}</strong></span><span>P/E: <strong>${fmt(item.pe, 'x')}</strong></span><span>EPS: <strong>${fmt(item.eps, ' USD')}</strong></span>`; tooltip.hidden = false; };
+    const show = target => { const item = values[Number(target.dataset.chartIndex)]; if (!item || !tooltip) return; const fmt = (v, suffix = '') => Number.isFinite(Number(v)) ? `${Number(v).toLocaleString('en-US', { maximumFractionDigits:2 })}${suffix}` : 'Unavailable'; tooltip.innerHTML = `<b>${escapeHtml(item.date || 'Historical point')}</b><span>Price: <strong>${fmt(item.close, ' USD')}</strong></span><span>P/E: <strong>${fmt(item.pe, 'x')}</strong></span><span>EPS: <strong>${fmt(item.eps, ' USD')}</strong></span>`; tooltip.hidden = false; requestAnimationFrame(() => placeChartTooltip(target, tooltip, holder)); };
     holder.querySelectorAll('.chart-hover-target').forEach(target => { target.addEventListener('mouseenter', () => show(target)); target.addEventListener('focus', () => show(target)); target.addEventListener('mouseleave', () => { if (tooltip) tooltip.hidden = true; }); target.addEventListener('blur', () => { if (tooltip) tooltip.hidden = true; }); });
   }, 0);
-  return `<div class="chart-mode-header"><div><b>${mode === 'pe' ? 'Valuation history' : 'EPS history'}</b><span>Reported values aligned to daily market dates</span></div>${chartModeButtons(mode)}</div><div class="chart-live-stats metric-stats"><div><span>${label}</span><b>${value}${mode === 'pe' ? 'x' : ' USD'}</b></div><div><span>EPS growth</span><b>${growthLabel}</b></div><div><span>Latest report</span><b>${escapeHtml(String(latest.date || '—'))}</b></div></div><div class="chart-controls"><div>${[[22,'1M'],[130,'6M'],[260,'1Y'],[780,'3Y'],[1300,'5Y'],[2600,'10Y']].map(([points,labelText]) => `<button class="${companyChartOptions.points === points ? 'selected' : ''}" data-chart-points="${points}">${labelText}</button>`).join('')}</div></div><svg class="metric-chart" viewBox="0 0 800 200" role="img" aria-label="Historical ${mode === 'pe' ? 'price to earnings ratio' : 'earnings per share'} chart"><path class="chart-grid" d="M28 30H772M28 78H772M28 126H772M28 174H772"/><g>${bars}</g><path class="chart-line metric-line" d="${path}"/><g class="chart-hover-points">${targets}</g><text x="28" y="193">${escapeHtml(String(values[0].date || ''))}</text><text x="676" y="193">${escapeHtml(String(values[values.length - 1].date || ''))}</text><text x="720" y="30">${max.toFixed(2)}</text><text x="720" y="174">${min.toFixed(2)}</text></svg><div class="chart-legend"><span class="legend-price">${mode === 'pe' ? 'P/E' : 'EPS'}</span><span>Hover for price, P/E and EPS</span></div><div class="chart-hover-tooltip" data-chart-tooltip hidden></div>`;
+  return `<div class="chart-mode-header"><div><b>${mode === 'pe' ? 'Valuation history' : 'EPS history'}</b><span>Reported values aligned to daily market dates · hover a point for Price, P/E and EPS</span></div>${chartModeButtons(mode)}</div><div class="chart-live-stats metric-stats"><div><span>${label}</span><b>${value}${mode === 'pe' ? 'x' : ' USD'}</b></div><div><span>EPS growth</span><b>${growthLabel}</b></div><div><span>Latest report</span><b>${escapeHtml(String(latest.date || '—'))}</b></div></div><div class="chart-controls"><div>${[[22,'1M'],[130,'6M'],[260,'1Y'],[780,'3Y'],[1300,'5Y'],[2600,'10Y']].map(([points,labelText]) => `<button class="${companyChartOptions.points === points ? 'selected' : ''}" data-chart-points="${points}">${labelText}</button>`).join('')}</div></div><svg class="metric-chart" viewBox="0 0 800 200" role="img" aria-label="Historical ${mode === 'pe' ? 'price to earnings ratio' : 'earnings per share'} chart"><path class="chart-grid" d="M28 30H772M28 78H772M28 126H772M28 174H772"/><g>${bars}</g>${mode === 'pe' ? `<path class="chart-line metric-line" d="${path}"/>` : ''}<g class="chart-hover-points">${targets}</g><text x="28" y="193">${escapeHtml(String(values[0].date || ''))}</text><text x="676" y="193">${escapeHtml(String(values[values.length - 1].date || ''))}</text><text x="720" y="30">${max.toFixed(2)}</text><text x="720" y="174">${min.toFixed(2)}</text></svg><div class="chart-hover-tooltip" data-chart-tooltip hidden></div>`;
 }
 const metricAwareChart = drawCompanyChart;
 drawCompanyChart = function(values) {
