@@ -1181,8 +1181,13 @@ function setAuthBusy(busy) {
 
 function setAuthMode(mode = 'login') {
   authMode = mode;
+  // Email/password registration is intentionally disabled. Google OAuth is
+  // the only account-creation path; keep recovery available for existing
+  // email accounts.
+  if (mode === 'signup') mode = 'login';
+  authMode = mode;
   const recovery = mode === 'recovery';
-  const signup = mode === 'signup';
+  const signup = false;
   $('#auth-tabs').hidden = recovery;
   $('#auth-name-field').hidden = !signup;
   $('#auth-email-field').hidden = recovery;
@@ -1270,7 +1275,7 @@ async function setupAuth() {
   $('#auth-close').onclick = closeAuth;
   modal.onclick = event => { if (event.target === modal) closeAuth(); };
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && !modal.hidden) closeAuth(); });
-  document.querySelectorAll('[data-auth-view]').forEach(button => button.onclick = () => setAuthMode(button.dataset.authView));
+  document.querySelectorAll('[data-auth-view]').forEach(button => button.onclick = () => setAuthMode('login'));
 
   let config;
   try { config = await getJson('/data/auth-config'); }
