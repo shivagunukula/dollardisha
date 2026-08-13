@@ -1124,6 +1124,8 @@ function friendlyAuthError(error) {
   if (/password.*(at least|characters)|weak password|password should be/i.test(raw)) return 'Choose a stronger password with at least 8 characters.';
   if (/rate limit|too many requests/i.test(raw)) return 'Too many attempts. Please wait a few minutes and try again.';
   if (/invalid email/i.test(raw)) return 'Enter a valid email address.';
+  if (/email address not authorized|not authorized/i.test(raw)) return 'Supabase email delivery is still in test mode. Add this address to your Supabase team, or configure a real SMTP provider before sending confirmations.';
+  if (/smtp|mail.*send|email.*send|sending.*email/i.test(raw)) return 'Supabase could not send the confirmation email. Check Authentication â†’ SMTP Settings and use a real SMTP host, username and password.';
   if (/provider is not enabled|unsupported provider/i.test(raw)) return 'Google sign-in is not enabled in Supabase yet. Enable Google under Authentication → Providers.';
   if (/redirect|redirect_uri|site url|not allowed/i.test(raw)) return `This website URL is not approved for sign-in yet. Add ${window.location.origin} to Supabase Authentication → URL Configuration.`;
   if (/unable to exchange external code|external code/i.test(raw)) return 'Google returned an invalid sign-in response. In Supabase, check the Google Client ID/secret and make sure the callback URL is configured exactly.';
