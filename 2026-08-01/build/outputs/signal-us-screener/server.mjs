@@ -29,7 +29,10 @@ const mime = {
   '.jpg':'image/jpeg',
   '.jpeg':'image/jpeg'
 };
-const symbol = value => /^[A-Z.]{1,10}$/.test(String(value || '').toUpperCase()) ? String(value).toUpperCase() : null;
+// Tickers are not US-only: global listings can contain digits, dots, slashes
+// and hyphens (for example 000001 or RY.TO). Keep the allow-list tight while
+// allowing the symbols returned by the connected exchange directories.
+const symbol = value => /^[A-Z0-9][A-Z0-9._/-]{0,14}$/.test(String(value || '').toUpperCase()) ? String(value).toUpperCase() : null;
 const externalFetch = (url, options = {}) => fetch(url, { ...options, signal: AbortSignal.timeout(10000) });
 const finiteValue = (...values) => values.find(value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))) ?? null;
 const safeDivide = (numerator, denominator) => {
@@ -157,10 +160,11 @@ async function yahooQuote(ticker) {
     volume: meta.regularMarketVolume, provider: 'fallback'
   };
 }
-async function twelveDataQuote(ticker) {
+async function twelveDataQuote(ticker, exchange = '') {
   if (!twelveDataKey) throw new Error('TWELVE_DATA_API_KEY is not configured');
   const url = new URL('https://api.twelvedata.com/quote');
   url.searchParams.set('symbol', ticker);
+  if (exchange) url.searchParams.set('exchange', exchange);
   url.searchParams.set('apikey', twelveDataKey);
   const response = await externalFetch(url, { headers: { 'User-Agent': 'DollarDisha research app contact@dollardisha.in' } });
   const data = await response.json();
@@ -210,28 +214,23 @@ async function nasdaqQuote(ticker) {
   const percentage = Number(String(data.percentageChange || '0').replace(/[%+]/g, ''));
   return { symbol: ticker, price, changesPercentage: percentage, previousClose: data.previousClose, provider: 'nasdaq' };
 }
-let twelveDirectory = { rows: [], expiresAt: 0 };
 async function twelveStockSearch(query) {
   if (!twelveDataKey) return [];
-  if (Date.now() > twelveDirectory.expiresAt) {
-    const url = new URL('https://api.twelvedata.com/stocks');
-    url.searchParams.set('country', 'United States');
-    url.searchParams.set('type', 'Common Stock');
-    url.searchParams.set('apikey', twelveDataKey);
-    const response = await externalFetch(url, { headers: { 'User-Agent': 'DollarDisha research app contact@dollardisha.in' } });
-    const data = await response.json();
-    const rows = data.data || [];
-    if (!response.ok || data.status === 'error' || !Array.isArray(rows)) throw new Error(data.message || 'Twelve Data stock directory is unavailable');
-    twelveDirectory = { rows, expiresAt: Date.now() + 24 * 60 * 60 * 1000 };
-  }
-  const needle = query.toUpperCase();
-  return twelveDirectory.rows.filter(row => String(row.symbol || '').toUpperCase().includes(needle) || String(row.instrument_name || row.name || '').toUpperCase().includes(needle)).slice(0, 12).map(row => ({
+  const url = new URL('https://api.twelvedata.com/symbol_search');
+  url.searchParams.set('symbol', query);
+  url.searchParams.set('outputsize', '20');
+  url.searchParams.set('apikey', twelveDataKey);
+  const response = await externalFetch(url, { headers: { 'User-Agent': 'DollarDisha research app contact@dollardisha.in' } });
+  const data = await response.json();
+  const rows = data.data || data;
+  if (!response.ok || data.status === 'error' || !Array.isArray(rows)) throw new Error(data.message || 'Twelve Data global symbol search is unavailable');
+  return rows.slice(0, 12).map(row => ({
     symbol: row.symbol, name: row.instrument_name || row.name || row.symbol, exchangeShortName: row.exchange || row.mic_code || 'US', type: row.type
   }));
 }
-async function liveQuote(ticker) {
+async function liveQuote(ticker, exchange = '') {
   if (twelveDataKey) {
-    try { return normalizeQuote(ticker, await twelveDataQuote(ticker)); }
+    try { return normalizeQuote(ticker, await twelveDataQuote(ticker, exchange)); }
     catch (error) { console.warn(`Twelve Data quote unavailable for ${ticker}: ${error.message}`); }
   }
   try {
@@ -252,6 +251,14 @@ async function liveQuote(ticker) {
   }
 }
 async function liveIndex(symbol) {
+  const index = globalMarketDefinitions.indices.find(item => item.symbol === symbol);
+  if (twelveDataKey && index?.twelve) {
+    try {
+      return normalizeQuote(symbol, { ...await twelveDataQuote(index.twelve, index.exchange), provider:'twelve-data', exchange:index.exchange });
+    } catch (error) {
+      console.warn(`Twelve Data index unavailable for ${symbol}: ${error.message}`);
+    }
+  }
   try {
     const rows = await fmp('quote', { symbol });
     if (rows[0]?.price) return normalizeQuote(symbol, rows[0]);
@@ -267,18 +274,28 @@ async function liveIndex(symbol) {
 // every FMP/Twelve Data plan.
 const globalMarketDefinitions = {
   indices: [
-    { name:'S&P 500', symbol:'^GSPC', region:'US' },
-    { name:'Nasdaq Composite', symbol:'^IXIC', region:'US' },
-    { name:'Dow Jones', symbol:'^DJI', region:'US' },
-    { name:'Russell 2000', symbol:'^RUT', region:'US' },
-    { name:'FTSE 100', symbol:'^FTSE', region:'Europe' },
-    { name:'DAX', symbol:'^GDAXI', region:'Europe' },
-    { name:'CAC 40', symbol:'^FCHI', region:'Europe' },
-    { name:'Nikkei 225', symbol:'^N225', region:'Asia' },
-    { name:'Hang Seng', symbol:'^HSI', region:'Asia' },
-    { name:'Shanghai Composite', symbol:'000001.SS', region:'Asia' },
-    { name:'Nifty 50', symbol:'^NSEI', region:'India' },
-    { name:'BSE Sensex', symbol:'^BSESN', region:'India' }
+    { name:'S&P 500', symbol:'^GSPC', region:'US', exchange:'INDEX', twelve:'SPX' },
+    { name:'Nasdaq Composite', symbol:'^IXIC', region:'US', exchange:'NASDAQ', twelve:'IXIC' },
+    { name:'Dow Jones', symbol:'^DJI', region:'US', exchange:'INDEX', twelve:'DJI' },
+    { name:'Russell 2000', symbol:'^RUT', region:'US', exchange:'INDEX', twelve:'RUT' },
+    { name:'FTSE 100', symbol:'^FTSE', region:'Europe', exchange:'LSE', twelve:'UKX' },
+    { name:'DAX', symbol:'^GDAXI', region:'Europe', exchange:'XETR', twelve:'DAX' },
+    { name:'CAC 40', symbol:'^FCHI', region:'Europe', exchange:'EURONEXT', twelve:'CAC' },
+    { name:'Nikkei 225', symbol:'^N225', region:'Asia', exchange:'TSE', twelve:'NI225' },
+    { name:'Hang Seng', symbol:'^HSI', region:'Asia', exchange:'HKEX', twelve:'HSI' },
+    { name:'Shanghai Composite', symbol:'000001.SS', region:'Asia', exchange:'SSE', twelve:'000001' },
+    { name:'Nifty 50', symbol:'^NSEI', region:'India', exchange:'NSE', twelve:'NIFTY' },
+    { name:'BSE Sensex', symbol:'^BSESN', region:'India', exchange:'BSE', twelve:'SENSEX' },
+    { name:'S&P/TSX Composite', symbol:'^GSPTSE', region:'Americas', exchange:'TSX' },
+    { name:'ASX 200', symbol:'^AXJO', region:'Asia-Pacific', exchange:'ASX' },
+    { name:'Bovespa', symbol:'^BVSP', region:'Americas', exchange:'B3' },
+    { name:'KOSPI', symbol:'^KS11', region:'Asia-Pacific', exchange:'KRX' },
+    { name:'Straits Times', symbol:'^STI', region:'Asia-Pacific', exchange:'SGX' },
+    { name:'TAIEX', symbol:'^TWII', region:'Asia-Pacific', exchange:'TWSE' },
+    { name:'SIX Swiss Market', symbol:'^SSMI', region:'Europe', exchange:'SIX' },
+    { name:'IBEX 35', symbol:'^IBEX', region:'Europe', exchange:'BME' },
+    { name:'OMX Stockholm 30', symbol:'^OMX', region:'Europe', exchange:'XSTO' },
+    { name:'JSE All Share', symbol:'^J203.JO', region:'Africa', exchange:'JSE' }
   ],
   commodities: [
     { name:'Gold', symbol:'GC=F', fmp:'GCUSD', twelve:'XAU/USD' },
@@ -299,23 +316,31 @@ const globalMarketDefinitions = {
 };
 const globalMarketCache = { value:null, expiresAt:0 };
 async function globalAssetQuote(asset) {
+  // Prefer the user's Twelve Data plan for assets that have a native
+  // Twelve symbol/exchange mapping. FMP and Yahoo remain fallbacks because
+  // index availability differs by provider and subscription.
+  if (twelveDataKey && asset.twelve) {
+    try { return normalizeQuote(asset.symbol, { ...await twelveDataQuote(asset.twelve, asset.exchange), provider:'twelve-data', exchange:asset.exchange }); }
+    catch { /* Try FMP and then Yahoo below. */ }
+  }
   try {
     const rows = await fmp('quote', { symbol:asset.fmp || asset.symbol });
     if (rows?.[0]?.price) return normalizeQuote(asset.symbol, { ...rows[0], provider:'fmp' });
   } catch { /* Try Twelve Data and Yahoo below. */ }
-  if (twelveDataKey && asset.twelve) {
-    try { return normalizeQuote(asset.symbol, { ...await twelveDataQuote(asset.twelve), provider:'twelve-data' }); }
-    catch { /* Try Yahoo below. */ }
-  }
   try { return normalizeQuote(asset.symbol, { ...await yahooQuote(asset.symbol), provider:'yahoo' }); }
   catch { return normalizeQuote(asset.symbol); }
 }
 async function globalMarketPulse() {
   if (globalMarketCache.value && Date.now() < globalMarketCache.expiresAt) return globalMarketCache.value;
-  const load = group => Promise.all(group.map(async asset => ({
-    ...asset,
-    ...(await globalAssetQuote(asset))
-  })));
+  const load = group => Promise.all(group.map(async asset => {
+    const quote = await globalAssetQuote(asset);
+    return {
+      name: asset.name, symbol: asset.symbol, region: asset.region || null,
+      exchange: asset.exchange || null,
+      ...quote,
+      dataStatus: Number.isFinite(Number(quote.price)) ? 'live-or-latest' : 'unavailable'
+    };
+  }));
   const [indices, commodities, crypto] = await Promise.all([
     load(globalMarketDefinitions.indices),
     load(globalMarketDefinitions.commodities),

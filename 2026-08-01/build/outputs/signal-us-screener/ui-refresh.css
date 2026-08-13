@@ -1537,8 +1537,10 @@ html[data-theme="light"] .auth-profile-note {
 .cross-market-card > *, .region-card > * { position:relative; z-index:1; }
 .cross-market-card:hover,.region-card:hover { transform:translateY(-3px); border-color:#4d6a7b; box-shadow:0 18px 36px rgba(0,0,0,.24); }
 .cross-market-card span,.region-card span { color:#a4b4cf; font-size:10px; font-weight:700; letter-spacing:.035em; }
+.cross-market-card span em { margin-left:5px; color:var(--dd-muted); font-size:9px; font-style:normal; font-weight:600; }
 .cross-market-card strong,.region-card strong { margin-top:8px; color:var(--dd-text); font-size:20px; letter-spacing:-.035em; }
 .cross-market-card b,.region-card b { width:max-content; max-width:100%; margin-top:7px; padding:4px 7px; border-radius:999px; color:#aebbd0; background:rgba(143,161,189,.10); font-size:9px; font-weight:700; }
+.cross-market-card small { position:relative; z-index:1; margin-top:6px; color:var(--dd-muted); font-size:9px; }
 .cross-market-card b.positive,.region-card b.positive { color:#bff5df; background:rgba(50,206,162,.15); }
 .cross-market-card b.down,.region-card b.down { color:#ffd0d5; background:rgba(255,100,120,.15); }
 .cross-market-card.gain,.region-card.gain { border-color:rgba(67,220,174,.58); background:linear-gradient(135deg,rgba(22,105,81,.6),#101d1a 68%,#0e151c); }
