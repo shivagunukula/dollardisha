@@ -2125,3 +2125,17 @@ html[data-theme="light"] .signal-empty { color: #65766f !important; }
 .page{animation:page-in .24s ease-out both}.panel,.market-card,.index-card,.cross-market-card{transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}.panel:hover,.market-card:hover,.index-card:hover,.cross-market-card:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(0,0,0,.12)}
 button,.link-button,.solid-btn{transition:transform .15s ease,background-color .15s ease,box-shadow .15s ease}button:active,.link-button:active,.solid-btn:active{transform:scale(.98)}
 @keyframes page-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+/* Public-facing trust footer: concise, useful, and readable on every theme. */
+.site-footer{min-height:0!important;display:block!important;padding:30px 24px!important;background:var(--dd-bg)!important;border-top:1px solid var(--dd-line)!important;color:var(--dd-muted)!important}
+.footer-inner{max-width:1220px;margin:0 auto;display:grid;gap:18px}
+.footer-brand{display:grid;gap:5px}
+.footer-brand strong{font:700 18px Inter,Arial,sans-serif;color:var(--dd-text)}
+.footer-brand strong span{color:var(--dd-accent)}
+.footer-brand small{color:var(--dd-muted);font:700 9px Inter,Arial,sans-serif;letter-spacing:.16em}
+.footer-links{display:flex;flex-wrap:wrap;gap:16px}
+.footer-links a{color:var(--dd-muted);text-decoration:none;font-size:12px}
+.footer-links a:hover{color:var(--dd-accent);text-decoration:underline}
+.footer-note{display:flex;flex-wrap:wrap;gap:8px 18px;color:var(--dd-muted);font-size:12px;line-height:1.5}
+.footer-note span+span:before{content:'·';margin-right:18px;color:var(--dd-line)}
+@media(max-width:640px){.site-footer{padding:24px 16px!important}.footer-note span+span:before{display:none}.footer-links{gap:10px 14px}}
