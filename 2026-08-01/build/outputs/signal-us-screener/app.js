@@ -321,6 +321,34 @@ function render() {
   if (!['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist'].includes(page)) { hydrateCompany(page); hydrateCompanyExtras(page); }
 }
 
+// Refresh only the live regions on the current screen once per minute. This
+// keeps prices, scans, charts, ratios, peers and filings current without
+// reloading the whole document or interrupting the user's scroll position.
+const LIVE_REFRESH_MS = 60 * 1000;
+let liveRefreshTimer = null;
+let liveRefreshBusy = false;
+const isCompanyRoute = route => !['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist'].includes(route);
+async function refreshLiveData() {
+  if (document.hidden || liveRefreshBusy) return;
+  liveRefreshBusy = true;
+  try {
+    jsonRequestCache.clear();
+    if (page === 'dashboard') await hydrateDashboard();
+    else if (page === 'watchlist') await hydrateWatchlist();
+    else if (isCompanyRoute(page)) await Promise.allSettled([hydrateCompany(page), hydrateCompanyExtras(page)]);
+    else if (page === 'markets' || page === 'screener' || page === 'indexlab' || page === 'compare') render();
+  } finally {
+    liveRefreshBusy = false;
+  }
+}
+function startLiveRefresh() {
+  clearInterval(liveRefreshTimer);
+  liveRefreshTimer = setInterval(refreshLiveData, LIVE_REFRESH_MS);
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) refreshLiveData();
+});
+
 const routeSections = new Set(['overview', 'chart', 'strengths', 'quarterly', 'ownership', 'financials', 'ratios', 'peers', 'intelligence', 'updates', 'documents']);
 const routeFromHash = () => {
   const raw = window.location.hash.replace(/^#/, '');
@@ -425,8 +453,6 @@ async function hydrateWatchlist() {
       if (currentStatus) currentStatus.textContent = 'Live values could not load. Select Refresh now to retry.';
       wireCommon();
     }
-  } finally {
-    if (page === 'watchlist') watchlistRefreshTimer = setTimeout(hydrateWatchlist, 60000);
   }
 }
 async function hydrateDashboard() { try { const quotes = await getJson('/data/market'); document.querySelectorAll('#market-cards .market-card').forEach((card, index) => { const quote = quotes[index]; if (!quote) return; card.querySelector('strong').textContent = quote.price ? `$${Number(quote.price).toFixed(2)}` : '—'; const rawChange = quote.changesPercentage; const hasChange = Number.isFinite(Number(rawChange)); const change = Number(rawChange || 0); card.classList.toggle('gain', hasChange && change >= 0); card.classList.toggle('loss', hasChange && change < 0); const note = card.querySelector('b'); note.textContent = hasChange ? `${percent(change)} today` : 'Latest quote available'; note.className = hasChange ? (change >= 0 ? 'positive' : 'down') : ''; }); } catch { document.querySelectorAll('#market-cards .market-card').forEach((card) => { card.classList.remove('gain', 'loss'); card.querySelector('strong').textContent = 'Unavailable'; card.querySelector('b').textContent = 'Live quote unavailable'; }); } }
@@ -1655,3 +1681,4 @@ setupTheme();
 setupSearch();
 render();
 setupAuth();
+startLiveRefresh();

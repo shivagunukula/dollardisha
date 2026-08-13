@@ -405,7 +405,9 @@ async function globalMarketPulse() {
       });
       const result = { updatedAt:new Date().toISOString(), indices, commodities, crypto, regions };
       globalMarketCache.value = result;
-      globalMarketCache.expiresAt = Date.now() + 60 * 1000;
+      // Expire slightly before the browser's 60-second refresh so a refresh
+      // cannot land just before expiry and receive the previous snapshot.
+      globalMarketCache.expiresAt = Date.now() + 55 * 1000;
       return result;
     })().finally(() => { globalMarketCache.refreshing = null; });
   }
@@ -471,7 +473,9 @@ async function marketScan(mode) {
       industry:profile.industry || seed.industry || null
     };
   }));
-  marketScanCache.set(mode, { rows, expiresAt:Date.now() + 2 * 60 * 1000 });
+  // Match the browser's one-minute live refresh cadence so scans do not
+  // continue serving an older snapshot after the next refresh.
+  marketScanCache.set(mode, { rows, expiresAt:Date.now() + 55 * 1000 });
   return rows;
 }
 async function database(path, { method = 'GET', body, prefer } = {}) {
