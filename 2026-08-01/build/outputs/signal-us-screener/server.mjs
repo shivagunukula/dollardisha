@@ -10,7 +10,7 @@ const env = Object.fromEntries(configText.split(/\r?\n/).filter(Boolean).map(lin
 // Accept the concise names too. This keeps a deployment working if a host
 // dashboard saved the provider key as FMP_API or TWELVE_DATA_KEY.
 const key = process.env.FMP_API_KEY || process.env.FMP_API || env.FMP_API_KEY || env.FMP_API;
-const twelveDataKey = process.env.TWELVE_DATA_API_KEY || process.env.TWELVE_DATA_KEY || process.env.TWELVE_API_KEY;
+const twelveDataKey = process.env.TWELVE_DATA_API_KEY || process.env.TWELVE_DATA_KEY || process.env.TWELVE_API_KEY || env.TWELVE_DATA_API_KEY || env.TWELVE_DATA_KEY || env.TWELVE_API_KEY;
 const supabaseUrl = process.env.SUPABASE_URL || process.env.SUPABASE_PROJECT_URL;
 const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabasePublishableKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLIC_KEY;
@@ -175,23 +175,64 @@ async function twelveDataQuote(ticker, exchange = '') {
     volume: Number(data.volume), provider: 'twelve-data'
   };
 }
+async function fmpQuote(ticker) {
+  if (!key) throw new Error('FMP_API_KEY is not configured');
+  const rows = await fmp('quote', { symbol:ticker });
+  if (!Array.isArray(rows) || !rows[0]?.price) throw new Error('FMP returned no quote');
+  return normalizeQuote(ticker, { ...rows[0], provider:'fmp' });
+}
+function mergeProviderQuotes(symbol, twelveQuote, fmpQuoteValue) {
+  const providers = [twelveQuote ? 'twelve-data' : '', fmpQuoteValue ? 'fmp' : ''].filter(Boolean);
+  return normalizeQuote(symbol, {
+    ...(fmpQuoteValue || {}),
+    ...(twelveQuote || {}),
+    price:finiteValue(twelveQuote?.price, fmpQuoteValue?.price),
+    previousClose:finiteValue(twelveQuote?.previousClose, fmpQuoteValue?.previousClose),
+    changesPercentage:finiteValue(twelveQuote?.changesPercentage, fmpQuoteValue?.changesPercentage),
+    dayHigh:finiteValue(twelveQuote?.dayHigh, fmpQuoteValue?.dayHigh),
+    dayLow:finiteValue(twelveQuote?.dayLow, fmpQuoteValue?.dayLow),
+    volume:finiteValue(twelveQuote?.volume, fmpQuoteValue?.volume),
+    marketCap:finiteValue(fmpQuoteValue?.marketCap, twelveQuote?.marketCap),
+    pe:finiteValue(fmpQuoteValue?.pe, twelveQuote?.pe),
+    name:twelveQuote?.name || fmpQuoteValue?.name || fmpQuoteValue?.companyName,
+    provider:providers.join('+') || null,
+    providers
+  });
+}
+async function combinedQuote({ symbol: outputSymbol, fmpSymbol = outputSymbol, twelveSymbol = outputSymbol, exchange = '' }) {
+  const [twelveResult, fmpResult] = await Promise.allSettled([
+    twelveDataKey ? twelveDataQuote(twelveSymbol, exchange) : Promise.reject(new Error('TWELVE_DATA_API_KEY is not configured')),
+    key ? fmpQuote(fmpSymbol) : Promise.reject(new Error('FMP_API_KEY is not configured'))
+  ]);
+  const twelveQuote = twelveResult.status === 'fulfilled' ? twelveResult.value : null;
+  const fmpQuoteValue = fmpResult.status === 'fulfilled' ? fmpResult.value : null;
+  if (twelveResult.status === 'rejected') console.warn(`Twelve Data quote unavailable for ${outputSymbol}: ${twelveResult.reason?.message || twelveResult.reason}`);
+  if (fmpResult.status === 'rejected') console.warn(`FMP quote unavailable for ${outputSymbol}: ${fmpResult.reason?.message || fmpResult.reason}`);
+  if (twelveQuote || fmpQuoteValue) return mergeProviderQuotes(outputSymbol, twelveQuote, fmpQuoteValue);
+  throw new Error(`No configured live quote provider returned data for ${outputSymbol}`);
+}
 async function priceHistory(ticker, points = 260) {
-  try {
-    const data = await fmp('historical-price-eod/full', { symbol:ticker });
-    const rows = Array.isArray(data) ? data : (data.historical || []);
-    const values = rows.slice(0, points).reverse().map(item => ({ date:item.date, close:Number(item.close), volume:Number(item.volume || 0) })).filter(item => Number.isFinite(item.close));
-    if (values.length) return values;
-  } catch { /* Try Twelve Data and then the last-resort provider below. */ }
-  if (twelveDataKey) {
-    const url = new URL('https://api.twelvedata.com/time_series');
-    url.searchParams.set('symbol', ticker);
-    url.searchParams.set('interval', '1day');
-    url.searchParams.set('outputsize', String(points));
-    url.searchParams.set('apikey', twelveDataKey);
-    const response = await externalFetch(url, { headers: { 'User-Agent': 'DollarDisha research app contact@dollardisha.in' } });
-    const data = await response.json();
-    if (response.ok && data.status !== 'error' && Array.isArray(data.values)) return data.values.slice().reverse().map(item => ({ date:item.datetime, close:Number(item.close), volume:Number(item.volume || 0) }));
-  }
+  const [fmpResult, twelveResult] = await Promise.allSettled([
+    key ? fmp('historical-price-eod/full', { symbol:ticker }) : Promise.reject(new Error('FMP_API_KEY is not configured')),
+    twelveDataKey ? (async () => {
+      const url = new URL('https://api.twelvedata.com/time_series');
+      url.searchParams.set('symbol', ticker);
+      url.searchParams.set('interval', '1day');
+      url.searchParams.set('outputsize', String(points));
+      url.searchParams.set('apikey', twelveDataKey);
+      const response = await externalFetch(url, { headers: { 'User-Agent': 'DollarDisha research app contact@dollardisha.in' } });
+      const data = await response.json();
+      if (!response.ok || data.status === 'error' || !Array.isArray(data.values)) throw new Error(data.message || `Twelve Data returned ${response.status}`);
+      return data.values;
+    })() : Promise.reject(new Error('TWELVE_DATA_API_KEY is not configured'))
+  ]);
+  const fmpRows = fmpResult.status === 'fulfilled' ? (Array.isArray(fmpResult.value) ? fmpResult.value : (fmpResult.value.historical || [])) : [];
+  const twelveRows = twelveResult.status === 'fulfilled' ? twelveResult.value : [];
+  const byDate = new Map();
+  fmpRows.forEach(item => byDate.set(String(item.date || item.datetime).slice(0, 10), { date:item.date, close:Number(item.close), volume:Number(item.volume || 0), provider:'fmp' }));
+  twelveRows.forEach(item => { const date = String(item.datetime || item.date).slice(0, 10); const current = byDate.get(date); byDate.set(date, { ...(current || {}), date, close:Number(item.close ?? current?.close), volume:Number(item.volume ?? current?.volume ?? 0), provider:current ? 'fmp+twelve-data' : 'twelve-data' }); });
+  const combined = [...byDate.values()].filter(item => Number.isFinite(item.close)).sort((a, b) => String(a.date).localeCompare(String(b.date))).slice(-points);
+  if (combined.length) return combined;
   const range = points <= 25 ? '1mo' : points <= 130 ? '6mo' : points <= 260 ? '1y' : points <= 780 ? '3y' : points <= 1300 ? '5y' : '10y';
   const response = await externalFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=${range}&interval=1d`, { headers: { 'User-Agent': 'DollarDisha research app contact@dollardisha.in' } });
   if (!response.ok) throw new Error('Historical price data is unavailable');
@@ -228,45 +269,20 @@ async function twelveStockSearch(query) {
     symbol: row.symbol, name: row.instrument_name || row.name || row.symbol, exchangeShortName: row.exchange || row.mic_code || 'US', type: row.type
   }));
 }
-async function liveQuote(ticker, exchange = '') {
-  if (twelveDataKey) {
-    try { return normalizeQuote(ticker, await twelveDataQuote(ticker, exchange)); }
-    catch (error) { console.warn(`Twelve Data quote unavailable for ${ticker}: ${error.message}`); }
-  }
-  try {
-    const rows = await fmp('quote', { symbol: ticker });
-    if (rows[0]?.price) return normalizeQuote(ticker, rows[0]);
-    throw new Error('FMP returned no quote');
-  } catch (error) {
-    console.warn(`FMP quote unavailable for ${ticker}: ${error.message}`);
+async function liveQuote(ticker, exchange = '', twelveSymbol = ticker, fmpSymbol = ticker) {
+  try { return await combinedQuote({ symbol:ticker, twelveSymbol, exchange, fmpSymbol }); }
+  catch (error) {
+    console.warn(`Combined quote unavailable for ${ticker}: ${error.message}`);
     try { return normalizeQuote(ticker, await yahooQuote(ticker)); }
     catch (yahooError) {
       console.warn(`Yahoo quote unavailable for ${ticker}: ${yahooError.message}`);
-      try { return normalizeQuote(ticker, await nasdaqQuote(ticker)); }
-      catch (nasdaqError) {
-        console.warn(`Nasdaq quote unavailable for ${ticker}: ${nasdaqError.message}`);
-        throw nasdaqError;
-      }
+      return normalizeQuote(ticker, await nasdaqQuote(ticker));
     }
   }
 }
 async function liveIndex(symbol) {
   const index = globalMarketDefinitions.indices.find(item => item.symbol === symbol);
-  if (twelveDataKey && index?.twelve) {
-    try {
-      return normalizeQuote(symbol, { ...await twelveDataQuote(index.twelve, index.exchange), provider:'twelve-data', exchange:index.exchange });
-    } catch (error) {
-      console.warn(`Twelve Data index unavailable for ${symbol}: ${error.message}`);
-    }
-  }
-  try {
-    const rows = await fmp('quote', { symbol });
-    if (rows[0]?.price) return normalizeQuote(symbol, rows[0]);
-    throw new Error('FMP returned no index quote');
-  } catch (error) {
-    console.warn(`FMP index unavailable for ${symbol}: ${error.message}`);
-    return normalizeQuote(symbol, await yahooQuote(symbol));
-  }
+  return liveQuote(symbol, index?.exchange || '', index?.twelve || symbol, index?.fmp || symbol);
 }
 
 // Cross-asset market pulse. Yahoo symbols are used as a resilient fallback
@@ -316,17 +332,14 @@ const globalMarketDefinitions = {
 };
 const globalMarketCache = { value:null, expiresAt:0 };
 async function globalAssetQuote(asset) {
-  // Prefer the user's Twelve Data plan for assets that have a native
-  // Twelve symbol/exchange mapping. FMP and Yahoo remain fallbacks because
-  // index availability differs by provider and subscription.
-  if (twelveDataKey && asset.twelve) {
-    try { return normalizeQuote(asset.symbol, { ...await twelveDataQuote(asset.twelve, asset.exchange), provider:'twelve-data', exchange:asset.exchange }); }
-    catch { /* Try FMP and then Yahoo below. */ }
-  }
   try {
-    const rows = await fmp('quote', { symbol:asset.fmp || asset.symbol });
-    if (rows?.[0]?.price) return normalizeQuote(asset.symbol, { ...rows[0], provider:'fmp' });
-  } catch { /* Try Twelve Data and Yahoo below. */ }
+    return await combinedQuote({
+      symbol:asset.symbol,
+      twelveSymbol:asset.twelve || asset.symbol,
+      fmpSymbol:asset.fmp || asset.symbol,
+      exchange:asset.exchange || ''
+    });
+  } catch { /* Use the public fallback only when both configured providers fail. */ }
   try { return normalizeQuote(asset.symbol, { ...await yahooQuote(asset.symbol), provider:'yahoo' }); }
   catch { return normalizeQuote(asset.symbol); }
 }
@@ -384,7 +397,7 @@ async function marketScan(mode) {
     const needsQuote = finiteValue(seedQuote.price) === null || finiteValue(seedQuote.changesPercentage) === null;
     const needsProfile = !seed.companyName && !seed.name || finiteValue(seed.marketCap, seed.mktCap) === null || !seed.sector;
     const [quote, ratioRows, profileRows] = await Promise.all([
-      needsQuote ? liveQuote(ticker).catch(() => seedQuote) : Promise.resolve(seedQuote),
+      liveQuote(ticker).catch(() => seedQuote),
       fmp('ratios-ttm', { symbol:ticker }).catch(() => []),
       needsProfile ? fmp('profile', { symbol:ticker }).catch(() => []) : Promise.resolve([])
     ]);
@@ -409,6 +422,8 @@ async function marketScan(mode) {
       change:finiteValue(quote.changesPercentage, seed.changesPercentage, seed.changePercentage, seed.change),
       changesPercentage:finiteValue(quote.changesPercentage, seed.changesPercentage, seed.changePercentage, seed.change),
       volume:finiteValue(quote.volume, seed.volume),
+      provider:quote.provider || null,
+      providers:quote.providers || [],
       sector:profile.sector || seed.sector || null,
       industry:profile.industry || seed.industry || null
     };
@@ -717,12 +732,10 @@ createServer(async (req, res) => {
       const tickers = [...new Set(String(url.searchParams.get('symbols') || '').split(',').map(symbol).filter(Boolean))].slice(0, 30);
       if (!tickers.length) return send(res, 200, []);
       const rows = await Promise.all(tickers.map(async ticker => {
-        const [quoteRows, ratioRows] = await Promise.all([
-          fmp('quote', { symbol:ticker }).catch(() => []),
+        const [quote, ratioRows] = await Promise.all([
+          liveQuote(ticker).catch(() => normalizeQuote(ticker)),
           fmp('ratios-ttm', { symbol:ticker }).catch(() => [])
         ]);
-        let quote = normalizeQuote(ticker, quoteRows[0] || {});
-        if (!finiteValue(quote.price)) quote = normalizeQuote(ticker, { ...quote, ...await liveQuote(ticker).catch(() => ({})) });
         let profile = {};
         if (!quote.name || !finiteValue(quote.marketCap)) profile = (await fmp('profile', { symbol:ticker }).catch(() => []))[0] || {};
         const ratios = ratioRows[0] || {};
@@ -734,8 +747,10 @@ createServer(async (req, res) => {
           marketCap:finiteValue(quote.marketCap, profile.mktCap, profile.marketCap),
           pe:finiteValue(ratios.peRatioTTM, ratios.priceToEarningsRatioTTM, quote.pe, quote.priceEarningsRatio, safeDivide(quote.price, eps)),
           change:finiteValue(quote.changesPercentage, quote.changePercentage),
-          changesPercentage:finiteValue(quote.changesPercentage, quote.changePercentage),
-          sector:profile.sector || null
+           changesPercentage:finiteValue(quote.changesPercentage, quote.changePercentage),
+           provider:quote.provider || null,
+           providers:quote.providers || [],
+           sector:profile.sector || null
         };
       }));
       return send(res, 200, rows);
