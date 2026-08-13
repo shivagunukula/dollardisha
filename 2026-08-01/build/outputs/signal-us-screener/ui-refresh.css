@@ -163,6 +163,8 @@ body {
 .market-benchmark-list span b { color: #e5ecff; font-size: 10px; }
 .market-benchmark-list span small { margin-top: 2px; color: #8290ad; font-size: 8px; }
 .market-benchmark-list > div > strong { font-size: 9px; white-space: nowrap; }
+.market-benchmark-list > div > strong em, .market-benchmark-list > div > strong small { display: block; font-style: normal; text-align: right; }
+.market-benchmark-list > div > strong small { margin-top: 2px; color: #8290ad; font-size: 8px; font-weight: 500; }
 .market-leaders-list { display: grid; gap: 4px; min-height: 156px; }
 .market-leader-row { display: grid; grid-template-columns: 21px minmax(0,1fr) auto; gap: 7px; align-items: center; padding: 8px 5px; border-top: 1px solid rgba(151,170,224,.13); }
 .market-leader-rank { display: grid; width: 19px; height: 19px; place-items: center; border-radius: 50%; background: rgba(105,124,255,.15); color: #aebaff; font-size: 9px; font-weight: 700; }

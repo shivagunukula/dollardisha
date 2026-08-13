@@ -453,7 +453,7 @@ function countryForMarket(asset) {
   if (symbol === '^J203.JO') return 'South Africa';
   return asset?.region || 'Global';
 }
-const benchmarkDetails = (asset, row = {}) => ({ name:asset.name, symbol:asset.symbol, exchange:asset.exchange || null, country:countryForMarket(asset), change:Number.isFinite(Number(row.change)) ? Number(row.change) : null });
+const benchmarkDetails = (asset, row = {}) => ({ name:asset.name, symbol:asset.symbol, exchange:asset.exchange || null, country:countryForMarket(asset), change:Number.isFinite(Number(row.change)) ? Number(row.change) : null, cagr:Number.isFinite(Number(row.cagr)) ? Number(row.cagr) : null });
 async function marketPerformance(period = 'day') {
   const selected = ['day', 'week', 'month', 'ytd', '3m', '6m', 'year'].includes(period) ? period : 'day';
   const cached = marketPerformanceCache.get(selected);
@@ -478,7 +478,9 @@ async function marketPerformance(period = 'day') {
       const start = Number(points[Math.max(0, points.length - (window + 1))].close);
       const end = Number(points.at(-1).close);
       const change = start > 0 ? ((end - start) / start) * 100 : null;
-      return { region:asset.region, change:Number.isFinite(change) ? change : null, breadth:Number.isFinite(change) && change >= 0 ? 1 : 0, total:1, benchmark:benchmarkDetails(asset, { change }) };
+      const observations = Math.max(1, points.length - 1);
+      const cagr = start > 0 && end > 0 ? (Math.pow(end / start, 252 / observations) - 1) * 100 : null;
+      return { region:asset.region, change:Number.isFinite(change) ? change : null, cagr:Number.isFinite(cagr) ? cagr : null, breadth:Number.isFinite(change) && change >= 0 ? 1 : 0, total:1, benchmark:benchmarkDetails(asset, { change, cagr }) };
     } catch {
       return { region:asset.region, change:null, breadth:null, total:1, benchmark:benchmarkDetails(asset) };
     }
@@ -489,6 +491,7 @@ async function marketPerformance(period = 'day') {
     return {
       region,
       change:changes.length ? changes.reduce((sum, value) => sum + value, 0) / changes.length : null,
+      cagr:(regionRows.map(row => row.cagr).filter(Number.isFinite).length ? regionRows.map(row => row.cagr).filter(Number.isFinite).reduce((sum, value) => sum + value, 0) / regionRows.map(row => row.cagr).filter(Number.isFinite).length : null),
       breadth:regionRows.reduce((sum, row) => sum + (row.breadth || 0), 0),
       total:regionRows.length,
       benchmarks:regionRows.map(row => row.benchmark).filter(Boolean)

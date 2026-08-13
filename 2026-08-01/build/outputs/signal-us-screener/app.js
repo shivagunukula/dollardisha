@@ -1045,14 +1045,15 @@ async function hydrateMarketLeaders(period = 'day') {
     holder.innerHTML = rows.length ? rows.map((row, index) => {
       const change = scanNumber(row.change);
       const label = change === null ? 'Unavailable' : percent(change);
+      const cagr = scanNumber(row.cagr);
       const trend = change === null ? '' : change >= 0 ? 'positive' : 'down';
-      return `<button type="button" class="market-leader-row" data-market-region-row="${escapeHtml(row.region)}"><span class="market-leader-rank">${index + 1}</span><div><b>${escapeHtml(row.region)}</b><small>${row.breadth !== null && row.total ? `${row.breadth}/${row.total} benchmarks rising` : 'Regional benchmark'}</small></div><strong class="${trend}">${label}</strong></button>`;
+      return `<button type="button" class="market-leader-row" data-market-region-row="${escapeHtml(row.region)}"><span class="market-leader-rank">${index + 1}</span><div><b>${escapeHtml(row.region)}</b><small>${row.breadth !== null && row.total ? `${row.breadth}/${row.total} rising` : 'Regional benchmark'} · CAGR ${cagr === null ? '—' : percent(cagr)}</small></div><strong class="${trend}">${label}</strong></button>`;
     }).join('') : '<div class="market-leader-loading">Market performance is temporarily unavailable.</div>';
     const details = document.querySelector('#market-benchmark-details');
     const showDetails = (region) => {
       const row = (data.regions || []).find(item => item.region === region);
       if (!details || !row) return;
-      details.innerHTML = `<p class="crumb">${escapeHtml(row.region)} BENCHMARKS</p><strong>${escapeHtml(row.region)} market detail</strong><div class="market-benchmark-list">${(row.benchmarks || []).map(item => `<div><span><b>${escapeHtml(item.country || item.name)}</b><small>${escapeHtml(item.name)} · ${escapeHtml(item.exchange || 'Global')}</small></span><strong class="${Number(item.change) >= 0 ? 'positive' : 'down'}">${Number.isFinite(Number(item.change)) ? percent(item.change) : 'Unavailable'}</strong></div>`).join('') || '<small>No benchmark detail is available for this region yet.</small>'}</div>`;
+      details.innerHTML = `<p class="crumb">${escapeHtml(row.region)} BENCHMARKS</p><strong>${escapeHtml(row.region)} market detail</strong><div class="market-benchmark-list">${(row.benchmarks || []).map(item => `<div><span><b>${escapeHtml(item.country || item.name)}</b><small>${escapeHtml(item.name)} · ${escapeHtml(item.exchange || 'Global')}</small></span><strong class="${Number(item.change) >= 0 ? 'positive' : 'down'}"><em>${Number.isFinite(Number(item.change)) ? percent(item.change) : 'Unavailable'}</em><small>CAGR ${Number.isFinite(Number(item.cagr)) ? percent(item.cagr) : '—'}</small></strong></div>`).join('') || '<small>No benchmark detail is available for this region yet.</small>'}</div>`;
     };
     document.querySelectorAll('[data-market-region-row]').forEach(rowButton => rowButton.addEventListener('click', () => showDetails(rowButton.dataset.marketRegionRow)));
     if (rows[0]) showDetails(rows[0].region);
