@@ -1472,11 +1472,14 @@ function drawCompanyChart(values) {
   if (!values.length) return '<p class="data-empty">Price history is unavailable.</p>';
   hydrateChartMetrics(page);
   const closes = values.map(item => Number(item.close));
-  const ma50 = movingAverage(closes, 50);
-  const ma200 = movingAverage(closes, 200);
+  const supplied50 = values.map(item => Number.isFinite(Number(item.ma50)) ? Number(item.ma50) : null);
+  const supplied200 = values.map(item => Number.isFinite(Number(item.ma200)) ? Number(item.ma200) : null);
+  const ma50 = supplied50.some(value => value !== null) ? supplied50 : movingAverage(closes, 50);
+  const ma200 = supplied200.some(value => value !== null) ? supplied200 : movingAverage(closes, 200);
   const latest50 = ma50[ma50.length - 1];
   const latest200 = ma200[ma200.length - 1];
-  const max = Math.max(...closes); const min = Math.min(...closes);
+  const plotted = closes.concat(ma50.filter(value => value != null), ma200.filter(value => value != null));
+  const max = Math.max(...plotted); const min = Math.min(...plotted);
   const scaleX = index => 28 + (index / Math.max(values.length - 1, 1)) * 744;
   const scaleY = value => 174 - ((value - min) / Math.max(max - min, 0.01)) * 135;
   const pathFor = series => series.map((value, index) => value == null ? '' : `${index && series[index - 1] != null ? 'L' : 'M'} ${scaleX(index).toFixed(1)} ${scaleY(value).toFixed(1)}`).join(' ');
@@ -1508,7 +1511,7 @@ drawCompanyChart = function(values) {
       const item = values[Number(target.dataset.chartIndex)];
       if (!item) return;
       const fmt = (value, suffix = '') => Number.isFinite(Number(value)) ? `${Number(value).toLocaleString('en-US', { maximumFractionDigits:2 })}${suffix}` : 'Unavailable';
-      tooltip.innerHTML = `<b>${escapeHtml(item.date || 'Historical point')}</b><span>Price: <strong>${fmt(item.close, ' USD')}</strong></span><span>P/E: <strong>${fmt(item.pe, 'x')}</strong></span><span>EPS: <strong>${fmt(item.eps, ' USD')}</strong></span>`;
+      tooltip.innerHTML = `<b>${escapeHtml(item.date || 'Historical point')}</b><span>Price: <strong>${fmt(item.close, ' USD')}</strong></span><span>50 DMA: <strong>${fmt(item.ma50, ' USD')}</strong></span><span>200 DMA: <strong>${fmt(item.ma200, ' USD')}</strong></span><span>P/E: <strong>${fmt(item.pe, 'x')}</strong></span><span>EPS: <strong>${fmt(item.eps, ' USD')}</strong></span>`;
       tooltip.hidden = false;
     };
     holder.querySelectorAll('.chart-hover-target').forEach(target => {

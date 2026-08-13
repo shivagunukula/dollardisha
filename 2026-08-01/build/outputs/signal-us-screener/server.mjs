@@ -221,13 +221,17 @@ async function combinedQuote({ symbol: outputSymbol, fmpSymbol = outputSymbol, t
   throw new Error(`No configured live quote provider returned data for ${outputSymbol}`);
 }
 async function priceHistory(ticker, points = 260) {
+  // Fetch enough prior sessions to seed the 200-day moving average even when
+  // the user is viewing a short range such as 1M or 6M. We still return only
+  // the requested visible range after calculating the indicators.
+  const historySize = Math.max(points + 200, 260);
   const [fmpResult, twelveResult] = await Promise.allSettled([
     key ? fmp('historical-price-eod/full', { symbol:ticker }) : Promise.reject(new Error('FMP_API_KEY is not configured')),
     twelveDataKey ? (async () => {
       const url = new URL('https://api.twelvedata.com/time_series');
       url.searchParams.set('symbol', ticker);
       url.searchParams.set('interval', '1day');
-      url.searchParams.set('outputsize', String(points));
+      url.searchParams.set('outputsize', String(historySize));
       url.searchParams.set('apikey', twelveDataKey);
       const response = await externalFetch(url, { headers: { 'User-Agent': 'DollarDisha research app contact@dollardisha.in' } });
       const data = await response.json();
@@ -240,15 +244,22 @@ async function priceHistory(ticker, points = 260) {
   const byDate = new Map();
   fmpRows.forEach(item => byDate.set(String(item.date || item.datetime).slice(0, 10), { date:item.date, close:Number(item.close), volume:Number(item.volume || 0), provider:'fmp' }));
   twelveRows.forEach(item => { const date = String(item.datetime || item.date).slice(0, 10); const current = byDate.get(date); byDate.set(date, { ...(current || {}), date, close:Number(item.close ?? current?.close), volume:Number(item.volume ?? current?.volume ?? 0), provider:current ? 'fmp+twelve-data' : 'twelve-data' }); });
-  const combined = [...byDate.values()].filter(item => Number.isFinite(item.close)).sort((a, b) => String(a.date).localeCompare(String(b.date))).slice(-points);
-  if (combined.length) return combined;
-  const range = points <= 25 ? '1mo' : points <= 130 ? '6mo' : points <= 260 ? '1y' : points <= 780 ? '3y' : points <= 1300 ? '5y' : '10y';
+  const decorate = rows => {
+    const sorted = rows.filter(item => Number.isFinite(item.close)).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    const visible = sorted.slice(-points);
+    const start = sorted.length - visible.length;
+    const averageAt = (index, window) => index < window - 1 ? null : sorted.slice(index - window + 1, index + 1).reduce((sum, item) => sum + item.close, 0) / window;
+    return visible.map((item, offset) => ({ ...item, ma50:averageAt(start + offset, 50), ma200:averageAt(start + offset, 200) }));
+  };
+  const combined = [...byDate.values()].filter(item => Number.isFinite(item.close)).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  if (combined.length) return decorate(combined);
+  const range = historySize <= 260 ? '1y' : historySize <= 780 ? '3y' : historySize <= 1300 ? '5y' : '10y';
   const response = await externalFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=${range}&interval=1d`, { headers: { 'User-Agent': 'DollarDisha research app contact@dollardisha.in' } });
   if (!response.ok) throw new Error('Historical price data is unavailable');
   const data = (await response.json()).chart?.result?.[0];
   const quote = data?.indicators?.quote?.[0];
   if (!data?.timestamp || !quote?.close) throw new Error('Historical price data is unavailable');
-  return data.timestamp.map((timestamp, index) => ({ date:new Date(timestamp * 1000).toISOString().slice(0, 10), close:Number(quote.close[index]), volume:Number(quote.volume[index] || 0) })).filter(item => Number.isFinite(item.close));
+  return decorate(data.timestamp.map((timestamp, index) => ({ date:new Date(timestamp * 1000).toISOString().slice(0, 10), close:Number(quote.close[index]), volume:Number(quote.volume[index] || 0) })).filter(item => Number.isFinite(item.close)));
 }
 async function nasdaqQuote(ticker) {
   const fetchQuote = async assetclass => {
