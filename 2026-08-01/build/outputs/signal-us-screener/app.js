@@ -976,6 +976,16 @@ function indexView() {
 
 function setupIndex() {
   const save = () => localStorage.setItem('dd-custom-index', JSON.stringify(basket));
+  const defaultIndexNames = new Set(['DollarDisha Research 10', 'DollarDisha', 'Shiva']);
+  if (!basket.symbols.length && defaultIndexNames.has(String(basket.name || '').trim())) {
+    const name = window.prompt('Name your index', '');
+    if (name?.trim()) {
+      basket.name = name.trim().slice(0, 60);
+      save();
+      render();
+      return;
+    }
+  }
   const wireRemovals = () => document.querySelectorAll('[data-remove-basket]').forEach(button => button.onclick = event => {
     event.stopPropagation();
     basket.symbols = basket.symbols.filter(ticker => ticker !== button.dataset.removeBasket);
