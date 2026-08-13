@@ -1045,13 +1045,27 @@ function setAuthMode(mode = 'login') {
   setAuthMessage();
 }
 
+function accountDisplayName(user) {
+  const metadata = user?.user_metadata || {};
+  return String(metadata.full_name || metadata.name || metadata.preferred_username || user?.email?.split('@')[0] || 'Account').trim() || 'Account';
+}
+function syncPersonalIndexName(user) {
+  if (!user) return false;
+  const name = accountDisplayName(user);
+  const legacyNames = new Set(['Shiva', 'DollarDisha', 'DollarDisha Research 10']);
+  if (!name || !legacyNames.has(String(basket.name || '').trim())) return false;
+  basket.name = name;
+  try { localStorage.setItem('dd-custom-index', JSON.stringify(basket)); } catch {}
+  return true;
+}
 function updateAuthUI(session) {
   authSession = session || null;
   const user = authSession?.user;
+  const indexNameChanged = syncPersonalIndexName(user);
   const button = $('#account-button');
   if (!button) return;
   const email = user?.email || '';
-  const displayName = user?.user_metadata?.full_name || user?.user_metadata?.name || email.split('@')[0] || 'Account';
+  const displayName = accountDisplayName(user);
   const label = button.querySelector('.account-label');
   const avatar = button.querySelector('.account-avatar');
   const firstName = displayName.trim().split(/\s+/)[0] || 'Account';
@@ -1070,6 +1084,7 @@ function updateAuthUI(session) {
     if (profileEmail) profileEmail.textContent = email || displayName;
     if (profileAvatar) profileAvatar.textContent = firstName.slice(0, 1).toUpperCase();
   }
+  if (indexNameChanged && page === 'indexlab') render();
 }
 
 function openAuth(mode = 'login') {
