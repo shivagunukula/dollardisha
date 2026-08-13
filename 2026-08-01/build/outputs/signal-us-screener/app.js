@@ -71,7 +71,6 @@ let alerts = JSON.parse(localStorage.getItem('dd-price-alerts') || '[]');
 let authClient = null;
 let authSession = null;
 let authMode = 'login';
-let authPhoneOtpSent = false;
 
 const themeMedia = window.matchMedia('(prefers-color-scheme: dark)');
 function applyTheme(mode, persist = true) {
@@ -1174,7 +1173,7 @@ function friendlyAuthError(error) {
 }
 
 function setAuthBusy(busy) {
-  ['#auth-submit', '#auth-google', '#auth-phone', '#auth-magic', '#auth-forgot', '#auth-phone-back', '#auth-signout'].forEach(selector => {
+  ['#auth-submit', '#auth-google', '#auth-magic', '#auth-forgot', '#auth-signout'].forEach(selector => {
     const control = $(selector);
     if (control) control.disabled = busy;
   });
@@ -1186,35 +1185,26 @@ function setAuthMode(mode = 'login') {
   // the only account-creation path; keep recovery available for existing
   // email accounts.
   if (mode === 'signup') mode = 'login';
-  if (mode !== 'phone') authPhoneOtpSent = false;
   authMode = mode;
   const recovery = mode === 'recovery';
-  const phone = mode === 'phone';
   const signup = false;
   $('#auth-tabs').hidden = recovery;
   $('#auth-name-field').hidden = !signup;
-  $('#auth-email-field').hidden = recovery || phone;
-  $('#auth-password-field').hidden = recovery || phone;
-  $('#auth-phone-field').hidden = !phone;
-  $('#auth-otp-field').hidden = !phone || !authPhoneOtpSent;
-  $('#auth-email').required = !recovery && !phone;
-  $('#auth-password').required = !recovery && !phone;
-  $('#auth-phone-number').required = phone;
-  $('#auth-otp').required = phone && authPhoneOtpSent;
+  $('#auth-email-field').hidden = recovery;
+  $('#auth-password-field').hidden = recovery;
+  $('#auth-email').required = !recovery;
+  $('#auth-password').required = !recovery;
   $('#auth-secondary-actions').hidden = recovery || signup;
   const confirmationActions = $('#auth-confirmation-actions');
   if (confirmationActions) confirmationActions.hidden = true;
   const signupNote = $('#auth-signup-note');
   if (signupNote) signupNote.hidden = !signup;
   $('#auth-google').hidden = recovery;
-  $('#auth-phone').hidden = recovery;
-  $('#auth-provider-row').hidden = recovery;
-  $('#auth-phone-back').hidden = !phone;
   document.querySelector('.auth-divider').hidden = recovery;
   document.querySelectorAll('[data-auth-view]').forEach(button => button.classList.toggle('active', button.dataset.authView === mode));
-  $('#auth-title').textContent = recovery ? 'Choose a new password' : phone ? 'Use your mobile' : signup ? 'Create your account' : 'Welcome back';
-  $('#auth-description').textContent = recovery ? 'Enter a secure new password for your DollarDisha account.' : phone ? 'Get a one-time code by SMS. Include your country code.' : signup ? 'Save your research identity and access personalised features.' : 'Continue building your US equity research list.';
-  $('#auth-submit').textContent = phone ? (authPhoneOtpSent ? 'Verify code' : 'Send SMS code') : recovery ? 'Update password' : signup ? 'Create account' : 'Log in';
+  $('#auth-title').textContent = recovery ? 'Choose a new password' : signup ? 'Create your account' : 'Welcome back';
+  $('#auth-description').textContent = recovery ? 'Enter a secure new password for your DollarDisha account.' : signup ? 'Save your research identity and access personalised features.' : 'Continue building your US equity research list.';
+  $('#auth-submit').textContent = recovery ? 'Update password' : signup ? 'Create account' : 'Log in';
   $('#auth-password').autocomplete = recovery ? 'new-password' : signup ? 'new-password' : 'current-password';
   setAuthMessage();
 }
@@ -1268,7 +1258,7 @@ function openAuth(mode = 'login') {
   if (!authSession?.user) setAuthMode(mode);
   modal.hidden = false;
   document.body.style.overflow = 'hidden';
-  setTimeout(() => (authSession?.user ? $('#auth-signout') : mode === 'recovery' ? $('#auth-password') : mode === 'phone' ? $('#auth-phone-number') : $('#auth-email'))?.focus(), 30);
+  setTimeout(() => (authSession?.user ? $('#auth-signout') : mode === 'recovery' ? $('#auth-password') : $('#auth-email'))?.focus(), 30);
 }
 
 function closeAuth() {
@@ -1289,8 +1279,6 @@ async function setupAuth() {
   modal.onclick = event => { if (event.target === modal) closeAuth(); };
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && !modal.hidden) closeAuth(); });
   document.querySelectorAll('[data-auth-view]').forEach(button => button.onclick = () => setAuthMode('login'));
-  $('#auth-phone').onclick = () => { authPhoneOtpSent = false; setAuthMode('phone'); $('#auth-message').textContent = ''; $('#auth-message').className = 'auth-message'; setTimeout(() => $('#auth-phone-number')?.focus(), 30); };
-  $('#auth-phone-back').onclick = () => { authPhoneOtpSent = false; setAuthMode('login'); setTimeout(() => $('#auth-email')?.focus(), 30); };
 
   let config;
   try { config = await getJson('/data/auth-config'); }
@@ -1391,26 +1379,8 @@ async function setupAuth() {
     setAuthMessage();
     const email = $('#auth-email').value.trim();
     const password = $('#auth-password').value;
-    const phone = $('#auth-phone-number').value.trim();
-    const otp = $('#auth-otp').value.trim();
     try {
-      if (authMode === 'phone') {
-        if (!phone) throw new Error('Enter your mobile number with country code, for example +1 555 123 4567.');
-        if (!authPhoneOtpSent) {
-          const { error } = await authClient.auth.signInWithOtp({ phone, options: { shouldCreateUser: true } });
-          if (error) throw error;
-          authPhoneOtpSent = true;
-          setAuthMode('phone');
-          setAuthMessage('Code sent by SMS. Enter it below to continue.', 'success');
-        } else {
-          if (!otp) throw new Error('Enter the verification code from your SMS.');
-          const { data, error } = await authClient.auth.verifyOtp({ phone, token: otp, type: 'sms' });
-          if (error) throw error;
-          updateAuthUI(data.session);
-          setAuthMessage('Mobile number verified. You are now logged in.', 'success');
-          setTimeout(closeAuth, 700);
-        }
-      } else if (authMode === 'recovery') {
+      if (authMode === 'recovery') {
         const { error } = await authClient.auth.updateUser({ password });
         if (error) throw error;
         setAuthMessage('Password updated. You are now logged in.', 'success');
