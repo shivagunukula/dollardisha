@@ -88,15 +88,17 @@
         <div id="auth-tabs" class="auth-tabs"><button type="button" data-auth-view="login" class="active">Log in</button></div>
         <div class="auth-heading"><h2 id="auth-title">Welcome back</h2><p id="auth-description">Continue building your US equity research list.</p></div>
         <p id="auth-signup-note" class="auth-signup-note" hidden>Create a free research account to save your watchlist and compare companies. We’ll send a confirmation email before your first sign-in.</p>
-        <button id="auth-google" class="auth-provider" type="button"><span>G</span>Continue with Google</button>
+        <div id="auth-provider-row" class="auth-provider-row"><button id="auth-google" class="auth-provider" type="button"><span>G</span>Google</button><button id="auth-phone" class="auth-provider auth-phone-provider" type="button"><span>✦</span>Mobile</button></div>
         <div class="auth-divider"><span>or use email</span></div>
         <form id="auth-form">
           <label id="auth-name-field" hidden>Full name<input id="auth-name" type="text" autocomplete="name" maxlength="80" placeholder="Your name"></label>
           <label id="auth-email-field">Email address<input id="auth-email" type="email" autocomplete="email" required placeholder="you@example.com"></label>
           <label id="auth-password-field">Password<input id="auth-password" type="password" autocomplete="current-password" minlength="8" required placeholder="At least 8 characters"></label>
+          <label id="auth-phone-field" hidden>Mobile number<input id="auth-phone-number" type="tel" autocomplete="tel" inputmode="tel" placeholder="+1 555 123 4567"></label>
+          <label id="auth-otp-field" hidden>Verification code<input id="auth-otp" type="text" autocomplete="one-time-code" inputmode="numeric" maxlength="8" placeholder="Enter the SMS code"></label>
           <button id="auth-submit" class="auth-primary" type="submit">Log in</button>
         </form>
-        <div id="auth-secondary-actions" class="auth-secondary-actions"><button id="auth-magic" type="button">Email me a login link</button><button id="auth-forgot" type="button">Forgot password?</button><small class="auth-help">Magic links are available for existing accounts.</small></div>
+        <div id="auth-secondary-actions" class="auth-secondary-actions"><button id="auth-magic" type="button">Email me a login link</button><button id="auth-forgot" type="button">Forgot password?</button><button id="auth-phone-back" type="button" hidden>Use email instead</button><small class="auth-help">Magic links are available for existing accounts.</small></div>
         <div id="auth-confirmation-actions" class="auth-confirmation-actions" hidden><span>Didn’t receive the email?</span><button id="auth-resend" type="button">Resend confirmation</button></div>
         <p id="auth-message" class="auth-message" aria-live="polite"></p>
       </div>
