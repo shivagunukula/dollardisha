@@ -430,13 +430,41 @@ const marketPerformanceWindows = { week:5, month:22, ytd:200, '3m':66, '6m':132,
 const marketPerformanceAssets = globalMarketDefinitions.indices.filter((asset, index, all) => (
   all.findIndex(candidate => candidate.region === asset.region) === index
 ));
+function countryForMarket(asset) {
+  const symbol = String(asset?.symbol || '');
+  const name = String(asset?.name || '');
+  if (asset?.region === 'US') return 'United States';
+  if (symbol === '^FTSE' || name === 'FTSE 100') return 'United Kingdom';
+  if (symbol === '^GDAXI') return 'Germany';
+  if (symbol === '^FCHI') return 'France';
+  if (symbol === '^SSMI') return 'Switzerland';
+  if (symbol === '^IBEX') return 'Spain';
+  if (symbol === '^OMX') return 'Sweden';
+  if (symbol === '^N225') return 'Japan';
+  if (symbol === '^HSI') return 'Hong Kong';
+  if (symbol === '000001.SS') return 'China';
+  if (asset?.region === 'India') return 'India';
+  if (symbol === '^GSPTSE') return 'Canada';
+  if (symbol === '^BVSP') return 'Brazil';
+  if (symbol === '^AXJO') return 'Australia';
+  if (symbol === '^KS11') return 'South Korea';
+  if (symbol === '^STI') return 'Singapore';
+  if (symbol === '^TWII') return 'Taiwan';
+  if (symbol === '^J203.JO') return 'South Africa';
+  return asset?.region || 'Global';
+}
+const benchmarkDetails = (asset, row = {}) => ({ name:asset.name, symbol:asset.symbol, exchange:asset.exchange || null, country:countryForMarket(asset), change:Number.isFinite(Number(row.change)) ? Number(row.change) : null });
 async function marketPerformance(period = 'day') {
   const selected = ['day', 'week', 'month', 'ytd', '3m', '6m', 'year'].includes(period) ? period : 'day';
   const cached = marketPerformanceCache.get(selected);
   if (cached && Date.now() < cached.expiresAt) return cached.value;
   if (selected === 'day') {
     const pulse = await globalMarketPulse();
-    const value = { updatedAt:pulse.updatedAt, period:selected, regions:pulse.regions || [] };
+    const regions = (pulse.regions || []).map(region => ({
+      ...region,
+      benchmarks: (pulse.indices || []).filter(item => item.region === region.region).map(item => benchmarkDetails(item, item))
+    }));
+    const value = { updatedAt:pulse.updatedAt, period:selected, regions };
     marketPerformanceCache.set(selected, { value, expiresAt:Date.now() + 55 * 1000 });
     return value;
   }
@@ -446,13 +474,13 @@ async function marketPerformance(period = 'day') {
       const history = await priceHistory(asset.symbol, window + 1);
       const ytdStart = selected === 'ytd' ? `${new Date().getFullYear()}-01-01` : null;
       const points = history.filter(item => Number.isFinite(Number(item.close)) && (!ytdStart || String(item.date) >= ytdStart));
-      if (points.length < 2) return { region:asset.region, change:null, breadth:null, total:1 };
+      if (points.length < 2) return { region:asset.region, change:null, breadth:null, total:1, benchmark:benchmarkDetails(asset) };
       const start = Number(points[Math.max(0, points.length - (window + 1))].close);
       const end = Number(points.at(-1).close);
       const change = start > 0 ? ((end - start) / start) * 100 : null;
-      return { region:asset.region, change:Number.isFinite(change) ? change : null, breadth:Number.isFinite(change) && change >= 0 ? 1 : 0, total:1 };
+      return { region:asset.region, change:Number.isFinite(change) ? change : null, breadth:Number.isFinite(change) && change >= 0 ? 1 : 0, total:1, benchmark:benchmarkDetails(asset, { change }) };
     } catch {
-      return { region:asset.region, change:null, breadth:null, total:1 };
+      return { region:asset.region, change:null, breadth:null, total:1, benchmark:benchmarkDetails(asset) };
     }
   }));
   const regions = [...new Set(marketPerformanceAssets.map(asset => asset.region))].map(region => {
@@ -462,7 +490,8 @@ async function marketPerformance(period = 'day') {
       region,
       change:changes.length ? changes.reduce((sum, value) => sum + value, 0) / changes.length : null,
       breadth:regionRows.reduce((sum, row) => sum + (row.breadth || 0), 0),
-      total:regionRows.length
+      total:regionRows.length,
+      benchmarks:regionRows.map(row => row.benchmark).filter(Boolean)
     };
   }).sort((a, b) => (Number(b.change) || -Infinity) - (Number(a.change) || -Infinity));
   const value = { updatedAt:new Date().toISOString(), period:selected, regions };
