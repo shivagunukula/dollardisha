@@ -1018,6 +1018,8 @@ function setAuthMode(mode = 'login') {
   $('#auth-name-field').hidden = !signup;
   $('#auth-email-field').hidden = recovery;
   $('#auth-secondary-actions').hidden = recovery || signup;
+  const confirmationActions = $('#auth-confirmation-actions');
+  if (confirmationActions) confirmationActions.hidden = true;
   const signupNote = $('#auth-signup-note');
   if (signupNote) signupNote.hidden = !signup;
   $('#auth-google').hidden = recovery;
@@ -1180,6 +1182,8 @@ async function setupAuth() {
           updateAuthUI(data.session);
           setAuthMessage('Account created. You are now logged in.', 'success');
         } else {
+          const confirmationActions = $('#auth-confirmation-actions');
+          if (confirmationActions) confirmationActions.hidden = false;
           setAuthMessage('Account created. Check your email (including spam) to confirm it, then use Log in.', 'success');
         }
       } else {
@@ -1204,6 +1208,15 @@ async function setupAuth() {
     setAuthBusy(true);
     const { error } = await authClient.auth.signInWithOtp({ email, options:{ emailRedirectTo:redirectTo, shouldCreateUser:true } });
     setAuthMessage(error ? friendlyAuthError(error) : 'Login link sent. Check your email.', error ? 'error' : 'success');
+    setAuthBusy(false);
+  };
+
+  $('#auth-resend').onclick = async () => {
+    const email = $('#auth-email').value.trim();
+    if (!email) { $('#auth-email').focus(); setAuthMessage('Enter your email address first.', 'error'); return; }
+    setAuthBusy(true);
+    const { error } = await authClient.auth.resend({ type: 'signup', email, options: { emailRedirectTo: redirectTo } });
+    setAuthMessage(error ? friendlyAuthError(error) : 'Confirmation email sent again. Check your inbox and spam folder.', error ? 'error' : 'success');
     setAuthBusy(false);
   };
 
