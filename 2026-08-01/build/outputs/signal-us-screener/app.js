@@ -1017,7 +1017,9 @@ function setAuthMode(mode = 'login') {
   $('#auth-tabs').hidden = recovery;
   $('#auth-name-field').hidden = !signup;
   $('#auth-email-field').hidden = recovery;
-  $('#auth-secondary-actions').hidden = recovery;
+  $('#auth-secondary-actions').hidden = recovery || signup;
+  const signupNote = $('#auth-signup-note');
+  if (signupNote) signupNote.hidden = !signup;
   $('#auth-google').hidden = recovery;
   document.querySelector('.auth-divider').hidden = recovery;
   document.querySelectorAll('[data-auth-view]').forEach(button => button.classList.toggle('active', button.dataset.authView === mode));
