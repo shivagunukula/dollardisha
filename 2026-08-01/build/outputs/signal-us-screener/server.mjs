@@ -491,6 +491,23 @@ createServer(async (req, res) => {
           : null
       });
     }
+    if (url.pathname === '/data/provider-status') {
+      const fmpConfigured = Boolean(key);
+      const twelveDataConfigured = Boolean(twelveDataKey);
+      return send(res, 200, {
+        fmpConfigured,
+        twelveDataConfigured,
+        dualFeedConfigured: fmpConfigured && twelveDataConfigured,
+        mode: fmpConfigured && twelveDataConfigured
+          ? 'dual-provider'
+          : fmpConfigured
+            ? 'fmp-only'
+            : twelveDataConfigured
+              ? 'twelve-data-only'
+              : 'fallback-only',
+        checkedAt: new Date().toISOString()
+      });
+    }
     if (url.pathname === '/data/search' || url.pathname === '/api/search') {
       const query = url.searchParams.get('q')?.trim();
       if (!query || query.length > 50) return send(res, 400, { error:'Provide a company or ticker to search.' });

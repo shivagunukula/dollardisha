@@ -21,6 +21,43 @@ const money = (value) => {
   return `$${number.toFixed(2)}`;
 };
 const percent = (value) => Number.isFinite(Number(value)) ? `${Number(value) >= 0 ? '+' : ''}${Number(value).toFixed(2)}%` : '—';
+function providerLabel(value) {
+  const raw = Array.isArray(value) ? value : String(value || '').split('+');
+  const providers = new Set(raw.map(item => String(item).trim().toLowerCase()).filter(Boolean));
+  if (providers.has('fmp') && providers.has('twelve-data')) return 'FMP + Twelve Data';
+  if (providers.has('twelve-data')) return 'Twelve Data';
+  if (providers.has('fmp')) return 'FMP';
+  if (providers.has('yahoo')) return 'Yahoo fallback';
+  if (providers.has('nasdaq')) return 'Nasdaq fallback';
+  return 'Provider unavailable';
+}
+async function hydrateProviderStatus() {
+  let holder = document.querySelector('[data-provider-status]');
+  if (!holder) {
+    const proof = document.querySelector('.dashboard-hero .hero-proof');
+    if (proof) {
+      const item = document.createElement('div');
+      item.className = 'feed-status';
+      item.innerHTML = '<b>Feeds</b><small data-provider-status>Checking providersâ€¦</small>';
+      proof.appendChild(item);
+      holder = item.querySelector('[data-provider-status]');
+    }
+  }
+  if (!holder) return;
+  try {
+    const status = await getJson('/data/provider-status', 15000);
+    holder.textContent = status.dualFeedConfigured
+      ? 'Dual live feed · FMP + Twelve Data'
+      : status.mode === 'fmp-only'
+        ? 'Live feed · FMP only (add TWELVE_DATA_API_KEY in Render)'
+        : status.mode === 'twelve-data-only'
+          ? 'Live feed · Twelve Data only (add FMP_API_KEY in Render)'
+          : 'Live feed unavailable · add both provider keys';
+    holder.dataset.mode = status.mode;
+  } catch {
+    holder.textContent = 'Live feed status unavailable';
+  }
+}
 let page = 'dashboard';
 let watchlist = JSON.parse(localStorage.getItem('dd-watchlist') || '[]');
 let watchlistRefreshTimer;
@@ -932,6 +969,7 @@ function dashboardView() {
 }
 
 async function hydrateDashboard() {
+  hydrateProviderStatus();
   const quoteTask = getJson('/data/market', 45000).then(quotes => {
     const byTicker = new Map((quotes || []).map(quote => [String(quote.symbol || '').toUpperCase(), quote]));
     document.querySelectorAll('#market-cards .market-card').forEach(card => {
@@ -944,6 +982,10 @@ async function hydrateDashboard() {
       const note = card.querySelector('b');
       note.textContent = change !== null ? `${percent(change)} today` : 'Daily change not reported';
       note.className = change === null ? '' : Number(change) >= 0 ? 'positive' : 'down';
+      let source = card.querySelector('.provider-source');
+      if (!source) { source = document.createElement('small'); source.className = 'provider-source'; note.insertAdjacentElement('afterend', source); }
+      source.textContent = providerLabel(quote.providers || quote.provider);
+      source.title = 'Live quote provider(s) used for this card';
     });
   }).catch(() => document.querySelectorAll('#market-cards .market-card').forEach(card => {
     card.querySelector('strong').textContent = 'Quote unavailable';
