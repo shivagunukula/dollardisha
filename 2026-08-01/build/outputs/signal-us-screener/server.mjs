@@ -554,6 +554,13 @@ function send(res, status, data, type = 'application/json; charset=utf-8') { res
 createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {
+    // Keep one canonical public URL. Render forwards the original scheme in
+    // this header, so old HTTP links are permanently upgraded to HTTPS for
+    // visitors and search crawlers.
+    if (String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'http') {
+      res.writeHead(301, { Location:`https://${req.headers.host}${req.url}`, 'Cache-Control':'public, max-age=3600' });
+      return res.end();
+    }
     if (url.pathname === '/data/auth-config') {
       return send(res, 200, {
         enabled:Boolean(supabaseUrl && supabasePublishableKey && !supabasePublishableKeyIsSecret),
