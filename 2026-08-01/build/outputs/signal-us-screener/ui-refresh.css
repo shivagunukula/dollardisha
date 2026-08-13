@@ -1493,6 +1493,26 @@ html[data-theme="light"] .auth-dialog {
   box-shadow: 0 28px 70px rgba(24, 54, 46, .22) !important;
 }
 
+/* Restore contrast for quote movement pills in light mode. The generic card
+   text rule intentionally uses muted gray, but gain/loss values must remain
+   readable against the pale pill backgrounds. */
+html[data-theme="light"] .market-card.gain b.positive,
+html[data-theme="light"] .index-card.gain b.positive {
+  color: #086b50 !important;
+  background: #d9f5eb !important;
+  border-color: #8edbc5 !important;
+}
+html[data-theme="light"] .market-card.loss b.down,
+html[data-theme="light"] .index-card.loss b.down {
+  color: #a52f43 !important;
+  background: #fde4e7 !important;
+  border-color: #efabb6 !important;
+}
+html[data-theme="light"] .market-card b,
+html[data-theme="light"] .index-card b {
+  font-weight: 700 !important;
+}
+
 html[data-theme="light"] .auth-close,
 html[data-theme="light"] .auth-tabs,
 html[data-theme="light"] .auth-provider,
