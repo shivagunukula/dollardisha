@@ -991,6 +991,10 @@ function friendlyAuthError(error) {
   const raw = String(error?.message || error?.error_description || error || 'Could not complete that request.');
   if (/invalid login credentials/i.test(raw)) return 'Email or password is incorrect. If you just created the account, confirm your email first.';
   if (/email not confirmed/i.test(raw)) return 'Please confirm your email address, then try logging in again.';
+  if (/user already registered|already been registered|already exists/i.test(raw)) return 'An account with this email already exists. Switch to Log in, or use Forgot password.';
+  if (/password.*(at least|characters)|weak password|password should be/i.test(raw)) return 'Choose a stronger password with at least 8 characters.';
+  if (/rate limit|too many requests/i.test(raw)) return 'Too many attempts. Please wait a few minutes and try again.';
+  if (/invalid email/i.test(raw)) return 'Enter a valid email address.';
   if (/provider is not enabled|unsupported provider/i.test(raw)) return 'Google sign-in is not enabled in Supabase yet. Enable Google under Authentication → Providers.';
   if (/redirect|redirect_uri|site url|not allowed/i.test(raw)) return `This website URL is not approved for sign-in yet. Add ${window.location.origin} to Supabase Authentication → URL Configuration.`;
   if (/unable to exchange external code|external code/i.test(raw)) return 'Google returned an invalid sign-in response. In Supabase, check the Google Client ID/secret and make sure the callback URL is configured exactly.';
@@ -1170,8 +1174,12 @@ async function setupAuth() {
         const fullName = $('#auth-name').value.trim();
         const { data, error } = await authClient.auth.signUp({ email, password, options:{ data:{ full_name:fullName }, emailRedirectTo:redirectTo } });
         if (error) throw error;
-        if (data.session) updateAuthUI(data.session);
-        else setAuthMessage('Account created. Check your email to confirm it, then log in.', 'success');
+        if (data.session) {
+          updateAuthUI(data.session);
+          setAuthMessage('Account created. You are now logged in.', 'success');
+        } else {
+          setAuthMessage('Account created. Check your email (including spam) to confirm it, then use Log in.', 'success');
+        }
       } else {
         const { data, error } = await authClient.auth.signInWithPassword({ email, password });
         if (error) throw error;
