@@ -671,6 +671,11 @@ tbody tr:nth-child(even) td { background: rgba(255, 255, 255, .012); }
   min-height: 124px;
   padding: 20px !important;
 }
+.market-card[data-market-ticker] { cursor: pointer; }
+.market-card[data-market-ticker]:focus-visible {
+  outline: 2px solid #58d7b4;
+  outline-offset: 3px;
+}
 .market-card > * {
   position: relative;
   z-index: 1;

@@ -392,8 +392,20 @@ function wireCommon() {
       if (event.button === 1) { event.preventDefault(); openRouteInNewTab(target); }
     };
   });
-  document.querySelectorAll('[data-stock]').forEach((element) => {
-    const target = element.dataset.stock;
+  document.querySelectorAll('[data-stock], [data-market-ticker]').forEach((element) => {
+    const target = element.dataset.stock || element.dataset.marketTicker;
+    if (!target) return;
+    if (element.dataset.marketTicker) {
+      element.setAttribute('role', 'link');
+      element.setAttribute('tabindex', '0');
+      element.setAttribute('aria-label', `Open ${target} company research`);
+      element.setAttribute('title', `Open ${target} company research`);
+      element.onkeydown = event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        navigateTo(target); window.scrollTo(0, 0);
+      };
+    }
     element.onclick = event => {
       if (event.target.closest('[data-watch]')) return;
       if (event.ctrlKey || event.metaKey) { event.preventDefault(); openRouteInNewTab(target); return; }
