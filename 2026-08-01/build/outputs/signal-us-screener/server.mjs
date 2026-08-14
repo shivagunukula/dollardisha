@@ -95,6 +95,44 @@ async function secSubmissions(cik) {
 }
 
 const screenerRatioCache = new Map();
+const companyLogoCache = new Map();
+const saveCompanyLogo = (ticker, value) => {
+  companyLogoCache.delete(ticker);
+  companyLogoCache.set(ticker, value);
+  if (companyLogoCache.size > 500) companyLogoCache.delete(companyLogoCache.keys().next().value);
+};
+
+async function currentCompanyLogo(ticker) {
+  const cached = companyLogoCache.get(ticker);
+  if (cached && Date.now() < cached.expiresAt) return cached;
+
+  const profiles = await fmp('profile', { symbol:ticker }).catch(() => []);
+  const profile = Array.isArray(profiles) ? (profiles[0] || {}) : (profiles || {});
+  const candidates = [...new Set([
+    profile.image,
+    profile.logo,
+    `https://images.financialmodelingprep.com/symbol/${encodeURIComponent(ticker)}.png`
+  ].filter(value => /^https:\/\//i.test(String(value || ''))))];
+
+  for (const logoUrl of candidates) {
+    try {
+      const logoHost = new URL(logoUrl).hostname.toLowerCase();
+      if (!['images.financialmodelingprep.com', 'financialmodelingprep.com'].includes(logoHost)) continue;
+      const response = await externalFetch(logoUrl, { headers:{ Accept:'image/avif,image/webp,image/png,image/*,*/*' } });
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok || !contentType.toLowerCase().startsWith('image/')) continue;
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (!buffer.length) continue;
+      const value = { buffer, contentType, expiresAt:Date.now() + 6 * 60 * 60 * 1000 };
+      saveCompanyLogo(ticker, value);
+      return value;
+    } catch { /* Try the next current provider image. */ }
+  }
+  const unavailable = { unavailable:true, expiresAt:Date.now() + 60 * 60 * 1000 };
+  saveCompanyLogo(ticker, unavailable);
+  return unavailable;
+}
+
 async function screenerRatio(ticker) {
   const cached = screenerRatioCache.get(ticker);
   if (cached && Date.now() < cached.expiresAt) return cached.value;
@@ -677,6 +715,22 @@ createServer(async (req, res) => {
               : 'fallback-only',
         checkedAt: new Date().toISOString()
       });
+    }
+    if (url.pathname === '/data/company-logo') {
+      const ticker = symbol(url.searchParams.get('symbol'));
+      if (!ticker) return send(res, 400, { error:'Invalid ticker.' });
+      const logo = await currentCompanyLogo(ticker);
+      if (!logo?.buffer) {
+        res.writeHead(404, { 'Cache-Control':'public, max-age=3600' });
+        return res.end();
+      }
+      res.writeHead(200, {
+        'Content-Type':logo.contentType,
+        'Content-Length':logo.buffer.length,
+        'Cache-Control':'public, max-age=21600, stale-while-revalidate=86400',
+        'X-Content-Type-Options':'nosniff'
+      });
+      return res.end(logo.buffer);
     }
     if (url.pathname === '/data/search' || url.pathname === '/api/search') {
       const query = url.searchParams.get('q')?.trim();

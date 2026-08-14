@@ -2359,6 +2359,23 @@ button,.link-button,.solid-btn{transition:transform .15s ease,background-color .
 #global-results button > span:not(.company-logo) { flex: 1; min-width: 0; text-align: left; }
 .basket-search-item .company-logo { margin-right: 3px; }
 .company-row td.company { min-width: 230px; }
+.market-card-company {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: max-content;
+}
+.market-card-company > span:last-child {
+  color: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .06em;
+}
+.market-card-company .company-logo {
+  width: 36px;
+  height: 36px;
+  flex-basis: 36px;
+}
 @media (max-width: 640px) {
   .company-logo-large { width: 46px; height: 46px; flex-basis: 46px; border-radius: 12px; }
   .company-heading { gap: 11px; }
