@@ -2316,3 +2316,51 @@ button,.link-button,.solid-btn{transition:transform .15s ease,background-color .
 .footer-note{display:flex;flex-wrap:wrap;gap:8px 18px;color:var(--dd-muted);font-size:12px;line-height:1.5}
 .footer-note span+span:before{content:'·';margin-right:18px;color:var(--dd-line)}
 @media(max-width:640px){.site-footer{padding:24px 16px!important}.footer-note span+span:before{display:none}.footer-links{gap:10px 14px}}
+/* Company identity system -------------------------------------------------- */
+.company-logo {
+  position: relative;
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--dd-line) 78%, var(--dd-accent) 22%);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--dd-panel) 88%, var(--dd-accent) 12%);
+  color: var(--dd-accent);
+  box-shadow: 0 6px 18px rgba(0,0,0,.12);
+  font: 750 10px/1 Inter, system-ui, sans-serif;
+  letter-spacing: .04em;
+}
+.company-logo img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 4px;
+  object-fit: contain;
+  background: #fff;
+  opacity: 0;
+  transition: opacity .18s ease;
+}
+.company-logo.has-image img { opacity: 1; }
+.company-logo-small { width: 28px; height: 28px; flex-basis: 28px; border-radius: 8px; }
+.company-logo-large { width: 58px; height: 58px; flex-basis: 58px; border-radius: 15px; font-size: 14px; }
+.company-identity { display: inline-flex; align-items: center; gap: 10px; min-width: 0; text-align: left; }
+.company-copy { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.company-copy b { overflow: hidden; color: var(--dd-text); text-overflow: ellipsis; white-space: nowrap; }
+.company-copy small { color: var(--dd-muted); font-size: 10px; font-weight: 600; }
+.company-heading { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.company-heading > div { min-width: 0; }
+.company-heading .page-title { margin-top: 2px; }
+#global-results button { gap: 10px; }
+#global-results button > span:not(.company-logo) { flex: 1; min-width: 0; text-align: left; }
+.basket-search-item .company-logo { margin-right: 3px; }
+.company-row td.company { min-width: 230px; }
+@media (max-width: 640px) {
+  .company-logo-large { width: 46px; height: 46px; flex-basis: 46px; border-radius: 12px; }
+  .company-heading { gap: 11px; }
+  .company-row td.company { min-width: 190px; }
+}
