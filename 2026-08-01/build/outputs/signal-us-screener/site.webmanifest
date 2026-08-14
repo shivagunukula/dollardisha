@@ -1,0 +1,21 @@
+{
+  "name": "DollarDisha — US Stock Research",
+  "short_name": "DollarDisha",
+  "description": "US equity research, company fundamentals and SEC filings for Indian investors.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#071117",
+  "theme_color": "#071117",
+  "icons": [
+    {
+      "src": "/assets/favicon-96.png",
+      "sizes": "96x96",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/dollardisha-app-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
