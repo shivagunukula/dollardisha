@@ -1216,7 +1216,7 @@ function setupIndex() {
   results.hidden = true;
   if (tickerInput) {
     tickerInput.setAttribute('autocomplete', 'off');
-    tickerInput.setAttribute('placeholder', 'Search ticker or company, e.g. TSLA');
+    tickerInput.setAttribute('placeholder', 'Search a NASDAQ company, e.g. TSLA');
     const searchWrap = document.createElement('div');
     searchWrap.className = 'basket-search';
     tickerInput.parentElement?.insertBefore(searchWrap, tickerInput);
@@ -1230,7 +1230,7 @@ function setupIndex() {
       searchTimer = setTimeout(async () => {
         const requestId = ++searchRequest;
         results.hidden = false;
-        results.innerHTML = '<div class="basket-search-loading">Searching live directory…</div>';
+        results.innerHTML = '<div class="basket-search-loading">Searching NASDAQ companies…</div>';
         try {
           const matches = await getJson(`/data/search?q=${encodeURIComponent(query)}`, 15000);
           if (requestId !== searchRequest) return;
@@ -1247,7 +1247,7 @@ function setupIndex() {
             const change = scanNumber(live.change, live.changesPercentage, live.changePercentage);
             const quote = price !== null ? `$${Number(price).toFixed(2)}${change !== null ? ` · ${percent(change)}` : ''}` : 'Quote unavailable';
             return `<button type="button" class="basket-search-item" data-basket-symbol="${escapeHtml(symbol)}">${companyLogo(symbol, name, 'small')}<b>${escapeHtml(symbol)}</b><span>${escapeHtml(name)} · ${escapeHtml(venue)} · <strong>${escapeHtml(quote)}</strong></span></button>`;
-          }).join('') : '<div class="basket-search-loading">No matching listing found.</div>';
+          }).join('') : '<div class="basket-search-loading">No matching NASDAQ company found.</div>';
           results.querySelectorAll('[data-basket-symbol]').forEach(button => button.onclick = () => {
             selectedTicker = button.dataset.basketSymbol.toUpperCase();
             tickerInput.value = selectedTicker;

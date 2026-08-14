@@ -313,6 +313,45 @@ async function nasdaqQuote(ticker) {
   const percentage = Number(String(data.percentageChange || '0').replace(/[%+]/g, ''));
   return { symbol: ticker, price, changesPercentage: percentage, previousClose: data.previousClose, provider: 'nasdaq' };
 }
+function nasdaqCompanyKey(name = '') {
+  return String(name).toUpperCase()
+    .replace(/\b(CLASS|COMMON STOCK|ORDINARY SHARES?)\s*[A-Z]?\b/g, ' ')
+    .replace(/\b(INCORPORATED|INC|CORPORATION|CORP|COMPANY|CO|PLC|LTD|LIMITED)\b/g, ' ')
+    .replace(/[^A-Z0-9]/g, '');
+}
+function isNasdaqExchange(value = '') {
+  const exchange = String(value).trim().toUpperCase();
+  return exchange === 'XNAS' || exchange.includes('NASDAQ');
+}
+function uniqueNasdaqSearchResults(rows, query, limit = 8) {
+  const exactSymbol = symbol(query);
+  const candidates = (Array.isArray(rows) ? rows : []).map((row, index) => {
+    const ticker = symbol(row.symbol || row.ticker);
+    const name = row.name || row.companyName || row.instrument_name || ticker;
+    const exchange = row.exchangeShortName || row.exchange || row.mic_code || '';
+    return { ...row, symbol:ticker, name, exchangeShortName:'NASDAQ', _exchange:exchange, _index:index };
+  }).filter(row => {
+    const type = String(row.type || row.instrument_type || '').toUpperCase();
+    return row.symbol && isNasdaqExchange(row._exchange) && !/(ETF|FUND|INDEX|WARRANT|RIGHT|PREFERRED)/.test(type);
+  }).sort((left, right) => {
+    const leftExact = left.symbol === exactSymbol ? 1 : 0;
+    const rightExact = right.symbol === exactSymbol ? 1 : 0;
+    return rightExact - leftExact || left._index - right._index;
+  });
+  const seenSymbols = new Set();
+  const seenCompanies = new Set();
+  const unique = [];
+  for (const candidate of candidates) {
+    const companyKey = nasdaqCompanyKey(candidate.name) || candidate.symbol;
+    if (seenSymbols.has(candidate.symbol) || seenCompanies.has(companyKey)) continue;
+    seenSymbols.add(candidate.symbol);
+    seenCompanies.add(companyKey);
+    const { _exchange, _index, ...result } = candidate;
+    unique.push(result);
+    if (unique.length >= limit) break;
+  }
+  return unique;
+}
 async function twelveStockSearch(query) {
   if (!twelveDataKey) return [];
   const url = new URL('https://api.twelvedata.com/symbol_search');
@@ -323,9 +362,9 @@ async function twelveStockSearch(query) {
   const data = await response.json();
   const rows = data.data || data;
   if (!response.ok || data.status === 'error' || !Array.isArray(rows)) throw new Error(data.message || 'Twelve Data global symbol search is unavailable');
-  return rows.slice(0, 12).map(row => ({
+  return uniqueNasdaqSearchResults(rows.map(row => ({
     symbol: row.symbol, name: row.instrument_name || row.name || row.symbol, exchangeShortName: row.exchange || row.mic_code || 'US', type: row.type
-  }));
+  })), query, 8);
 }
 const liveQuoteCache = new Map();
 async function liveQuote(ticker, exchange = '', twelveSymbol = ticker, fmpSymbol = ticker) {
@@ -739,7 +778,8 @@ createServer(async (req, res) => {
         const matches = await twelveStockSearch(query);
         if (matches.length) return send(res, 200, matches);
       } catch (error) { console.warn(`Twelve Data directory unavailable: ${error.message}`); }
-      return send(res, 200, await fmp('search-name', { query, limit: 8 }));
+      const fmpMatches = await fmp('search-name', { query, limit: 30 });
+      return send(res, 200, uniqueNasdaqSearchResults(fmpMatches, query, 8));
     }
     if (url.pathname === '/data/company' || url.pathname === '/api/company') {
       const ticker = symbol(url.searchParams.get('symbol'));
