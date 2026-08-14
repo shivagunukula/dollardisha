@@ -775,7 +775,10 @@ document.head.insertAdjacentHTML('beforeend', '<style>.ratio-cell{padding:11px 1
 function companyView(ticker) {
   return `<div class="page company-page">
     <div class="company-top">
-      <div><p class="crumb">US EQUITY RESEARCH</p><h1 class="page-title" id="company-title">${escapeHtml(ticker)}</h1><p class="sub" id="company-subtitle">${escapeHtml(ticker)} · Loading company research…</p></div>
+      <div class="company-heading">
+        ${companyLogo(ticker, ticker, 'large')}
+        <div><p class="crumb">US EQUITY RESEARCH</p><h1 class="page-title" id="company-title">${escapeHtml(ticker)}</h1><p class="sub" id="company-subtitle">${escapeHtml(ticker)} · Loading company research…</p></div>
+      </div>
       <button class="solid-btn ${watchlist.includes(ticker) ? 'saved' : ''}" data-watch="${ticker}">${watchlist.includes(ticker) ? 'Following' : 'Follow'}</button>
     </div>
     <nav class="company-tabs"><a href="#overview">Overview</a><a href="#chart">Chart</a><a href="#strengths">Pros &amp; cons</a><a href="#quarterly">Quarterly</a><a href="#financials">Financials</a><a href="#peers">Peers</a><a href="#intelligence">Intelligence</a><a href="#updates">Updates</a><a href="#documents">Filings</a></nav>
@@ -1839,19 +1842,6 @@ function renderCompanyDocuments(ticker) {
 }
 const previousCompanyExtras = hydrateCompanyExtras;
 hydrateCompanyExtras = function(ticker) { previousCompanyExtras(ticker); renderCompanyDocuments(ticker); };
-
-// Use the provider's symbol artwork everywhere, with ticker initials as a
-// dependable fallback for companies whose profile has no published logo.
-const companyViewWithDocuments = companyView;
-companyView = function(ticker) {
-  return companyViewWithDocuments(ticker).replace(
-    '<div class="company-top"><div>',
-    `<div class="company-top"><div class="company-heading">${companyLogo(ticker, ticker, 'large')}<div>`
-  ).replace(
-    '</div><button class="solid-btn" data-watch=',
-    '</div></div><button class="solid-btn" data-watch='
-  );
-};
 
 // Keep SPA routes shareable and make them usable as real browser tabs. Section
 // anchors on a company page (for example #chart) remain normal in-page links.
