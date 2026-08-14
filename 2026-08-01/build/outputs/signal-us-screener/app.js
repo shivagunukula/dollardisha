@@ -1881,12 +1881,44 @@ drawCompanyChart = function(values) {
 const baseCompanyView = companyView;
 companyView = function(ticker) {
   const html = baseCompanyView(ticker);
-  const documents = `<section id="documents" class="panel documents-panel issuer-documents-panel"><div class="panel-head"><div><h2>Documents</h2><p>Company announcements, reports and reported earnings materials</p></div></div><div class="issuer-documents-grid"><article class="issuer-doc-card issuer-announcements"><h3>Announcements</h3><div class="issuer-doc-tabs"><span class="active">Recent</span><span>Important</span><span>Search</span><span>All</span></div><div id="doc-announcements" class="issuer-doc-list"><p class="data-empty">Loading issuer announcements…</p></div></article><article class="issuer-doc-card"><h3>Annual reports</h3><div id="doc-annual" class="issuer-doc-list"><p class="data-empty">Loading annual reports…</p></div></article><article class="issuer-doc-card"><h3>Credit ratings</h3><div id="doc-ratings" class="issuer-doc-list"><p class="data-empty">Loading ratings…</p></div></article><article class="issuer-doc-card issuer-concalls"><h3>Earnings &amp; calls</h3><div id="doc-concalls" class="issuer-doc-list"><p class="data-empty">Loading earnings materials…</p></div></article></div><p class="filings-source-note">Company/issuer documents are sourced from SEC EDGAR and provider-reported company data. Third-party research is excluded.</p></section>`;
+  const documents = `<section id="documents" class="panel documents-panel issuer-documents-panel"><div class="panel-head"><div><h2>Documents</h2><p>Official company filings, annual and quarterly reports, and earnings-call materials</p></div><small id="doc-updated">Checking latest filings…</small></div><div class="issuer-documents-grid"><article class="issuer-doc-card issuer-announcements"><h3>Company filings</h3><div class="issuer-doc-tabs" role="tablist" aria-label="Filter company filings"><button type="button" class="active" aria-selected="true" data-doc-filter="recent">Recent</button><button type="button" aria-selected="false" data-doc-filter="important">Important</button><button type="button" aria-selected="false" data-doc-filter="search">Search</button><button type="button" aria-selected="false" data-doc-filter="all">All</button></div><div id="doc-announcements" class="issuer-doc-list"><p class="data-empty">Loading issuer filings…</p></div></article><article class="issuer-doc-card"><h3>Annual reports</h3><div id="doc-annual" class="issuer-doc-list"><p class="data-empty">Loading annual reports…</p></div></article><article class="issuer-doc-card"><h3>Quarterly reports</h3><div id="doc-quarterly" class="issuer-doc-list"><p class="data-empty">Loading quarterly reports…</p></div></article><article class="issuer-doc-card issuer-concalls"><h3>Earnings calls</h3><div id="doc-concalls" class="issuer-doc-list"><p class="data-empty">Checking transcript availability…</p></div></article></div><p class="filings-source-note">Filings link directly to SEC EDGAR. Earnings-call text is shown only when supplied by the connected provider; transcript summaries are extractive and should be checked against the full call.</p></section>`;
   return html.replace(/<section id="documents"[\s\S]*?<\/section>\s*<\/div>\s*$/, `${documents}</div>`);
 };
 
+function openEarningsDocument(ticker, year, quarter, mode) {
+  document.querySelector('#earnings-document-reader')?.remove();
+  const reader = document.createElement('div');
+  reader.id = 'earnings-document-reader';
+  reader.className = 'earnings-document-reader';
+  reader.setAttribute('role', 'dialog');
+  reader.setAttribute('aria-modal', 'true');
+  reader.setAttribute('aria-label', `${ticker} earnings call ${mode}`);
+  reader.innerHTML = `<div class="earnings-document-dialog"><button class="earnings-document-close" type="button" aria-label="Close">×</button><p class="crumb">${escapeHtml(ticker)} · Q${quarter} ${year}</p><h2>${mode === 'summary' ? 'Call summary' : 'Earnings-call transcript'}</h2><div class="earnings-document-body"><p class="data-empty">Loading company call material…</p></div></div>`;
+  document.body.appendChild(reader);
+  let keyHandler;
+  const close = () => { reader.remove(); if (keyHandler) document.removeEventListener('keydown', keyHandler); };
+  reader.querySelector('.earnings-document-close').onclick = close;
+  reader.onclick = event => { if (event.target === reader) close(); };
+  keyHandler = event => { if (event.key === 'Escape') close(); };
+  document.addEventListener('keydown', keyHandler);
+  getJson(`/data/earnings-transcript?symbol=${encodeURIComponent(ticker)}&year=${year}&quarter=${quarter}`, 120000).then(data => {
+    const body = reader.querySelector('.earnings-document-body');
+    if (!body) return;
+    if (mode === 'summary') {
+      const highlights = Array.isArray(data.highlights) ? data.highlights : [];
+      body.innerHTML = `<div class="transcript-source"><b>${escapeHtml(data.title || `${ticker} earnings call`)}</b><span>${escapeHtml(data.date || '')}</span></div>${highlights.length ? `<ul class="transcript-highlights">${highlights.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : '<p class="data-empty">A reliable extractive summary could not be produced. Open the full transcript instead.</p>'}<p class="transcript-disclaimer">Automated extractive highlights from the company call—not investment advice. Verify wording and context in the full transcript.</p>`;
+      return;
+    }
+    const paragraphs = String(data.content || '').split(/\n+/).map(value => value.trim()).filter(Boolean);
+    body.innerHTML = `<div class="transcript-source"><b>${escapeHtml(data.title || `${ticker} earnings call`)}</b><span>${escapeHtml(data.date || '')}</span></div><div class="transcript-copy">${paragraphs.map(value => `<p>${escapeHtml(value)}</p>`).join('')}</div>`;
+  }).catch(() => {
+    const body = reader.querySelector('.earnings-document-body');
+    if (body) body.innerHTML = '<p class="data-empty">This transcript is not available through the current provider plan or has not yet been published.</p>';
+  });
+}
+
 function renderCompanyDocuments(ticker) {
-  const safe = value => escapeHtml(value || '—');
+  const safe = value => escapeHtml(value ?? '—');
   const list = (rows, empty, render) => rows.length ? rows.map(render).join('') : `<p class="data-empty">${empty}</p>`;
   const filingLink = filing => `<a class="issuer-doc-item" href="${escapeHtml(filing.url || '#')}" target="_blank" rel="noreferrer"><b>${safe(filing.description || filing.form || 'Company filing')}</b><span>${safe(filing.filedAt || filing.reportDate)} · ${safe(filing.form)}</span></a>`;
   Promise.all([getJson(`/data/filings?symbol=${encodeURIComponent(ticker)}`), getJson(`/data/company-intel?symbol=${encodeURIComponent(ticker)}`)])
@@ -1894,15 +1926,39 @@ function renderCompanyDocuments(ticker) {
       const filings = filingData.filings || [];
       const announcements = filings.filter(item => /^(8-K|8-K\/A|6-K|6-K\/A)$/.test(String(item.form || '').toUpperCase())).slice(0, 8);
       const annual = filings.filter(item => /10-K|20-F|40-F|ARS/.test(String(item.form || '').toUpperCase())).slice(0, 6);
-      const announcementHolder = $('#doc-announcements'); const annualHolder = $('#doc-annual'); const ratingHolder = $('#doc-ratings'); const callsHolder = $('#doc-concalls');
-      if (announcementHolder) announcementHolder.innerHTML = list(announcements, 'No recent issuer announcements were returned.', filingLink);
+      const quarterly = filings.filter(item => /10-Q/.test(String(item.form || '').toUpperCase())).slice(0, 6);
+      const announcementHolder = $('#doc-announcements'); const annualHolder = $('#doc-annual'); const quarterlyHolder = $('#doc-quarterly'); const callsHolder = $('#doc-concalls');
+      const importantPattern = /results|earnings|guidance|acquisition|merger|dividend|chief executive|chief financial|cyber|restatement|bankruptcy|material agreement|tender offer/i;
+      const important = filings.filter(item => /^(8-K|8-K\/A|6-K|6-K\/A|10-Q|10-Q\/A|10-K|10-K\/A)$/.test(String(item.form || '').toUpperCase()) || importantPattern.test(`${item.description || ''} ${item.category || ''}`)).slice(0, 20);
+      const renderFilingMode = (mode, query = '') => {
+        if (!announcementHolder) return;
+        let rows = announcements;
+        if (mode === 'important') rows = important;
+        if (mode === 'all') rows = filings.slice(0, 40);
+        if (mode === 'search') {
+          const term = String(query).trim().toLowerCase();
+          const matches = term ? filings.filter(item => `${item.form || ''} ${item.category || ''} ${item.description || ''}`.toLowerCase().includes(term)).slice(0, 30) : filings.slice(0, 12);
+          announcementHolder.innerHTML = `<label class="issuer-doc-search"><span>Search official filings</span><input type="search" id="issuer-doc-search-input" value="${escapeHtml(query)}" placeholder="Try 10-Q, earnings, merger…"></label>${list(matches, 'No company filings match this search.', filingLink)}`;
+          const input = $('#issuer-doc-search-input');
+          if (input) { input.oninput = () => renderFilingMode('search', input.value); input.focus(); }
+          return;
+        }
+        announcementHolder.innerHTML = list(rows, mode === 'important' ? 'No material company filings were returned.' : 'No company filings were returned.', filingLink);
+      };
+      renderFilingMode('recent');
+      document.querySelectorAll('[data-doc-filter]').forEach(button => { button.onclick = () => { document.querySelectorAll('[data-doc-filter]').forEach(item => { const selected = item === button; item.classList.toggle('active', selected); item.setAttribute('aria-selected', String(selected)); }); renderFilingMode(button.dataset.docFilter); }; });
       if (annualHolder) annualHolder.innerHTML = list(annual, 'No annual reports were returned.', filingLink);
-      const rating = intel.ratings || {};
-      if (ratingHolder) ratingHolder.innerHTML = rating.rating || rating.ratingRecommendation ? `<div class="issuer-rating-card"><b>${safe(rating.rating || rating.ratingRecommendation)}</b><span>${safe(rating.date || rating.ratingDate || 'Latest provider snapshot')}</span></div>` : '<p class="data-empty">No credit-rating update was returned for this company.</p>';
-      const earnings = (intel.earnings || []).slice(0, 6);
-      if (callsHolder) callsHolder.innerHTML = list(earnings, 'No earnings-call records were returned.', item => `<div class="issuer-call-row"><span>${safe(item.date || item.fiscalDateEnding || 'Reported')}</span><div><b>${safe(item.epsEstimated !== undefined ? `EPS estimate ${item.epsEstimated}` : 'Earnings update')}</b><small>${item.eps !== undefined ? `Reported EPS ${safe(item.eps)}` : 'Provider-reported earnings data'}</small></div><span class="issuer-doc-actions"><button type="button" disabled>Transcript</button><button type="button" disabled>Summary</button></span></div>`);
+      if (quarterlyHolder) quarterlyHolder.innerHTML = list(quarterly, 'No quarterly reports were returned.', filingLink);
+      const transcriptDates = (intel.transcriptDates || []).map(item => ({ ...item, year:Number(item.year || String(item.date || '').slice(0, 4)), quarter:Number(item.quarter || item.fiscalQuarter || item.q) })).filter(item => Number.isInteger(item.year) && [1,2,3,4].includes(item.quarter)).slice(0, 8);
+      const earningsFilings = filings.filter(item => /10-Q|8-K|6-K/.test(String(item.form || '').toUpperCase()) && /earnings|results|quarter|current report|2\.02/i.test(`${item.description || ''} ${item.category || ''} ${item.items || ''}`)).slice(0, 6);
+      if (callsHolder) callsHolder.innerHTML = transcriptDates.length
+        ? transcriptDates.map(item => `<div class="issuer-call-row"><span>${safe(item.date || `Q${item.quarter}`)}</span><div><b>Q${item.quarter} ${item.year} earnings call</b><small>Company management discussion and analyst Q&amp;A</small></div><span class="issuer-doc-actions"><button type="button" data-call-mode="transcript" data-call-year="${item.year}" data-call-quarter="${item.quarter}">Transcript</button><button type="button" data-call-mode="summary" data-call-year="${item.year}" data-call-quarter="${item.quarter}">Summary</button></span></div>`).join('')
+        : `<p class="issuer-call-notice">The provider has not returned call transcripts for this company. These official earnings filings remain available:</p>${list(earningsFilings, 'No company earnings-call transcript or earnings filing was returned.', filingLink)}`;
+      document.querySelectorAll('[data-call-mode]').forEach(button => { button.onclick = () => openEarningsDocument(ticker, Number(button.dataset.callYear), Number(button.dataset.callQuarter), button.dataset.callMode); });
+      const updated = $('#doc-updated');
+      if (updated) updated.textContent = `Updated ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}`;
     })
-    .catch(() => ['doc-announcements','doc-annual','doc-ratings','doc-concalls'].forEach(id => { const holder = $(`#${id}`); if (holder) holder.innerHTML = '<p class="data-empty">Document data is temporarily unavailable.</p>'; }));
+    .catch(() => ['doc-announcements','doc-annual','doc-quarterly','doc-concalls'].forEach(id => { const holder = $(`#${id}`); if (holder) holder.innerHTML = '<p class="data-empty">Document data is temporarily unavailable.</p>'; }));
 }
 const previousCompanyExtras = hydrateCompanyExtras;
 hydrateCompanyExtras = function(ticker) { previousCompanyExtras(ticker); renderCompanyDocuments(ticker); };

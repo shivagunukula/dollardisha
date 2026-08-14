@@ -934,11 +934,12 @@ createServer(async (req, res) => {
       // These are intentionally independent: one unavailable premium dataset must
       // never stop the rest of a company research page from loading.
       const optional = (path, parameters = {}) => fmp(path, { symbol:ticker, limit:10, ...parameters }).catch(() => []);
-      const [scores, ownerEarnings, earnings, dividends, executives, insiders, estimates, priceTarget, ratings, news] = await Promise.all([
+      const [scores, ownerEarnings, earnings, dividends, executives, insiders, estimates, priceTarget, ratings, news, transcriptDates] = await Promise.all([
         optional('financial-scores'), optional('owner-earnings'), optional('earnings'), optional('dividends'),
         optional('company-executives'), optional('insider-trading/search', { page:0 }),
         optional('analyst-estimates', { period:'annual', page:0 }), optional('price-target-consensus'),
-        optional('ratings-snapshot'), optional('news/stock', { symbols:ticker })
+        optional('ratings-snapshot'), optional('news/stock', { symbols:ticker }),
+        optional('earning-call-transcript-dates')
       ]);
       return send(res, 200, {
         scores: Array.isArray(scores) ? scores[0] || {} : scores || {},
@@ -950,7 +951,44 @@ createServer(async (req, res) => {
         estimates: Array.isArray(estimates) ? estimates.slice(0, 8) : [],
         priceTarget: Array.isArray(priceTarget) ? priceTarget[0] || {} : priceTarget || {},
         ratings: Array.isArray(ratings) ? ratings[0] || {} : ratings || {},
-        news: Array.isArray(news) ? news.slice(0, 10) : []
+        news: Array.isArray(news) ? news.slice(0, 10) : [],
+        transcriptDates: Array.isArray(transcriptDates) ? transcriptDates.slice(0, 12) : []
+      });
+    }
+    if (url.pathname === '/data/earnings-transcript') {
+      const ticker = symbol(url.searchParams.get('symbol'));
+      const year = Number(url.searchParams.get('year'));
+      const quarter = Number(url.searchParams.get('quarter'));
+      if (!ticker || !Number.isInteger(year) || year < 1990 || year > 2100 || ![1, 2, 3, 4].includes(quarter)) return send(res, 400, { error:'A valid symbol, year and quarter are required.' });
+      const response = await fmp('earning-call-transcript', { symbol:ticker, year, quarter }).catch(() => []);
+      const record = Array.isArray(response) ? response[0] : response;
+      const rawContent = String(record?.content || record?.transcript || record?.text || '').trim();
+      if (!rawContent) return send(res, 404, { error:'No earnings-call transcript is available for this period.' });
+      const plainContent = rawContent
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\r/g, '')
+        .replace(/[ \t]+/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+      const sentences = plainContent.replace(/\n+/g, ' ').split(/(?<=[.!?])\s+(?=[A-Z])/).map(value => value.trim()).filter(value => value.length >= 45 && value.length <= 420);
+      const priority = /revenue|sales|margin|earnings|eps|guidance|outlook|demand|growth|cash flow|capital expenditure|inventory|headwind|risk|customer|orders|pricing/i;
+      const selected = [];
+      for (const sentence of [...sentences.filter(value => priority.test(value)), ...sentences]) {
+        const key = sentence.toLowerCase().replace(/[^a-z0-9 ]/g, '').slice(0, 90);
+        if (!key || selected.some(value => value.key === key)) continue;
+        selected.push({ key, text:sentence });
+        if (selected.length === 8) break;
+      }
+      return send(res, 200, {
+        symbol:ticker,
+        year,
+        quarter,
+        date:record?.date || record?.publishedDate || null,
+        title:`${ticker} Q${quarter} ${year} earnings call`,
+        content:plainContent,
+        highlights:selected.map(value => value.text),
+        source:'Company earnings-call transcript supplied by Financial Modeling Prep'
       });
     }
     if (url.pathname === '/data/ownership') {
@@ -1092,7 +1130,11 @@ createServer(async (req, res) => {
                   : 'Company filing';
         items.push({
           accession, form, category, filedAt: recent.filingDate?.[index],
-          reportDate: recent.reportDate?.[index], description: recent.primaryDocDescription?.[index],
+          reportDate: recent.reportDate?.[index],
+          items: recent.items?.[index] || null,
+          description: recent.primaryDocDescription?.[index] && recent.primaryDocDescription[index] !== form
+            ? recent.primaryDocDescription[index]
+            : `${category}${recent.items?.[index] ? ` · Items ${recent.items[index]}` : ''}`,
           url: recent.primaryDocument?.[index] ? `https://www.sec.gov/Archives/edgar/data/${Number(cik)}/${String(accession).replaceAll('-', '')}/${recent.primaryDocument[index]}` : null
         });
         return items;

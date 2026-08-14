@@ -1940,7 +1940,8 @@ html[data-theme="light"] .metric-bars.negative { fill: rgba(210, 82, 96, .54); }
 .issuer-doc-card { min-width: 0; border: 1px solid var(--dd-line); border-radius: 8px; overflow: hidden; background: var(--dd-panel); }
 .issuer-doc-card h3 { margin: 0; padding: 13px 14px; color: var(--dd-text); font-size: 15px; }
 .issuer-doc-tabs { display: flex; gap: 3px; margin: 0 12px 8px; padding: 3px; background: var(--dd-panel); border-radius: 4px; }
-.issuer-doc-tabs span { padding: 5px 7px; color: var(--dd-muted); font-size: 9px; }
+.issuer-doc-tabs button { padding: 5px 7px; border: 0; border-radius: 3px; background: transparent; color: var(--dd-muted); font: inherit; font-size: 9px; cursor: pointer; }
+.issuer-doc-tabs button:hover { color: var(--dd-text); }
 .issuer-doc-tabs .active { background: var(--dd-panel-strong, var(--dd-panel)); color: #9eafff; border-radius: 3px; }
 .issuer-doc-list { max-height: 330px; overflow: auto; }
 .issuer-doc-item { display: block; padding: 10px 13px; border-top: 1px solid var(--dd-line-soft); color: var(--dd-text); text-decoration: none; }
@@ -1957,11 +1958,28 @@ html[data-theme="light"] .metric-bars.negative { fill: rgba(210, 82, 96, .54); }
 .issuer-call-row b, .issuer-call-row small { display: block; }
 .issuer-call-row b { color: #9eafff; font-size: 10px; }
 .issuer-call-row small { margin-top: 4px; color: var(--dd-muted); font-size: 9px; }
+.issuer-call-notice { margin: 0; padding: 10px 12px; border-top: 1px solid var(--dd-line-soft); color: var(--dd-muted); font-size: 9px; line-height: 1.5; }
 .issuer-doc-actions { grid-column: 2; display: flex; gap: 5px; }
-.issuer-doc-actions button { padding: 4px 7px; border: 1px solid var(--dd-line); border-radius: 999px; background: transparent; color: var(--dd-muted); font-size: 8px; }
+.issuer-doc-actions button { padding: 4px 7px; border: 1px solid var(--dd-accent); border-radius: 999px; background: color-mix(in srgb, var(--dd-accent) 10%, transparent); color: var(--dd-accent); font-size: 8px; cursor: pointer; }
+.issuer-doc-actions button:hover { background: color-mix(in srgb, var(--dd-accent) 22%, transparent); color: var(--dd-text); }
+.issuer-doc-search { display: grid; gap: 5px; padding: 8px 12px 10px; border-top: 1px solid var(--dd-line-soft); }
+.issuer-doc-search span { color: var(--dd-muted); font-size: 9px; }
+.issuer-doc-search input { width: 100%; min-width: 0; padding: 8px 9px; border: 1px solid var(--dd-line); border-radius: 6px; background: var(--dd-surface); color: var(--dd-text); font-size: 10px; }
+.earnings-document-reader { position: fixed; z-index: 10000; inset: 0; display: grid; place-items: center; padding: 22px; background: rgba(2, 8, 12, .78); backdrop-filter: blur(8px); }
+.earnings-document-dialog { position: relative; width: min(900px, 100%); max-height: min(820px, 90vh); overflow: hidden; padding: 24px; border: 1px solid var(--dd-line); border-radius: 14px; background: var(--dd-panel); color: var(--dd-text); box-shadow: 0 28px 80px rgba(0, 0, 0, .45); }
+.earnings-document-dialog h2 { margin: 5px 42px 18px 0; font-size: 23px; }
+.earnings-document-close { position: absolute; top: 16px; right: 16px; width: 36px; height: 36px; border: 1px solid var(--dd-line); border-radius: 50%; background: var(--dd-surface); color: var(--dd-text); font-size: 22px; cursor: pointer; }
+.earnings-document-body { max-height: calc(90vh - 115px); overflow: auto; padding-right: 8px; }
+.transcript-source { display: flex; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid var(--dd-line); border-radius: 8px; background: var(--dd-surface); }
+.transcript-source span, .transcript-disclaimer { color: var(--dd-muted); font-size: 10px; }
+.transcript-copy { margin-top: 16px; color: var(--dd-text); font-size: 12px; line-height: 1.75; }
+.transcript-copy p { margin: 0 0 14px; }
+.transcript-highlights { display: grid; gap: 10px; margin: 16px 0; padding-left: 22px; color: var(--dd-text); font-size: 12px; line-height: 1.6; }
+.transcript-highlights li::marker { color: var(--dd-accent); }
+.transcript-disclaimer { padding-top: 12px; border-top: 1px solid var(--dd-line-soft); }
 .filings-source-note { padding: 0 16px 15px; }
 @media (max-width: 1000px) { .issuer-documents-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 580px) { .issuer-documents-grid { grid-template-columns: 1fr; padding: 0 10px 12px; } .issuer-doc-list { max-height: 260px; } }
+@media (max-width: 580px) { .issuer-documents-grid { grid-template-columns: 1fr; padding: 0 10px 12px; } .issuer-doc-list { max-height: 260px; } .earnings-document-reader { padding: 8px; } .earnings-document-dialog { max-height: 96vh; padding: 18px; } .earnings-document-body { max-height: calc(96vh - 105px); } .transcript-source { display: grid; } }
 
 /* Final light-theme coverage.  Keep every research surface readable when the
    theme is switched, including newer charts, ownership, filings and filters. */
