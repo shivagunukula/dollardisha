@@ -315,7 +315,9 @@ function companyView(ticker) { return `<div class="page company-page"><div class
 function companyView(ticker) { return `<div class="page company-page"><div class="company-top"><div><p class="crumb">US EQUITY RESEARCH</p><h1 class="page-title" id="company-title">${escapeHtml(ticker)}</h1><p class="sub" id="company-subtitle">${escapeHtml(ticker)} · Loading company research…</p></div><button class="solid-btn" data-watch="${ticker}">Follow</button></div><nav class="company-tabs"><a href="#overview">Overview</a><a href="#chart">Chart</a><a href="#financials">Financials</a><a href="#ratios">Ratios</a><a href="#peers">Peers</a><a href="#documents">Documents</a></nav><section id="overview" class="panel company-summary"><div class="summary-main"><div><b id="company-price">—</b><span id="company-change">Quote loading…</span></div><p id="company-description">Loading company profile and latest available quote…</p></div><div class="company-metrics"><div><span>Market cap</span><b id="company-cap">—</b></div><div><span>P/E ratio</span><b id="company-pe">—</b></div><div><span>Day high / low</span><b id="company-range">—</b></div><div><span>Volume</span><b id="company-volume">—</b></div><div><span>Sector</span><b id="company-sector">—</b></div><div><span>Website</span><b id="company-site">—</b></div></div></section><section id="chart" class="panel chart-panel"><div class="panel-head"><div><h2>Price & volume</h2><p>One-year daily history · latest available market data</p></div></div><div id="company-chart" class="chart-area">Loading chart…</div></section><div id="financials" class="financial-stack"></div><section id="ratios" class="panel ratios-panel"><div class="panel-head"><div><h2>Key ratios</h2><p>Trailing twelve months where available</p></div></div><div id="company-ratios" class="ratio-grid"><span>Loading ratios…</span></div></section><section id="peers" class="panel documents-panel"><div class="panel-head"><div><h2>Peer comparison</h2><p>Companies in the same sector and industry</p></div></div><div id="company-peers" class="data-empty">Peer data is loading…</div></section><section id="documents" class="panel documents-panel"><div class="panel-head"><div><h2>Recent SEC filings</h2><p>Official documents, direct from the SEC</p></div></div><div id="company-documents" class="data-empty">Loading recent filings…</div></section></div>`; }
 function render() {
   const view = page === 'dashboard' ? dashboardView() : page === 'markets' ? marketsView() : page === 'screener' ? screenerView() : page === 'indexlab' ? indexView() : page === 'research' ? researchView() : page === 'compare' ? compareView() : page === 'watchlist' ? watchlistView() : companyView(page);
-  $('#content').innerHTML = view;
+  const content = $('#content');
+  content.classList.remove('route-ready');
+  content.innerHTML = view;
   document.querySelectorAll('.nav').forEach((button) => button.classList.toggle('active', button.dataset.page === page));
   $('#watch-count').textContent = watchlist.length;
   wireCommon();
@@ -327,7 +329,13 @@ function render() {
   if (page === 'compare') setupCompare();
   if (page === 'watchlist') hydrateWatchlist();
   else { clearTimeout(watchlistRefreshTimer); watchlistRefreshTimer = null; }
-  if (!['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist'].includes(page)) { hydrateCompany(page); hydrateCompanyExtras(page); }
+  if (!['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist'].includes(page)) {
+    const companyPage = content.querySelector('.company-page');
+    if (companyPage) { companyPage.classList.add('company-loading'); companyPage.setAttribute('aria-busy', 'true'); }
+    hydrateCompany(page);
+    hydrateCompanyExtras(page);
+  }
+  requestAnimationFrame(() => activatePageMotion(content));
 }
 
 // Refresh only the live regions on the current screen once per minute. This
@@ -395,6 +403,12 @@ function wireCommon() {
   document.querySelectorAll('[data-stock], [data-market-ticker]').forEach((element) => {
     const target = element.dataset.stock || element.dataset.marketTicker;
     if (!target) return;
+    if (!element.dataset.companyPrefetch) {
+      const prefetchCompany = () => getJson(`/data/company?symbol=${encodeURIComponent(target)}`).catch(() => null);
+      element.addEventListener('pointerenter', prefetchCompany, { once:true, passive:true });
+      element.addEventListener('focus', prefetchCompany, { once:true });
+      element.dataset.companyPrefetch = 'true';
+    }
     if (element.dataset.marketTicker) {
       element.setAttribute('role', 'link');
       element.setAttribute('tabindex', '0');
@@ -1863,6 +1877,96 @@ window.addEventListener('hashchange', () => {
 });
 const initialRoute = routeFromHash();
 if (initialRoute) page = initialRoute;
+
+// Motion system -----------------------------------------------------------
+// Keep motion informative: pages reveal in reading order, company facts
+// settle only after the live profile is ready, and asynchronously inserted
+// research blocks receive a short, non-disruptive highlight.
+let pageRevealObserver = null;
+let contentMotionObserver = null;
+const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function activatePageMotion(content = $('#content')) {
+  if (!content) return;
+  pageRevealObserver?.disconnect();
+  contentMotionObserver?.disconnect();
+  content.classList.add('motion-enabled');
+  const pageRoot = content.querySelector('.page');
+  if (!pageRoot) return;
+  const groupedContainers = new Set(['market-grid', 'dashboard-grid', 'company-overview-stack', 'research-grid', 'financial-stack']);
+  const targets = [];
+  Array.from(pageRoot.children).forEach(child => {
+    const grouped = Array.from(groupedContainers).some(name => child.classList.contains(name));
+    if (grouped) targets.push(...Array.from(child.children));
+    else targets.push(child);
+  });
+  if (pageRoot.classList.contains('company-page')) {
+    targets.push(...Array.from(pageRoot.querySelectorAll('.ratio-board .ratio-cell')));
+  }
+  const uniqueTargets = [...new Set(targets)].filter(element => element && !element.closest('[hidden]'));
+  uniqueTargets.forEach((element, index) => {
+    element.classList.add('motion-reveal');
+    element.style.setProperty('--motion-delay', `${Math.min(index % 7, 6) * 42}ms`);
+    element.addEventListener('animationend', event => {
+      if (event.animationName !== 'dd-reveal') return;
+      element.classList.remove('motion-reveal', 'is-visible');
+      element.style.removeProperty('--motion-delay');
+    }, { once:true });
+  });
+  const show = element => { element.classList.add('is-visible'); pageRevealObserver?.unobserve(element); };
+  if (reduceMotion() || !('IntersectionObserver' in window)) uniqueTargets.forEach(show);
+  else {
+    pageRevealObserver = new IntersectionObserver(entries => entries.forEach(entry => { if (entry.isIntersecting) show(entry.target); }), { threshold:0.08, rootMargin:'0px 0px -5% 0px' });
+    uniqueTargets.forEach(element => pageRevealObserver.observe(element));
+  }
+  requestAnimationFrame(() => content.classList.add('route-ready'));
+
+  if ('MutationObserver' in window && !reduceMotion()) {
+    const pendingPanels = new Set();
+    let frame = 0;
+    contentMotionObserver = new MutationObserver(records => {
+      records.forEach(record => {
+        if (!record.addedNodes.length) return;
+        const panel = record.target.nodeType === 1 ? record.target.closest?.('.panel, .market-card, .financial-panel') : null;
+        if (panel) pendingPanels.add(panel);
+      });
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        pendingPanels.forEach(panel => {
+          panel.classList.remove('content-arrived');
+          void panel.offsetWidth;
+          panel.classList.add('content-arrived');
+          setTimeout(() => panel.classList.remove('content-arrived'), 620);
+        });
+        pendingPanels.clear();
+      });
+    });
+    contentMotionObserver.observe(pageRoot, { childList:true, subtree:true });
+  }
+}
+
+function pulseCompanyFacts() {
+  ['company-title','company-subtitle','company-price','company-change','company-cap','company-pe','company-range','company-description']
+    .map(id => document.getElementById(id)).filter(Boolean).forEach((element, index) => {
+      element.classList.remove('data-settled');
+      element.style.setProperty('--data-delay', `${index * 34}ms`);
+      void element.offsetWidth;
+      element.classList.add('data-settled');
+    });
+}
+
+const hydrateCompanyBeforeMotion = hydrateCompany;
+hydrateCompany = async function(ticker) {
+  const companyPage = document.querySelector('.company-page');
+  try {
+    await hydrateCompanyBeforeMotion(ticker);
+  } finally {
+    if (page !== ticker || !companyPage?.isConnected) return;
+    companyPage.classList.remove('company-loading');
+    companyPage.classList.add('company-ready');
+    companyPage.setAttribute('aria-busy', 'false');
+    pulseCompanyFacts();
+  }
+};
 
 setupTheme();
 setupSearch();
