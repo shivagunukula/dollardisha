@@ -391,6 +391,16 @@ function wireCommon() {
   document.querySelectorAll('[data-page]').forEach((button) => {
     const target = button.dataset.page;
     if (button.tagName === 'A') return;
+    if (button.tagName !== 'BUTTON') {
+      button.setAttribute('role', 'link');
+      button.setAttribute('tabindex', '0');
+      button.onkeydown = event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        navigateTo(target);
+        window.scrollTo(0, 0);
+      };
+    }
     button.setAttribute('title', 'Open with Ctrl/Cmd-click or middle-click in a new tab');
     button.onclick = event => {
       if (event.ctrlKey || event.metaKey) { event.preventDefault(); openRouteInNewTab(target); return; }
@@ -1041,14 +1051,27 @@ function dashboardView() {
   return `<div class="page"><section class="panel dashboard-hero"><p class="crumb">DOLLARDISHA TERMINAL · US EQUITIES</p><div><h1 class="page-title">Research US markets with <span>clarity.</span></h1><p class="sub">Live prices, deep company financials, SEC filings and market intelligence — built for Indian investors studying US equities.</p><div class="hero-actions"><button class="solid-btn" data-page="screener">Explore US stocks</button><button class="link-button" data-page="markets">View market pulse →</button></div></div><div class="hero-proof"><div><b>US</b><small>Equity coverage</small></div><div><b>Live</b><small>Quotes & charts</small></div><div><b>SEC</b><small>Official filings</small></div></div></section><div class="section-header"><div><p class="crumb">MARKET PULSE</p><h2>Major US stocks</h2></div><button class="link-button" data-page="markets">See full market →</button></div><section class="market-grid" id="market-cards">${['NVDA','MSFT','AAPL','GOOGL'].map(ticker => `<div class="market-card" data-market-ticker="${ticker}"><div class="market-card-company">${companyLogo(ticker, ticker)}<span>${ticker}</span></div><strong>Loading…</strong><b>Latest available quote</b></div>`).join('')}</section><section class="dashboard-grid"><div class="panel"><div class="panel-head"><div><h2>Research workflow</h2><p>Start with a question. Build your decision with evidence.</p></div></div><div class="workflow"><button data-page="screener"><b>1</b><span>Screen stocks<small>Filter the US equity universe</small></span></button><button data-page="markets"><b>2</b><span>Read market pulse<small>See leaders, laggards and indices</small></span></button><button data-page="research"><b>3</b><span>Study the filings<small>Open official SEC documents</small></span></button></div></div><div class="panel"><div class="panel-head"><div><h2>Your watchlist</h2><p>${watchlist.length ? `${watchlist.length} saved companies · live values` : 'No companies saved yet'}</p></div><button class="link-button" data-page="watchlist">Open</button></div>${saved || '<div class="watch-empty"><b>Your research list is waiting</b>Add companies from Market Scans or the Stock Screener.</div>'}</div></section></div>`;
 }
 
-// Fill the dashboard's open lower fold with three useful research entry
-// points, while keeping all navigation on the existing single-page router.
+// Dashboard research entry points. Each card is a complete keyboard-accessible
+// destination, not a decorative container around a small link.
+function dashboardInsightCards() {
+  return `<section class="dashboard-insights" aria-label="Research tools">
+    <article class="dashboard-insight" data-page="markets" aria-label="Open live market scans">
+      <span class="insight-icon">↗</span><div><p class="crumb">FIND MOMENTUM</p><h3>Market scans</h3><p>Spot today’s leaders, laggards and unusual volume across the US universe.</p>
+      <div class="insight-preview insight-preview-live"><span>Live leader</span><b id="dashboard-scan-symbol">Loading…</b><small id="dashboard-scan-change">Updating top gainers</small></div><span class="insight-cta">Open live scans →</span></div>
+    </article>
+    <article class="dashboard-insight" data-page="screener" aria-label="Open the US stock screener">
+      <span class="insight-icon">⌕</span><div><p class="crumb">BUILD A VIEW</p><h3>Screen your way</h3><p>Combine valuation, growth and quality filters to create a focused shortlist.</p>
+      <div class="insight-preview"><span>Ready to use</span><b>10 filters</b><small>Mega-cap · value · high ROE · dividend</small></div><span class="insight-cta">Build a screen →</span></div>
+    </article>
+    <article class="dashboard-insight" data-page="screener" aria-label="Choose a company for detailed research">
+      <span class="insight-icon">▦</span><div><p class="crumb">GO DEEPER</p><h3>Company research</h3><p>Choose any active US company, then review its financials, ratios, filings and technicals.</p>
+      <div class="insight-preview"><span>One research page</span><b>Price · EPS · P/E</b><small>Quarterly results · peers · SEC filings</small></div><span class="insight-cta">Choose a company →</span></div>
+    </article>
+  </section>`;
+}
+
+// Preserve the original dashboard renderer for the enhanced hero below.
 const baseDashboardView = dashboardView;
-dashboardView = function() {
-  const html = baseDashboardView();
-  const insights = '<section class="dashboard-insights"><article class="dashboard-insight"><span class="insight-icon">↗</span><div><p class="crumb">FIND MOMENTUM</p><h3>Market scans</h3><p>Spot today’s leaders, laggards and unusual volume across the US universe.</p><button class="link-button" data-page="markets">Open scans →</button></div></article><article class="dashboard-insight"><span class="insight-icon">⌕</span><div><p class="crumb">BUILD A VIEW</p><h3>Screen your way</h3><p>Combine valuation, growth and quality filters to create a focused shortlist.</p><button class="link-button" data-page="screener">Open screener →</button></div></article><article class="dashboard-insight"><span class="insight-icon">▦</span><div><p class="crumb">GO DEEPER</p><h3>Company research</h3><p>Review financials, ratios, filings and technicals on one company page.</p><button class="link-button" data-page="research">Research hub →</button></div></article></section>';
-  return html.replace('<section class="dashboard-grid">', `${insights}<section class="dashboard-grid">`);
-};
 
 // Correctly replace the hero contents (rather than nesting a second copy of
 // the hero) while preserving the original dashboard markup below it.
@@ -1068,7 +1091,7 @@ dashboardView = function() {
   const panel = '<aside class="market-leaders-panel" id="market-leaders-panel"><div class="market-leaders-head"><div><p class="crumb">GLOBAL MARKET PULSE</p><h2>Best-performing markets</h2><small class="market-leaders-subtitle">Compare country benchmarks across every available region.</small></div><small id="market-leaders-updated">Updating...</small></div><div class="market-periods" role="tablist" aria-label="Market performance period"><button type="button" class="selected" data-market-period="day">Day</button><button type="button" data-market-period="week">1W</button><button type="button" data-market-period="month">1M</button><button type="button" data-market-period="ytd">YTD</button><button type="button" data-market-period="3m">3M</button><button type="button" data-market-period="6m">6M</button><button type="button" data-market-period="year">1Y</button><button type="button" data-market-period="3y">3Y</button><button type="button" data-market-period="5y">5Y</button><button type="button" data-market-period="10y">10Y</button></div><div class="market-leader-toolbar"><div class="market-leader-mode"><button type="button" class="selected" data-market-direction="leaders">Leaders</button><button type="button" data-market-direction="laggards">Laggards</button></div><div class="market-filter-group"><select id="market-region-filter" aria-label="Filter by region"><option value="all">All regions</option><option>US</option><option>Europe</option><option>Asia</option><option>India</option><option>Americas</option><option>Asia-Pacific</option><option>Africa</option></select><select id="market-move-filter" aria-label="Filter by minimum move"><option value="0">Any move</option><option value="1">Move 1%+</option><option value="3">Move 3%+</option><option value="5">Move 5%+</option><option value="10">Move 10%+</option></select></div></div><div class="market-leaders-content"><div id="market-leaders-list" class="market-leaders-list"><div class="market-leader-loading">Loading regional performance...</div></div><div id="market-benchmark-details" class="market-benchmark-details"><p class="crumb">SELECT A REGION</p><strong>Benchmark details</strong><small>Click a market to see the country, exchange and benchmark behind the ranking.</small></div></div><button class="link-button market-leaders-link" data-page="markets">View market pulse →</button></aside>';
   const match = polishedHtml.match(/<section class="panel dashboard-hero">([\s\S]*?)<\/section><div class="section-header">/);
   if (!match) return polishedHtml;
-  const insights = '<section class="dashboard-insights"><article class="dashboard-insight"><span class="insight-icon">↗</span><div><p class="crumb">FIND MOMENTUM</p><h3>Market scans</h3><p>Spot today’s leaders, laggards and unusual volume across the US universe.</p><button class="link-button" data-page="markets">Open scans →</button></div></article><article class="dashboard-insight"><span class="insight-icon">⌕</span><div><p class="crumb">BUILD A VIEW</p><h3>Screen your way</h3><p>Combine valuation, growth and quality filters to create a focused shortlist.</p><button class="link-button" data-page="screener">Open screener →</button></div></article><article class="dashboard-insight"><span class="insight-icon">▦</span><div><p class="crumb">GO DEEPER</p><h3>Company research</h3><p>Review financials, ratios, filings and technicals on one company page.</p><button class="link-button" data-page="research">Research hub →</button></div></article></section>';
+  const insights = dashboardInsightCards();
   const hero = `<section class="panel dashboard-hero"><div class="dashboard-hero-layout"><div class="dashboard-hero-copy">${match[1]}</div>${panel}</div></section><div class="section-header">`;
   return polishedHtml.replace(match[0], hero).replace('<section class="dashboard-grid">', `${insights}<section class="dashboard-grid">`);
 };
@@ -1147,6 +1170,21 @@ function setupMarketLeaders() {
 async function hydrateDashboard() {
   setupMarketLeaders();
   hydrateProviderStatus();
+  const insightTask = getJson('/data/market-scan?mode=gainers', 45000).then(rows => {
+    const leader = Array.isArray(rows) ? rows.find(item => scanNumber(item.changesPercentage, item.changePercentage, item.change) !== null) : null;
+    const symbol = $('#dashboard-scan-symbol');
+    const change = $('#dashboard-scan-change');
+    if (!symbol || !change) return;
+    if (!leader) { symbol.textContent = 'Open the live table'; change.textContent = 'Gainers, losers and largest companies'; return; }
+    const move = scanNumber(leader.changesPercentage, leader.changePercentage, leader.change);
+    symbol.textContent = `${leader.symbol || leader.ticker || 'Leader'} ${move !== null ? percent(move) : ''}`.trim();
+    change.textContent = leader.companyName || leader.name || 'Current top gainer';
+  }).catch(() => {
+    const symbol = $('#dashboard-scan-symbol');
+    const change = $('#dashboard-scan-change');
+    if (symbol) symbol.textContent = 'Open the live table';
+    if (change) change.textContent = 'Gainers, losers and largest companies';
+  });
   const quoteTask = getJson('/data/market', 45000).then(quotes => {
     const byTicker = new Map((quotes || []).map(quote => [String(quote.symbol || '').toUpperCase(), quote]));
     document.querySelectorAll('#market-cards .market-card').forEach(card => {
@@ -1180,7 +1218,7 @@ async function hydrateDashboard() {
       value.className = change === null ? '' : Number(change) >= 0 ? 'positive' : 'down';
     });
   }).catch(() => document.querySelectorAll('[data-dashboard-watch] strong').forEach(value => { value.textContent = 'Retry'; })) : Promise.resolve();
-  await Promise.allSettled([quoteTask, watchTask]);
+  await Promise.allSettled([insightTask, quoteTask, watchTask]);
 }
 
 function indexView() {

@@ -474,12 +474,21 @@ tbody tr:nth-child(even) td { background: rgba(255, 255, 255, .012); }
 }
 .workflow button { min-height: 57px; }
 .dashboard-insights { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:0 0 16px; }
-.dashboard-insight { display:flex; align-items:flex-start; gap:12px; min-height:132px; padding:17px; border:1px solid var(--dd-line); border-radius:10px; background:linear-gradient(145deg,var(--dd-panel),var(--dd-panel-strong)); transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease; }
+.dashboard-insight { display:flex; align-items:flex-start; gap:12px; min-height:190px; padding:17px; border:1px solid var(--dd-line); border-radius:10px; background:linear-gradient(145deg,var(--dd-panel),var(--dd-panel-strong)); cursor:pointer; transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease; }
 .dashboard-insight:hover { transform:translateY(-3px); border-color:#4cc9a8; box-shadow:0 14px 30px rgba(0,0,0,.15); }
+.dashboard-insight:focus-visible { outline:3px solid color-mix(in srgb,var(--dd-accent) 55%,transparent); outline-offset:3px; border-color:var(--dd-accent); }
 .dashboard-insight .insight-icon { display:grid; flex:0 0 32px; width:32px; height:32px; place-items:center; border:1px solid rgba(75,211,171,.35); border-radius:9px; background:rgba(75,211,171,.11); color:#62ddb2; font-size:18px; }
+.dashboard-insight>div { display:flex; min-width:0; flex:1; flex-direction:column; align-self:stretch; }
 .dashboard-insight h3 { margin:4px 0 6px; color:var(--dd-text); font-size:15px; }
-.dashboard-insight p:not(.crumb) { margin:0 0 11px; color:var(--dd-muted); font-size:10px; line-height:1.5; }
+.dashboard-insight p:not(.crumb) { margin:0 0 12px; color:var(--dd-muted); font-size:10px; line-height:1.5; }
 .dashboard-insight .link-button { padding:0; font-size:10px; }
+.insight-preview { display:grid; grid-template-columns:auto 1fr; gap:3px 10px; align-items:baseline; margin:auto 0 13px; padding:10px 11px; border:1px solid color-mix(in srgb,var(--dd-line) 76%,var(--dd-accent) 24%); border-radius:8px; background:color-mix(in srgb,var(--dd-surface) 86%,var(--dd-accent) 14%); }
+.insight-preview span { color:var(--dd-muted); font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; }
+.insight-preview b { overflow:hidden; color:var(--dd-text); font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
+.insight-preview small { grid-column:1/-1; overflow:hidden; color:var(--dd-muted); font-size:9px; text-overflow:ellipsis; white-space:nowrap; }
+.insight-preview-live b { color:var(--dd-accent); }
+.insight-cta { color:var(--dd-accent); font-size:10px; font-weight:800; }
+.dashboard-insight:hover .insight-cta { text-decoration:underline; text-underline-offset:3px; }
 @media(max-width:760px){ .dashboard-insights{grid-template-columns:1fr;} .dashboard-insight{min-height:0;} }
 
 /* Keep the auth dialog focused: Google is the primary entry point. */
