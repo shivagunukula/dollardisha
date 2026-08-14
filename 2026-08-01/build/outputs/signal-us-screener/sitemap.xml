@@ -1,8 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://dollardisha.in/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>
-  <url><loc>https://dollardisha.in/about.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://dollardisha.in/methodology.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://dollardisha.in/privacy.html</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
-  <url><loc>https://dollardisha.in/terms.html</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://dollardisha.in/</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>1.0</priority></url>
+  <url><loc>https://dollardisha.in/about.html</loc><lastmod>2026-08-14</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://dollardisha.in/methodology.html</loc><lastmod>2026-08-14</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://dollardisha.in/privacy.html</loc><lastmod>2026-08-14</lastmod><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://dollardisha.in/terms.html</loc><lastmod>2026-08-14</lastmod><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://dollardisha.in/stocks/AAPL</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://dollardisha.in/stocks/MSFT</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://dollardisha.in/stocks/NVDA</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://dollardisha.in/stocks/AMZN</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://dollardisha.in/stocks/GOOGL</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://dollardisha.in/stocks/META</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://dollardisha.in/stocks/TSLA</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://dollardisha.in/stocks/BRK.B</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://dollardisha.in/stocks/AVGO</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://dollardisha.in/stocks/LLY</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://dollardisha.in/stocks/JPM</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://dollardisha.in/stocks/V</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://dollardisha.in/stocks/MA</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://dollardisha.in/stocks/WMT</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://dollardisha.in/stocks/COST</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://dollardisha.in/stocks/NFLX</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://dollardisha.in/stocks/AMD</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://dollardisha.in/stocks/ORCL</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://dollardisha.in/stocks/CRM</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://dollardisha.in/stocks/ADBE</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://dollardisha.in/stocks/KO</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://dollardisha.in/stocks/PEP</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://dollardisha.in/stocks/UNH</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
+  <url><loc>https://dollardisha.in/stocks/XOM</loc><lastmod>2026-08-14</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>
 </urlset>

@@ -32,6 +32,34 @@ const mime = {
   ,'.txt':'text/plain; charset=utf-8'
   ,'.xml':'application/xml; charset=utf-8'
 };
+const startedAt = Date.now();
+const securityHeaders = {
+  'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'; upgrade-insecure-requests",
+  'Cross-Origin-Opener-Policy':'same-origin',
+  'Permissions-Policy':'camera=(), microphone=(), geolocation=()',
+  'Referrer-Policy':'strict-origin-when-cross-origin',
+  'Strict-Transport-Security':'max-age=31536000; includeSubDomains',
+  'X-Content-Type-Options':'nosniff',
+  'X-Frame-Options':'DENY'
+};
+const rateLimits = new Map();
+function clientAddress(req) {
+  return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+}
+function isRateLimited(req, pathname) {
+  if (!pathname.startsWith('/data/') && !pathname.startsWith('/api/')) return false;
+  const windowMs = 60_000;
+  const maximum = pathname === '/data/search' || pathname === '/api/search' ? 90 : 300;
+  const now = Date.now();
+  const id = `${clientAddress(req)}:${pathname}`;
+  const current = rateLimits.get(id);
+  const next = !current || current.resetAt <= now ? { count:1, resetAt:now + windowMs } : { ...current, count:current.count + 1 };
+  rateLimits.set(id, next);
+  if (rateLimits.size > 5000) {
+    for (const [entry, value] of rateLimits) if (value.resetAt <= now) rateLimits.delete(entry);
+  }
+  return next.count > maximum;
+}
 // Tickers are not US-only: global listings can contain digits, dots, slashes
 // and hyphens (for example 000001 or RY.TO). Keep the allow-list tight while
 // allowing the symbols returned by the connected exchange directories.
@@ -717,7 +745,10 @@ async function cacheScreenerRows(rows) {
     database('company_quotes?on_conflict=symbol', { method: 'POST', prefer: 'resolution=merge-duplicates', body: quotes })
   ]).catch(error => console.warn(`Could not cache screener rows: ${error.message}`));
 }
-function send(res, status, data, type = 'application/json; charset=utf-8') { res.writeHead(status, { 'Content-Type': type, 'Cache-Control':'no-store' }); res.end(typeof data === 'string' ? data : JSON.stringify(data)); }
+function send(res, status, data, type = 'application/json; charset=utf-8', extraHeaders = {}) {
+  res.writeHead(status, { ...securityHeaders, 'Content-Type':type, 'Cache-Control':'no-store', ...extraHeaders });
+  res.end(typeof data === 'string' ? data : JSON.stringify(data));
+}
 
 createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
@@ -726,8 +757,20 @@ createServer(async (req, res) => {
     // this header, so old HTTP links are permanently upgraded to HTTPS for
     // visitors and search crawlers.
     if (String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'http') {
-      res.writeHead(301, { Location:`https://${req.headers.host}${req.url}`, 'Cache-Control':'public, max-age=3600' });
+      res.writeHead(301, { ...securityHeaders, Location:`https://${req.headers.host}${req.url}`, 'Cache-Control':'public, max-age=3600' });
       return res.end();
+    }
+    if (url.pathname === '/healthz') {
+      return send(res, 200, {
+        status:'ok',
+        uptimeSeconds:Math.floor((Date.now() - startedAt) / 1000),
+        providers:{ fmp:Boolean(key), twelveData:Boolean(twelveDataKey) },
+        databaseConfigured:Boolean(supabaseUrl && supabaseKey),
+        checkedAt:new Date().toISOString()
+      });
+    }
+    if (isRateLimited(req, url.pathname)) {
+      return send(res, 429, { error:'Too many requests. Please retry shortly.' }, 'application/json; charset=utf-8', { 'Retry-After':'60' });
     }
     if (url.pathname === '/data/auth-config') {
       return send(res, 200, {
@@ -761,10 +804,11 @@ createServer(async (req, res) => {
       if (!ticker) return send(res, 400, { error:'Invalid ticker.' });
       const logo = await currentCompanyLogo(ticker);
       if (!logo?.buffer) {
-        res.writeHead(404, { 'Cache-Control':'public, max-age=3600' });
+        res.writeHead(404, { ...securityHeaders, 'Cache-Control':'public, max-age=3600' });
         return res.end();
       }
       res.writeHead(200, {
+        ...securityHeaders,
         'Content-Type':logo.contentType,
         'Content-Length':logo.buffer.length,
         'Cache-Control':'public, max-age=21600, stale-while-revalidate=86400',
@@ -1163,12 +1207,29 @@ createServer(async (req, res) => {
       await cacheScreenerRows(rows.slice(0, 1500));
       return send(res, 200, rows);
     }
-    const requested = url.pathname === '/' ? 'index.html' : normalize(url.pathname).replace(/^([.][.][\\/])+/, '');
+    const stockRoute = url.pathname.match(/^\/stocks\/([A-Z0-9][A-Z0-9._-]{0,14})\/?$/i);
+    const requested = url.pathname === '/' || stockRoute ? 'index.html' : normalize(url.pathname).replace(/^([.][.][\\/])+/, '');
     if (requested.startsWith('.') || requested.includes('..')) return send(res, 403, 'Forbidden', 'text/plain; charset=utf-8');
     const file = join(root, requested);
-    const data = await readFile(file);
+    let data = await readFile(file);
     const assetName = requested.replace(/^[\\/]+/, '');
+    if (stockRoute && assetName === 'index.html') {
+      const ticker = stockRoute[1].toUpperCase();
+      const canonical = `https://dollardisha.in/stocks/${encodeURIComponent(ticker)}`;
+      const title = `${ticker} Stock Research, Financials & SEC Filings | DollarDisha`;
+      const description = `Research ${ticker} stock price, financial statements, valuation ratios, peers, charts and official SEC filings on DollarDisha.`;
+      data = Buffer.from(data.toString('utf8')
+        .replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`)
+        .replace(/<link rel="canonical" href="[^"]*">/, `<link rel="canonical" href="${canonical}">`)
+        .replace(/<meta property="og:url" content="[^"]*">/, `<meta property="og:url" content="${canonical}">`)
+        .replace(/<meta property="og:title" content="[^"]*">/, `<meta property="og:title" content="${title}">`)
+        .replace(/<meta property="og:description" content="[^"]*">/, `<meta property="og:description" content="${description}">`)
+        .replace(/<meta name="twitter:title" content="[^"]*">/, `<meta name="twitter:title" content="${title}">`)
+        .replace(/<meta name="twitter:description" content="[^"]*">/, `<meta name="twitter:description" content="${description}">`)
+        .replace(/<meta name="description" content="[^"]*">/, `<meta name="description" content="${description}">`));
+    }
     res.writeHead(200, {
+      ...securityHeaders,
       'Content-Type': mime[extname(file).toLowerCase()] || 'application/octet-stream',
       'Cache-Control': ['index.html', 'app.js', 'styles.css', 'ui-refresh.css'].includes(assetName) ? 'no-cache, no-store, must-revalidate' : 'public, max-age=3600'
     });

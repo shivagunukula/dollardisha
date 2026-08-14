@@ -71,6 +71,77 @@ let alerts = JSON.parse(localStorage.getItem('dd-price-alerts') || '[]');
 let authClient = null;
 let authSession = null;
 let authMode = 'login';
+let syncedResearchUser = null;
+let researchSyncTimer = null;
+
+function localResearchState() {
+  return {
+    watchlist:[...new Set(watchlist.map(value => String(value || '').toUpperCase()).filter(Boolean))],
+    custom_index:{ name:String(basket?.name || 'My Index').slice(0, 60), symbols:[...new Set((basket?.symbols || []).map(value => String(value || '').toUpperCase()).filter(Boolean))] },
+    notes:Array.isArray(notes) ? notes : [],
+    alerts:Array.isArray(alerts) ? alerts : []
+  };
+}
+function uniqueResearchItems(...groups) {
+  const seen = new Set();
+  return groups.flat().filter(item => {
+    const id = JSON.stringify(item);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+function saveResearchStateLocally(state) {
+  watchlist = state.watchlist;
+  basket = state.custom_index;
+  notes = state.notes;
+  alerts = state.alerts;
+  try {
+    localStorage.setItem('dd-watchlist', JSON.stringify(watchlist));
+    localStorage.setItem('dd-custom-index', JSON.stringify(basket));
+    localStorage.setItem('dd-research-notes', JSON.stringify(notes));
+    localStorage.setItem('dd-price-alerts', JSON.stringify(alerts));
+    if (basket.name && !legacyIndexNames.has(basket.name)) localStorage.setItem('dd-custom-index-name-set', '1');
+  } catch {}
+}
+async function persistResearchState() {
+  const user = authSession?.user;
+  if (!authClient || !user) return;
+  const state = localResearchState();
+  const { error } = await authClient.from('research_state').upsert({ owner_id:user.id, ...state, updated_at:new Date().toISOString() }, { onConflict:'owner_id' });
+  if (error) console.warn(`Could not sync DollarDisha research state: ${error.message}`);
+}
+function queueResearchStateSync() {
+  if (!authClient || !authSession?.user) return;
+  clearTimeout(researchSyncTimer);
+  researchSyncTimer = setTimeout(persistResearchState, 500);
+}
+async function syncResearchState(user) {
+  if (!authClient || !user || syncedResearchUser === user.id) return;
+  syncedResearchUser = user.id;
+  const local = localResearchState();
+  try {
+    const { data:remote, error } = await authClient.from('research_state').select('watchlist,custom_index,notes,alerts,updated_at').eq('owner_id', user.id).maybeSingle();
+    if (error && error.code !== 'PGRST116') throw error;
+    const remoteIndex = remote?.custom_index && typeof remote.custom_index === 'object' ? remote.custom_index : {};
+    const remoteName = String(remoteIndex.name || '').trim();
+    const merged = {
+      watchlist:[...new Set([...(remote?.watchlist || []), ...local.watchlist].map(value => String(value || '').toUpperCase()).filter(Boolean))],
+      custom_index:{
+        name:remoteName && !legacyIndexNames.has(remoteName) ? remoteName : local.custom_index.name,
+        symbols:[...new Set([...(remoteIndex.symbols || []), ...local.custom_index.symbols].map(value => String(value || '').toUpperCase()).filter(Boolean))]
+      },
+      notes:uniqueResearchItems(remote?.notes || [], local.notes),
+      alerts:uniqueResearchItems(remote?.alerts || [], local.alerts)
+    };
+    saveResearchStateLocally(merged);
+    await persistResearchState();
+    if (['watchlist', 'indexlab', 'research'].includes(page)) render();
+  } catch (error) {
+    syncedResearchUser = null;
+    console.warn(`DollarDisha account sync is unavailable: ${error.message}`);
+  }
+}
 
 const themeMedia = window.matchMedia('(prefers-color-scheme: dark)');
 function applyTheme(mode, persist = true) {
@@ -373,11 +444,19 @@ const routeFromHash = () => {
   const decoded = decodeURIComponent(raw);
   return routeSections.has(decoded) ? null : decoded;
 };
-const routeHref = target => `${window.location.pathname}${window.location.search}#${encodeURIComponent(target)}`;
+const routeFromPath = () => {
+  const match = window.location.pathname.match(/^\/stocks\/([A-Z0-9][A-Z0-9._-]{0,14})\/?$/i);
+  return match ? match[1].toUpperCase() : null;
+};
+const routeFromLocation = () => routeFromPath() || routeFromHash();
+const routeHref = target => {
+  const next = String(target || 'dashboard');
+  return isCompanyRoute(next) ? `/stocks/${encodeURIComponent(next.toUpperCase())}` : `/#${encodeURIComponent(next)}`;
+};
 function navigateTo(target, { replace = false } = {}) {
   const next = String(target || 'dashboard');
   const href = routeHref(next);
-  if (window.location.hash !== `#${encodeURIComponent(next)}`) {
+  if (`${window.location.pathname}${window.location.hash}` !== href) {
     window.history[replace ? 'replaceState' : 'pushState']({ page: next }, '', href);
   }
   page = next;
@@ -439,7 +518,7 @@ function wireCommon() {
       if (event.button === 1 && !event.target.closest('[data-watch]')) { event.preventDefault(); openRouteInNewTab(target); }
     };
   });
-  document.querySelectorAll('[data-watch]').forEach((button) => button.onclick = (event) => { event.stopPropagation(); const ticker = button.dataset.watch; watchlist = watchlist.includes(ticker) ? watchlist.filter((item) => item !== ticker) : [...watchlist, ticker]; localStorage.setItem('dd-watchlist', JSON.stringify(watchlist)); render(); });
+  document.querySelectorAll('[data-watch]').forEach((button) => button.onclick = (event) => { event.stopPropagation(); const ticker = button.dataset.watch; watchlist = watchlist.includes(ticker) ? watchlist.filter((item) => item !== ticker) : [...watchlist, ticker]; localStorage.setItem('dd-watchlist', JSON.stringify(watchlist)); queueResearchStateSync(); render(); });
   document.querySelectorAll('[data-refresh-watchlist]').forEach((button) => button.onclick = () => hydrateWatchlist());
 }
 const jsonRequestCache = new Map();
@@ -707,8 +786,8 @@ function setupScreener() {
   load(false);
 }
 function setupIndex() { const save = () => localStorage.setItem('dd-custom-index', JSON.stringify(basket)); $('#basket-add').onclick = () => { const input = $('#basket-ticker'); const ticker = input.value.trim().toUpperCase(); if (/^[A-Z.]{1,10}$/.test(ticker) && !basket.symbols.includes(ticker)) { basket.symbols.push(ticker); save(); render(); } }; $('#basket-rename').onclick = () => { const name = prompt('Name your index', basket.name); if (name && name.trim()) { basket.name = name.trim(); save(); render(); } }; document.querySelectorAll('[data-remove-basket]').forEach((button) => button.onclick = () => { basket.symbols = basket.symbols.filter((ticker) => ticker !== button.dataset.removeBasket); save(); render(); }); }
-function drawResearchLists() { $('#alerts-list').innerHTML = alerts.map((alert, index) => `<div class="alert-item"><span><b>${alert.ticker}</b> · price ${alert.direction} $${alert.price}</span><button data-delete-alert="${index}">Remove</button></div>`).join('') || '<div class="empty-small">No alert ideas saved yet.</div>'; $('#notes-list').innerHTML = notes.slice().reverse().map((note, index) => `<article class="note-item"><div><b>${note.ticker}</b><small>${note.date}</small></div><p>${escapeHtml(note.text)}</p><button data-delete-note="${notes.length - 1 - index}">Delete</button></article>`).join('') || '<div class="empty-small">No research notes yet.</div>'; document.querySelectorAll('[data-delete-alert]').forEach((button) => button.onclick = () => { alerts.splice(Number(button.dataset.deleteAlert), 1); localStorage.setItem('dd-price-alerts', JSON.stringify(alerts)); drawResearchLists(); }); document.querySelectorAll('[data-delete-note]').forEach((button) => button.onclick = () => { notes.splice(Number(button.dataset.deleteNote), 1); localStorage.setItem('dd-research-notes', JSON.stringify(notes)); drawResearchLists(); }); }
-function setupResearch() { const findFilings = async () => { const ticker = $('#filing-ticker').value.trim().toUpperCase(); if (!/^[A-Z.]{1,10}$/.test(ticker)) return; $('#filing-results').innerHTML = '<p class="sub">Loading official SEC filings…</p>'; try { const data = await getJson(`/data/filings?symbol=${ticker}`); $('#filing-results').innerHTML = `<div class="filing-company"><b>${escapeHtml(data.companyName)}</b><small>${data.symbol} · CIK ${data.cik}</small></div>` + (data.filings || []).map((filing) => `<a class="filing-row" href="${filing.url || '#'}" target="_blank" rel="noreferrer"><span class="filing-form">${escapeHtml(filing.form || 'Filing')}</span><span>${escapeHtml(filing.description || filing.reportDate || 'SEC filing')}<small>Filed ${escapeHtml(filing.filedAt || '—')}</small></span><b>Open ↗</b></a>`).join(''); } catch { $('#filing-results').innerHTML = '<p class="sub">Filings are temporarily unavailable. Try again shortly.</p>'; } }; $('#filing-find').onclick = findFilings; $('#alert-add').onclick = () => { const ticker = $('#alert-ticker').value.trim().toUpperCase(); const price = Number($('#alert-price').value); if (/^[A-Z.]{1,10}$/.test(ticker) && price > 0) { alerts.push({ ticker, price, direction: $('#alert-direction').value }); localStorage.setItem('dd-price-alerts', JSON.stringify(alerts)); drawResearchLists(); } }; $('#note-save').onclick = () => { const ticker = $('#note-ticker').value.trim().toUpperCase(); const text = $('#note-text').value.trim(); if (/^[A-Z.]{1,10}$/.test(ticker) && text) { notes.push({ ticker, text, date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) }); localStorage.setItem('dd-research-notes', JSON.stringify(notes)); $('#note-text').value = ''; drawResearchLists(); } }; drawResearchLists(); }
+function drawResearchLists() { $('#alerts-list').innerHTML = alerts.map((alert, index) => `<div class="alert-item"><span><b>${alert.ticker}</b> · price ${alert.direction} $${alert.price}</span><button data-delete-alert="${index}">Remove</button></div>`).join('') || '<div class="empty-small">No alert ideas saved yet.</div>'; $('#notes-list').innerHTML = notes.slice().reverse().map((note, index) => `<article class="note-item"><div><b>${note.ticker}</b><small>${note.date}</small></div><p>${escapeHtml(note.text)}</p><button data-delete-note="${notes.length - 1 - index}">Delete</button></article>`).join('') || '<div class="empty-small">No research notes yet.</div>'; document.querySelectorAll('[data-delete-alert]').forEach((button) => button.onclick = () => { alerts.splice(Number(button.dataset.deleteAlert), 1); localStorage.setItem('dd-price-alerts', JSON.stringify(alerts)); queueResearchStateSync(); drawResearchLists(); }); document.querySelectorAll('[data-delete-note]').forEach((button) => button.onclick = () => { notes.splice(Number(button.dataset.deleteNote), 1); localStorage.setItem('dd-research-notes', JSON.stringify(notes)); queueResearchStateSync(); drawResearchLists(); }); }
+function setupResearch() { const findFilings = async () => { const ticker = $('#filing-ticker').value.trim().toUpperCase(); if (!/^[A-Z.]{1,10}$/.test(ticker)) return; $('#filing-results').innerHTML = '<p class="sub">Loading official SEC filings…</p>'; try { const data = await getJson(`/data/filings?symbol=${ticker}`); $('#filing-results').innerHTML = `<div class="filing-company"><b>${escapeHtml(data.companyName)}</b><small>${data.symbol} · CIK ${data.cik}</small></div>` + (data.filings || []).map((filing) => `<a class="filing-row" href="${filing.url || '#'}" target="_blank" rel="noreferrer"><span class="filing-form">${escapeHtml(filing.form || 'Filing')}</span><span>${escapeHtml(filing.description || filing.reportDate || 'SEC filing')}<small>Filed ${escapeHtml(filing.filedAt || '—')}</small></span><b>Open ↗</b></a>`).join(''); } catch { $('#filing-results').innerHTML = '<p class="sub">Filings are temporarily unavailable. Try again shortly.</p>'; } }; $('#filing-find').onclick = findFilings; $('#alert-add').onclick = () => { const ticker = $('#alert-ticker').value.trim().toUpperCase(); const price = Number($('#alert-price').value); if (/^[A-Z.]{1,10}$/.test(ticker) && price > 0) { alerts.push({ ticker, price, direction: $('#alert-direction').value }); localStorage.setItem('dd-price-alerts', JSON.stringify(alerts)); queueResearchStateSync(); drawResearchLists(); } }; $('#note-save').onclick = () => { const ticker = $('#note-ticker').value.trim().toUpperCase(); const text = $('#note-text').value.trim(); if (/^[A-Z.]{1,10}$/.test(ticker) && text) { notes.push({ ticker, text, date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) }); localStorage.setItem('dd-research-notes', JSON.stringify(notes)); queueResearchStateSync(); $('#note-text').value = ''; drawResearchLists(); } }; drawResearchLists(); }
 function setupCompare() {
   const readTicker = input => String(input.dataset.symbol || input.value).trim().toUpperCase();
   const wirePicker = (inputId, resultsId) => {
@@ -1232,7 +1311,7 @@ function indexView() {
 }
 
 function setupIndex() {
-  const save = () => localStorage.setItem('dd-custom-index', JSON.stringify(basket));
+  const save = () => { localStorage.setItem('dd-custom-index', JSON.stringify(basket)); queueResearchStateSync(); };
   const nameInput = document.createElement('input');
   const nameSave = document.createElement('button');
   const namePanel = document.createElement('section');
@@ -1457,6 +1536,8 @@ function updateAuthUI(session) {
   button.title = user ? `Signed in as ${email || displayName}` : 'Log in or create a DollarDisha account';
   button.setAttribute('aria-label', user ? `Account: ${email || displayName}` : 'Log in or create a DollarDisha account');
   button.classList.toggle('signed-in', Boolean(user));
+  if (user) syncResearchState(user);
+  else syncedResearchUser = null;
   const signedOut = $('#auth-signed-out');
   const signedIn = $('#auth-signed-in');
   if (signedOut) signedOut.hidden = Boolean(user);
@@ -1966,10 +2047,14 @@ hydrateCompanyExtras = function(ticker) { previousCompanyExtras(ticker); renderC
 // Keep SPA routes shareable and make them usable as real browser tabs. Section
 // anchors on a company page (for example #chart) remain normal in-page links.
 window.addEventListener('hashchange', () => {
-  const next = routeFromHash();
+  const next = routeFromLocation();
   if (next && next !== page) { page = next; render(); window.scrollTo(0, 0); }
 });
-const initialRoute = routeFromHash();
+window.addEventListener('popstate', () => {
+  const next = routeFromLocation() || 'dashboard';
+  if (next !== page) { page = next; render(); window.scrollTo(0, 0); }
+});
+const initialRoute = routeFromLocation();
 if (initialRoute) page = initialRoute;
 
 // Motion system -----------------------------------------------------------

@@ -113,6 +113,17 @@ create table if not exists public.data_sync_runs (
   finished_at timestamptz
 );
 
+-- One private, durable research workspace per signed-in user. The browser
+-- keeps an offline copy and merges it into this row after authentication.
+create table if not exists public.research_state (
+  owner_id uuid primary key references auth.users(id) on delete cascade,
+  watchlist jsonb not null default '[]'::jsonb,
+  custom_index jsonb not null default '{"name":"My Index","symbols":[]}'::jsonb,
+  notes jsonb not null default '[]'::jsonb,
+  alerts jsonb not null default '[]'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
 -- Research data is readable by visitors. Personal data remains private until
 -- DollarDisha sign-in is added; ingestion will use a server-only service key.
 alter table public.companies enable row level security;
@@ -125,9 +136,18 @@ alter table public.watchlist_items enable row level security;
 alter table public.custom_indexes enable row level security;
 alter table public.custom_index_items enable row level security;
 alter table public.data_sync_runs enable row level security;
+alter table public.research_state enable row level security;
 
 create policy "Public can read companies" on public.companies for select using (true);
 create policy "Public can read quotes" on public.company_quotes for select using (true);
 create policy "Public can read financials" on public.company_financials for select using (true);
 create policy "Public can read company events" on public.company_events for select using (true);
 
+drop policy if exists "Users can read own research state" on public.research_state;
+drop policy if exists "Users can create own research state" on public.research_state;
+drop policy if exists "Users can update own research state" on public.research_state;
+drop policy if exists "Users can delete own research state" on public.research_state;
+create policy "Users can read own research state" on public.research_state for select to authenticated using (auth.uid() = owner_id);
+create policy "Users can create own research state" on public.research_state for insert to authenticated with check (auth.uid() = owner_id);
+create policy "Users can update own research state" on public.research_state for update to authenticated using (auth.uid() = owner_id) with check (auth.uid() = owner_id);
+create policy "Users can delete own research state" on public.research_state for delete to authenticated using (auth.uid() = owner_id);
