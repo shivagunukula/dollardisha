@@ -89,3 +89,14 @@ test('durable stock URLs load client assets from the site root', async () => {
   assert.match(html, /src="\/app\.js/);
   assert.doesNotMatch(html, /(?:src|href)="assets\//);
 });
+
+test('live quotes and every stock search share the official Nasdaq fallback directory', async () => {
+  const [client, server] = await Promise.all([read('app.js'), read('server.mjs')]);
+  assert.match(server, /async function nasdaqDirectory\(\)/);
+  assert.match(server, /exchange', 'nasdaq'/);
+  assert.match(server, /async function nasdaqDirectoryQuote\(ticker\)/);
+  assert.match(server, /async function nasdaqDirectorySearch\(query, limit = 8\)/);
+  assert.match(server, /const matches = await nasdaqDirectorySearch\(query\)/);
+  assert.match(server, /return await nasdaqDirectoryQuote\(ticker\)/);
+  assert.ok((client.match(/`\/data\/search\?q=\$\{encodeURIComponent\(query\)\}`/g) || []).length >= 3);
+});

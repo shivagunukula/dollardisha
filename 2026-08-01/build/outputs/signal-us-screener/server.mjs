@@ -342,6 +342,95 @@ async function nasdaqQuote(ticker) {
   const percentage = Number(String(data.percentageChange || '0').replace(/[%+]/g, ''));
   return { symbol: ticker, price, changesPercentage: percentage, previousClose: data.previousClose, provider: 'nasdaq' };
 }
+
+// Nasdaq's official screener is our provider-independent US equity directory.
+// Keep one short-lived server cache so every search box and quote fallback uses
+// the same current NASDAQ listing without exposing either paid-provider key.
+let nasdaqDirectoryCache = { rows: null, expiresAt: 0 };
+async function nasdaqDirectory() {
+  if (nasdaqDirectoryCache.rows && Date.now() < nasdaqDirectoryCache.expiresAt) return nasdaqDirectoryCache.rows;
+  const url = new URL('https://api.nasdaq.com/api/screener/stocks');
+  url.searchParams.set('tableonly', 'true');
+  url.searchParams.set('download', 'true');
+  url.searchParams.set('exchange', 'nasdaq');
+  url.searchParams.set('limit', '10000');
+  url.searchParams.set('offset', '0');
+  const response = await externalFetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 DollarDisha research app',
+      Accept: 'application/json, text/plain, */*'
+    }
+  });
+  if (!response.ok) throw new Error(`Nasdaq directory returned ${response.status}`);
+  const rows = (await response.json()).data?.rows;
+  if (!Array.isArray(rows) || !rows.length) throw new Error('Nasdaq directory returned no listings');
+  nasdaqDirectoryCache = { rows, expiresAt: Date.now() + 60 * 1000 };
+  return rows;
+}
+function nasdaqDirectoryItem(row) {
+  const ticker = symbol(row?.symbol);
+  const cleanName = String(row?.name || ticker)
+    .replace(/\s+(Common Stock|Common Shares?|Class [A-Z] Common Stock)\s*$/i, '')
+    .trim();
+  return normalizeQuote(ticker, {
+    symbol: ticker,
+    name: cleanName || ticker,
+    companyName: cleanName || ticker,
+    price: Number(String(row?.lastsale || '').replace(/[$,]/g, '')),
+    changesPercentage: Number(String(row?.pctchange || '').replace(/[%+,]/g, '')),
+    volume: Number(String(row?.volume || '').replace(/,/g, '')),
+    marketCap: Number(String(row?.marketCap || '').replace(/,/g, '')),
+    sector: row?.sector || null,
+    industry: row?.industry || null,
+    provider: 'nasdaq-directory',
+    providers: ['nasdaq-directory']
+  });
+}
+async function nasdaqDirectoryQuote(ticker) {
+  const row = (await nasdaqDirectory()).find(item => symbol(item.symbol) === ticker);
+  if (!row) throw new Error('Nasdaq directory returned no quote');
+  const quote = nasdaqDirectoryItem(row);
+  if (!Number.isFinite(Number(quote.price))) throw new Error('Nasdaq directory returned no price');
+  return quote;
+}
+async function nasdaqDirectorySearch(query, limit = 8) {
+  const needle = String(query || '').trim().toUpperCase();
+  if (!needle) return [];
+  const rows = (await nasdaqDirectory()).filter(row => {
+    const ticker = symbol(row.symbol);
+    const name = String(row.name || '').toUpperCase();
+    const securityDescription = `${ticker} ${name}`;
+    return securityDescription.includes(needle)
+      && !/(WARRANT|RIGHTS?|PREFERRED|DEPOSITARY SHARES|UNITS?)\b/i.test(name);
+  }).sort((left, right) => {
+    const leftTicker = symbol(left.symbol);
+    const rightTicker = symbol(right.symbol);
+    return Number(rightTicker === needle) - Number(leftTicker === needle)
+      || Number(String(right.name || '').toUpperCase().startsWith(needle)) - Number(String(left.name || '').toUpperCase().startsWith(needle))
+      || leftTicker.localeCompare(rightTicker);
+  });
+  const seen = new Set();
+  return rows.reduce((items, row) => {
+    const item = nasdaqDirectoryItem(row);
+    const companyKey = nasdaqCompanyKey(item.name) || item.symbol;
+    if (items.length >= limit || seen.has(companyKey)) return items;
+    seen.add(companyKey);
+    items.push({
+      symbol: item.symbol,
+      name: item.name,
+      companyName: item.name,
+      exchange: 'NASDAQ',
+      exchangeShortName: 'NASDAQ',
+      price: item.price,
+      changesPercentage: item.changesPercentage,
+      marketCap: item.marketCap,
+      sector: row.sector || null,
+      industry: row.industry || null,
+      provider: 'nasdaq-directory'
+    });
+    return items;
+  }, []);
+}
 function nasdaqCompanyKey(name = '') {
   return String(name).toUpperCase()
     .replace(/\b(CLASS|COMMON STOCK|ORDINARY SHARES?)\s*[A-Z]?\b/g, ' ')
@@ -405,10 +494,14 @@ async function liveQuote(ticker, exchange = '', twelveSymbol = ticker, fmpSymbol
     try { return await combinedQuote({ symbol:ticker, twelveSymbol, exchange, fmpSymbol }); }
     catch (error) {
       console.warn(`Combined quote unavailable for ${ticker}: ${error.message}`);
-      try { return normalizeQuote(ticker, { ...await yahooQuote(ticker), provider:'yahoo', providers:['yahoo'] }); }
-      catch (yahooError) {
-        console.warn(`Yahoo quote unavailable for ${ticker}: ${yahooError.message}`);
-        return normalizeQuote(ticker, { ...await nasdaqQuote(ticker), provider:'nasdaq', providers:['nasdaq'] });
+      try { return normalizeQuote(ticker, { ...await nasdaqQuote(ticker), provider:'nasdaq', providers:['nasdaq'] }); }
+      catch (nasdaqError) {
+        console.warn(`Nasdaq quote unavailable for ${ticker}: ${nasdaqError.message}`);
+        try { return await nasdaqDirectoryQuote(ticker); }
+        catch (directoryError) {
+          console.warn(`Nasdaq directory quote unavailable for ${ticker}: ${directoryError.message}`);
+          return normalizeQuote(ticker, { ...await yahooQuote(ticker), provider:'yahoo', providers:['yahoo'] });
+        }
       }
     }
   })();
@@ -820,11 +913,20 @@ createServer(async (req, res) => {
       const query = url.searchParams.get('q')?.trim();
       if (!query || query.length > 50) return send(res, 400, { error:'Provide a company or ticker to search.' });
       try {
+        const matches = await nasdaqDirectorySearch(query);
+        if (matches.length) return send(res, 200, matches);
+      } catch (error) { console.warn(`Nasdaq directory unavailable: ${error.message}`); }
+      try {
         const matches = await twelveStockSearch(query);
         if (matches.length) return send(res, 200, matches);
       } catch (error) { console.warn(`Twelve Data directory unavailable: ${error.message}`); }
-      const fmpMatches = await fmp('search-name', { query, limit: 30 });
-      return send(res, 200, uniqueNasdaqSearchResults(fmpMatches, query, 8));
+      try {
+        const fmpMatches = await fmp('search-name', { query, limit: 30 });
+        return send(res, 200, uniqueNasdaqSearchResults(fmpMatches, query, 8));
+      } catch (error) {
+        console.warn(`FMP directory unavailable: ${error.message}`);
+        return send(res, 200, []);
+      }
     }
     if (url.pathname === '/data/company' || url.pathname === '/api/company') {
       const ticker = symbol(url.searchParams.get('symbol'));
