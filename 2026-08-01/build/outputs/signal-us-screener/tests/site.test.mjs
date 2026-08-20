@@ -66,3 +66,26 @@ test('research toolkit provides valuation scenarios, earnings calendar and saved
   assert.match(styles, /\.valuation-workspace/);
   assert.match(styles, /\.saved-screen-workspace/);
 });
+
+test('navigation exposes one route per product and company research has no duplicate tabs', async () => {
+  const [html, source] = await Promise.all([read('index.html'), read('app.js')]);
+  assert.equal((html.match(/data-page="toolkit"/g) || []).length, 1);
+
+  const activeCompanyView = source
+    .split('// Company overview: keep the headline facts and the complete ratio explorer')[1]
+    .split('function renderFilteredRatioExplorer')[0];
+  assert.ok(activeCompanyView, 'active company view should be present');
+  assert.match(activeCompanyView, /href="#intelligence">Intelligence<\/a>/);
+  assert.match(activeCompanyView, /href="#documents">Documents<\/a>/);
+  assert.doesNotMatch(activeCompanyView, /href="#updates"/);
+  assert.doesNotMatch(activeCompanyView, /id="updates"/);
+  assert.match(source, /const routeSections = new Set\(\['overview', 'chart', 'strengths', 'quarterly', 'financials', 'peers', 'intelligence', 'documents'\]\)/);
+});
+
+test('durable stock URLs load client assets from the site root', async () => {
+  const html = await read('index.html');
+  assert.match(html, /href="\/styles\.css/);
+  assert.match(html, /href="\/ui-refresh\.css/);
+  assert.match(html, /src="\/app\.js/);
+  assert.doesNotMatch(html, /(?:src|href)="assets\//);
+});
