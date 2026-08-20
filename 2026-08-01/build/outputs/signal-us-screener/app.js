@@ -68,6 +68,8 @@ let indexNameConfirmed = (() => {
 })();
 let notes = JSON.parse(localStorage.getItem('dd-research-notes') || '[]');
 let alerts = JSON.parse(localStorage.getItem('dd-price-alerts') || '[]');
+let savedScreens = JSON.parse(localStorage.getItem('dd-saved-screens') || '[]');
+let valuationCases = JSON.parse(localStorage.getItem('dd-valuation-cases') || '[]');
 let authClient = null;
 let authSession = null;
 let authMode = 'login';
@@ -78,7 +80,11 @@ function localResearchState() {
   return {
     watchlist:[...new Set(watchlist.map(value => String(value || '').toUpperCase()).filter(Boolean))],
     custom_index:{ name:String(basket?.name || 'My Index').slice(0, 60), symbols:[...new Set((basket?.symbols || []).map(value => String(value || '').toUpperCase()).filter(Boolean))] },
-    notes:Array.isArray(notes) ? notes : [],
+    notes:[
+      ...(Array.isArray(notes) ? notes : []),
+      ...(Array.isArray(savedScreens) ? savedScreens : []).map(item => ({ kind:'saved-screen', payload:item })),
+      ...(Array.isArray(valuationCases) ? valuationCases : []).map(item => ({ kind:'valuation-case', payload:item }))
+    ],
     alerts:Array.isArray(alerts) ? alerts : []
   };
 }
@@ -94,13 +100,18 @@ function uniqueResearchItems(...groups) {
 function saveResearchStateLocally(state) {
   watchlist = state.watchlist;
   basket = state.custom_index;
-  notes = state.notes;
+  const syncedItems = Array.isArray(state.notes) ? state.notes : [];
+  notes = syncedItems.filter(item => !item?.kind);
+  savedScreens = syncedItems.filter(item => item?.kind === 'saved-screen' && item.payload).map(item => item.payload);
+  valuationCases = syncedItems.filter(item => item?.kind === 'valuation-case' && item.payload).map(item => item.payload);
   alerts = state.alerts;
   try {
     localStorage.setItem('dd-watchlist', JSON.stringify(watchlist));
     localStorage.setItem('dd-custom-index', JSON.stringify(basket));
     localStorage.setItem('dd-research-notes', JSON.stringify(notes));
     localStorage.setItem('dd-price-alerts', JSON.stringify(alerts));
+    localStorage.setItem('dd-saved-screens', JSON.stringify(savedScreens));
+    localStorage.setItem('dd-valuation-cases', JSON.stringify(valuationCases));
     if (basket.name && !legacyIndexNames.has(basket.name)) localStorage.setItem('dd-custom-index-name-set', '1');
   } catch {}
 }
@@ -136,7 +147,7 @@ async function syncResearchState(user) {
     };
     saveResearchStateLocally(merged);
     await persistResearchState();
-    if (['watchlist', 'indexlab', 'research'].includes(page)) render();
+    if (['watchlist', 'indexlab', 'research', 'screener', 'toolkit'].includes(page)) render();
   } catch (error) {
     syncedResearchUser = null;
     console.warn(`DollarDisha account sync is unavailable: ${error.message}`);
@@ -255,6 +266,7 @@ function screenerView() {
   return `<div class="page">${pageHeader('DISCOVER', 'US stock screener', 'Filter a broad US-equity universe, customise your query and export a research list.')}
   <div class="query-card"><div><b>Build a US equity screen</b><small>Search once, then combine size, liquidity, valuation and quality filters.</small></div><input id="screen-search" placeholder="Search a company or ticker"><button class="solid-btn" id="screen-run">Refresh data</button><button class="link-button" id="export-screen">Export CSV</button></div>
   <div class="screen-presets" aria-label="Quick screening presets"><span>Popular screens</span><button data-screen-preset="mega">Mega-cap leaders</button><button data-screen-preset="value">Profitable value</button><button data-screen-preset="quality">High ROE</button><button data-screen-preset="liquid">Highly liquid</button><button data-screen-preset="dividend">Dividend payers</button><button data-screen-preset="reset">Clear all</button></div>
+  <section class="saved-screen-workspace" aria-label="Saved screens"><div class="saved-screen-create"><div><b>Saved screens</b><small>Keep a reusable filter set in your DollarDisha account.</small></div><label><span>Screen name</span><input id="saved-screen-name" maxlength="50" placeholder="e.g. Profitable technology"></label><button class="solid-btn" id="save-current-screen" type="button">Save current screen</button></div><div id="saved-screen-list" class="saved-screen-list"></div></section>
   <div class="filter-layout"><aside class="filters"><div class="filter-title"><span>Filter stocks</span><b>Active US listings</b></div>
     <div class="filter-fields">
       <label>Sector<select id="screen-sector"><option value="all">All sectors</option><option>Technology</option><option>Healthcare</option><option>Financial Services</option><option>Consumer Cyclical</option><option>Communication Services</option><option>Industrials</option><option>Consumer Defensive</option><option>Energy</option><option>Basic Materials</option><option>Real Estate</option><option>Utilities</option></select></label>
@@ -385,7 +397,7 @@ function setupQuarterlyDetails(holder) {
 function companyView(ticker) { return `<div class="page company-page"><div class="company-top"><div><p class="crumb">US EQUITY RESEARCH</p><h1 class="page-title" id="company-title">${escapeHtml(ticker)}</h1><p class="sub" id="company-subtitle">${escapeHtml(ticker)} · Loading company research…</p></div><button class="solid-btn" data-watch="${ticker}">Follow</button></div><nav class="company-tabs"><a href="#overview">Overview</a><a href="#chart">Chart</a><a href="#financials">Financials</a><a href="#ratios">Ratios</a><a href="#documents">Documents</a></nav><section id="overview" class="panel company-summary"><div class="summary-main"><div><b id="company-price">—</b><span id="company-change">Quote loading…</span></div><p id="company-description">Loading company profile and latest available quote…</p></div><div class="company-metrics"><div><span>Market cap</span><b id="company-cap">—</b></div><div><span>P/E ratio</span><b id="company-pe">—</b></div><div><span>Day high / low</span><b id="company-range">—</b></div><div><span>Volume</span><b id="company-volume">—</b></div><div><span>Sector</span><b id="company-sector">—</b></div><div><span>Website</span><b id="company-site">—</b></div></div></section><section id="chart" class="panel chart-panel"><div class="panel-head"><div><h2>Price & volume</h2><p>One-year daily history · latest available market data</p></div></div><div id="company-chart" class="chart-area">Loading chart…</div></section><div id="financials" class="financial-stack"></div><section id="ratios" class="panel ratios-panel"><div class="panel-head"><div><h2>Key ratios</h2><p>Trailing twelve months where available</p></div></div><div id="company-ratios" class="ratio-grid"><span>Loading ratios…</span></div></section><section class="research-grid"><div class="panel"><div class="panel-head"><div><h2>Research points</h2><p>Automatically calculated only from reported data</p></div></div><div id="company-points" class="research-points"><p class="data-empty">Loading reported financial data…</p></div></div><div class="panel"><div class="panel-head"><div><h2>Peers & ownership</h2><p>Provider coverage varies by company</p></div></div><div class="data-empty">Peer comparison and institutional ownership will appear once the connected data plan supports this company.</div></div></section><section id="documents" class="panel documents-panel"><div class="panel-head"><div><h2>SEC documents</h2><p>Official company filings</p></div><button class="link-button" data-page="research">Open filing search</button></div><div id="company-documents" class="data-empty">Search this ticker in Research Hub to view 10-K, 10-Q and other SEC filings.</div></section></div>`; }
 function companyView(ticker) { return `<div class="page company-page"><div class="company-top"><div><p class="crumb">US EQUITY RESEARCH</p><h1 class="page-title" id="company-title">${escapeHtml(ticker)}</h1><p class="sub" id="company-subtitle">${escapeHtml(ticker)} · Loading company research…</p></div><button class="solid-btn" data-watch="${ticker}">Follow</button></div><nav class="company-tabs"><a href="#overview">Overview</a><a href="#chart">Chart</a><a href="#financials">Financials</a><a href="#ratios">Ratios</a><a href="#peers">Peers</a><a href="#documents">Documents</a></nav><section id="overview" class="panel company-summary"><div class="summary-main"><div><b id="company-price">—</b><span id="company-change">Quote loading…</span></div><p id="company-description">Loading company profile and latest available quote…</p></div><div class="company-metrics"><div><span>Market cap</span><b id="company-cap">—</b></div><div><span>P/E ratio</span><b id="company-pe">—</b></div><div><span>Day high / low</span><b id="company-range">—</b></div><div><span>Volume</span><b id="company-volume">—</b></div><div><span>Sector</span><b id="company-sector">—</b></div><div><span>Website</span><b id="company-site">—</b></div></div></section><section id="chart" class="panel chart-panel"><div class="panel-head"><div><h2>Price & volume</h2><p>One-year daily history · latest available market data</p></div></div><div id="company-chart" class="chart-area">Loading chart…</div></section><div id="financials" class="financial-stack"></div><section id="ratios" class="panel ratios-panel"><div class="panel-head"><div><h2>Key ratios</h2><p>Trailing twelve months where available</p></div></div><div id="company-ratios" class="ratio-grid"><span>Loading ratios…</span></div></section><section id="peers" class="panel documents-panel"><div class="panel-head"><div><h2>Peer comparison</h2><p>Companies in the same sector and industry</p></div></div><div id="company-peers" class="data-empty">Peer data is loading…</div></section><section id="documents" class="panel documents-panel"><div class="panel-head"><div><h2>Recent SEC filings</h2><p>Official documents, direct from the SEC</p></div></div><div id="company-documents" class="data-empty">Loading recent filings…</div></section></div>`; }
 function render() {
-  const view = page === 'dashboard' ? dashboardView() : page === 'markets' ? marketsView() : page === 'screener' ? screenerView() : page === 'indexlab' ? indexView() : page === 'research' ? researchView() : page === 'compare' ? compareView() : page === 'watchlist' ? watchlistView() : companyView(page);
+  const view = page === 'dashboard' ? dashboardView() : page === 'markets' ? marketsView() : page === 'screener' ? screenerView() : page === 'indexlab' ? indexView() : page === 'research' ? researchView() : page === 'compare' ? compareView() : page === 'watchlist' ? watchlistView() : page === 'toolkit' ? toolkitView() : companyView(page);
   const content = $('#content');
   content.classList.remove('route-ready');
   content.innerHTML = view;
@@ -400,7 +412,8 @@ function render() {
   if (page === 'compare') setupCompare();
   if (page === 'watchlist') hydrateWatchlist();
   else { clearTimeout(watchlistRefreshTimer); watchlistRefreshTimer = null; }
-  if (!['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist'].includes(page)) {
+  if (page === 'toolkit') setupToolkit();
+  if (!['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit'].includes(page)) {
     const companyPage = content.querySelector('.company-page');
     if (companyPage) { companyPage.classList.add('company-loading'); companyPage.setAttribute('aria-busy', 'true'); }
     hydrateCompany(page);
@@ -415,7 +428,7 @@ function render() {
 const LIVE_REFRESH_MS = 60 * 1000;
 let liveRefreshTimer = null;
 let liveRefreshBusy = false;
-const isCompanyRoute = route => !['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist'].includes(route);
+const isCompanyRoute = route => !['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit'].includes(route);
 async function refreshLiveData() {
   if (document.hidden || liveRefreshBusy) return;
   liveRefreshBusy = true;
@@ -762,6 +775,45 @@ function setupScreener() {
     dividend: { dividend:'payer', sort:'cap' },
     reset: { sector:'all', exchange:'all', cap:'all', price:'all', pe:'999', roe:'0', eps:'-999999', growth:'-999999', volume:'0', dividend:'all', sort:'cap' }
   };
+  const screenFilterNames = ['sector', 'exchange', 'cap', 'price', 'pe', 'roe', 'eps', 'growth', 'volume', 'dividend', 'sort'];
+  const currentScreenFilters = () => Object.fromEntries(screenFilterNames.map(name => [name, $(`#screen-${name}`)?.value || presets.reset[name]]));
+  const saveScreens = () => {
+    try { localStorage.setItem('dd-saved-screens', JSON.stringify(savedScreens)); } catch {}
+    queueResearchStateSync();
+  };
+  const drawSavedScreens = () => {
+    const holder = $('#saved-screen-list');
+    if (!holder) return;
+    holder.innerHTML = savedScreens.length
+      ? savedScreens.map(item => `<div class="saved-screen-chip"><button type="button" data-load-screen="${escapeHtml(item.id)}"><b>${escapeHtml(item.name)}</b><small>${escapeHtml(item.summary || 'Custom screen')}</small></button><button type="button" data-delete-screen="${escapeHtml(item.id)}" aria-label="Delete ${escapeHtml(item.name)}">×</button></div>`).join('')
+      : '<p>No saved screens yet. Set filters, give the screen a name, and save it here.</p>';
+    holder.querySelectorAll('[data-load-screen]').forEach(button => button.onclick = () => {
+      const item = savedScreens.find(screen => screen.id === button.dataset.loadScreen);
+      if (!item) return;
+      Object.entries(item.filters || {}).forEach(([name, selected]) => { const input = $(`#screen-${name}`); if (input) input.value = selected; });
+      $('#screen-search').value = item.search || '';
+      draw();
+    });
+    holder.querySelectorAll('[data-delete-screen]').forEach(button => button.onclick = () => {
+      savedScreens = savedScreens.filter(screen => screen.id !== button.dataset.deleteScreen);
+      saveScreens();
+      drawSavedScreens();
+    });
+  };
+  $('#save-current-screen').onclick = () => {
+    const input = $('#saved-screen-name');
+    const name = input.value.trim();
+    if (!name) { input.focus(); input.setCustomValidity('Give this screen a name.'); input.reportValidity(); return; }
+    input.setCustomValidity('');
+    const filters = currentScreenFilters();
+    const active = Object.entries(filters).filter(([key, selected]) => selected !== presets.reset[key]).map(([key, selected]) => `${key}: ${selected}`);
+    savedScreens.unshift({ id:`screen-${Date.now()}`, name, filters, search:$('#screen-search').value.trim(), summary:active.slice(0, 3).join(' · ') || 'All active US listings', savedAt:new Date().toISOString() });
+    savedScreens = savedScreens.slice(0, 20);
+    input.value = '';
+    saveScreens();
+    drawSavedScreens();
+  };
+  drawSavedScreens();
   document.querySelectorAll('[data-screen-preset]').forEach(button => button.onclick = () => {
     const preset = presets[button.dataset.screenPreset];
     Object.entries(presets.reset).forEach(([name, selected]) => { const input = $(`#screen-${name}`); if (input) input.value = selected; });
@@ -1146,6 +1198,10 @@ function dashboardInsightCards() {
       <span class="insight-icon">▦</span><div><p class="crumb">GO DEEPER</p><h3>Company research</h3><p>Choose any active US company, then review its financials, ratios, filings and technicals.</p>
       <div class="insight-preview"><span>One research page</span><b>Price · EPS · P/E</b><small>Quarterly results · peers · SEC filings</small></div><span class="insight-cta">Choose a company →</span></div>
     </article>
+    <article class="dashboard-insight" data-page="toolkit" aria-label="Open valuation and earnings toolkit">
+      <span class="insight-icon">%</span><div><p class="crumb">TEST THE THESIS</p><h3>Valuation toolkit</h3><p>Model EPS growth and exit multiples, review upcoming earnings and save reusable cases.</p>
+      <div class="insight-preview"><span>Scenario workspace</span><b>Growth · P/E · return</b><small>Saved cases · earnings calendar · saved screens</small></div><span class="insight-cta">Open toolkit →</span></div>
+    </article>
   </section>`;
 }
 
@@ -1523,7 +1579,7 @@ function updateAuthUI(session) {
   const label = button.querySelector('.account-label');
   const avatar = button.querySelector('.account-avatar');
   const firstName = displayName.trim().split(/\s+/)[0] || 'Account';
-  if (label) label.textContent = user ? firstName : 'Sign in';
+  if (label) label.textContent = user ? firstName : 'Log in';
   if (avatar) {
     if (user) {
       avatar.classList.remove('account-brand-mark');
@@ -1533,8 +1589,8 @@ function updateAuthUI(session) {
       avatar.innerHTML = '<img src="assets/dollardisha-app-icon.png" alt="">';
     }
   }
-  button.title = user ? `Signed in as ${email || displayName}` : 'Log in or create a DollarDisha account';
-  button.setAttribute('aria-label', user ? `Account: ${email || displayName}` : 'Log in or create a DollarDisha account');
+  button.title = user ? `Signed in as ${email || displayName}` : 'Log in to DollarDisha';
+  button.setAttribute('aria-label', user ? `Account: ${email || displayName}` : 'Log in to DollarDisha');
   button.classList.toggle('signed-in', Boolean(user));
   if (user) syncResearchState(user);
   else syncedResearchUser = null;
@@ -2146,6 +2202,152 @@ hydrateCompany = async function(ticker) {
     pulseCompanyFacts();
   }
 };
+
+function toolkitView() {
+  return `<div class="page toolkit-page">${pageHeader('DECISION TOOLS', 'Research Toolkit', 'Turn live company data into a repeatable valuation view, then track the earnings events that can change the thesis.')}
+  <nav class="toolkit-jump" aria-label="Research toolkit sections"><a href="#valuation-lab">Valuation Lab</a><a href="#earnings-calendar">Earnings Calendar</a><a href="#saved-cases">Saved Cases</a><button type="button" data-page="screener">Open saved screens</button></nav>
+  <section id="valuation-lab" class="panel toolkit-valuation"><div class="toolkit-section-head"><div><p class="crumb">VALUATION LAB</p><h2>Build an earnings-multiple scenario</h2><p>Start from the latest reported EPS and live price, then test your own growth, exit multiple and required return.</p></div><span class="toolkit-badge">Scenario, not a price target</span></div>
+    <div class="valuation-search"><label><span>US ticker</span><input id="valuation-symbol" maxlength="10" value="AAPL" placeholder="e.g. AAPL"></label><button id="valuation-load" class="solid-btn" type="button">Load live fundamentals</button><span id="valuation-status" role="status">Ready</span></div>
+    <div class="valuation-workspace"><div class="valuation-inputs"><label>Current price<input id="valuation-price" type="number" step="0.01"></label><label>TTM EPS<input id="valuation-eps" type="number" step="0.01"></label><label>EPS growth / year<input id="valuation-growth" type="number" step="0.1" value="12"><span>%</span></label><label>Exit P/E<input id="valuation-pe" type="number" step="0.1" value="24"><span>x</span></label><label>Required return<input id="valuation-discount" type="number" step="0.1" value="12"><span>%</span></label><label>Forecast period<select id="valuation-years"><option value="3">3 years</option><option value="5" selected>5 years</option><option value="10">10 years</option></select></label></div>
+    <div class="valuation-output" id="valuation-output"><p>Load a company to calculate the scenario.</p></div></div>
+    <div class="valuation-save"><input id="valuation-case-name" maxlength="60" placeholder="Name this case, e.g. Apple base case"><button id="valuation-save" type="button" class="solid-btn">Save valuation case</button></div>
+  </section>
+  <section id="earnings-calendar" class="panel toolkit-calendar"><div class="toolkit-section-head"><div><p class="crumb">EARNINGS CALENDAR</p><h2>Upcoming US company results</h2><p>Provider-reported earnings dates and estimates. Open any ticker directly in DollarDisha research.</p></div><span id="earnings-updated" class="toolkit-badge">Loading calendar</span></div>
+    <div class="calendar-toolbar"><div role="tablist" aria-label="Calendar period"><button class="selected" type="button" data-earnings-period="7">Next 7 days</button><button type="button" data-earnings-period="14">Next 14 days</button><button type="button" data-earnings-period="30">Next 30 days</button><button type="button" data-earnings-period="all">All available</button></div><input id="earnings-search" type="search" placeholder="Filter ticker or company"></div>
+    <div class="table-wrap"><table class="earnings-calendar-table"><thead><tr><th>Date</th><th>Company</th><th>Session</th><th>EPS estimate</th><th>Revenue estimate</th><th></th></tr></thead><tbody id="earnings-calendar-body"><tr><td colspan="6">Loading the earnings calendar...</td></tr></tbody></table></div>
+  </section>
+  <section id="saved-cases" class="panel saved-cases-panel"><div class="toolkit-section-head"><div><p class="crumb">YOUR WORK</p><h2>Saved valuation cases</h2><p>Cases are saved locally and merge into your signed-in research account.</p></div></div><div id="valuation-cases" class="valuation-case-grid"></div></section></div>`;
+}
+
+function setupToolkit() {
+  let companyData = null;
+  let calendarRows = [];
+  let calendarPeriod = '7';
+  const numberFrom = (...values) => scanNumber(...values);
+  const formatMoney = value => Number.isFinite(Number(value)) ? `$${Number(value).toLocaleString('en-US', { maximumFractionDigits:2 })}` : 'Not reported';
+  const saveToolState = () => {
+    try { localStorage.setItem('dd-valuation-cases', JSON.stringify(valuationCases)); } catch {}
+    queueResearchStateSync();
+  };
+  const calculate = () => {
+    const price = Number($('#valuation-price').value);
+    const eps = Number($('#valuation-eps').value);
+    const growth = Number($('#valuation-growth').value) / 100;
+    const exitPe = Number($('#valuation-pe').value);
+    const discount = Number($('#valuation-discount').value) / 100;
+    const years = Number($('#valuation-years').value);
+    const holder = $('#valuation-output');
+    if (![price, eps, growth, exitPe, discount, years].every(Number.isFinite) || price <= 0 || eps <= 0 || exitPe <= 0 || discount <= -1) {
+      holder.innerHTML = '<div class="valuation-warning"><b>Enter positive price, EPS and exit P/E values.</b><span>Loss-making companies need a different valuation method.</span></div>';
+      return null;
+    }
+    const futureEps = eps * ((1 + growth) ** years);
+    const futurePrice = futureEps * exitPe;
+    const presentValue = futurePrice / ((1 + discount) ** years);
+    const upside = ((presentValue / price) - 1) * 100;
+    const annualReturn = (((presentValue / price) ** (1 / years)) - 1) * 100;
+    holder.innerHTML = `<div class="valuation-result-main"><span>Scenario present value</span><strong>${formatMoney(presentValue)}</strong><b class="${upside >= 0 ? 'positive' : 'down'}">${upside >= 0 ? '+' : ''}${upside.toFixed(1)}% vs live price</b></div><div class="valuation-result-grid"><div><span>Future EPS</span><b>${formatMoney(futureEps)}</b></div><div><span>Future value</span><b>${formatMoney(futurePrice)}</b></div><div><span>Annualised return</span><b>${annualReturn.toFixed(1)}%</b></div><div><span>Forecast</span><b>${years} years</b></div></div><p>Formula: EPS growth compounded for ${years} years, valued at ${exitPe.toFixed(1)}x, then discounted at ${(discount * 100).toFixed(1)}%.</p>`;
+    return { price, eps, growth:growth * 100, exitPe, discount:discount * 100, years, futureEps, futurePrice, presentValue, upside, annualReturn };
+  };
+  const loadValuation = async (symbolValue = $('#valuation-symbol').value) => {
+    const ticker = String(symbolValue || '').trim().toUpperCase();
+    if (!/^[A-Z.]{1,10}$/.test(ticker)) return;
+    $('#valuation-symbol').value = ticker;
+    $('#valuation-status').textContent = `Loading ${ticker}...`;
+    try {
+      const data = await getJson(`/data/company?symbol=${encodeURIComponent(ticker)}`, 45000);
+      companyData = data;
+      const quote = data.quote || {};
+      const ratios = data.ratios || {};
+      const metrics = data.metrics || {};
+      const price = numberFrom(quote.price, data.price, data.profile?.price);
+      const pe = numberFrom(quote.pe, ratios.peRatioTTM, ratios.priceEarningsRatioTTM, metrics.peRatioTTM);
+      const eps = numberFrom(ratios.netIncomePerShareTTM, ratios.epsTTM, quote.eps, price && pe ? price / pe : null);
+      if (price !== null) $('#valuation-price').value = Number(price).toFixed(2);
+      if (eps !== null) $('#valuation-eps').value = Number(eps).toFixed(2);
+      if (pe !== null && pe > 0) $('#valuation-pe').value = Math.min(Math.max(Number(pe), 5), 80).toFixed(1);
+      const name = data.profile?.companyName || data.profile?.name || quote.name || ticker;
+      $('#valuation-status').textContent = `${name} · live/latest data loaded`;
+      calculate();
+    } catch {
+      companyData = null;
+      $('#valuation-status').textContent = `${ticker} fundamentals are temporarily unavailable`;
+      calculate();
+    }
+  };
+  const drawCases = () => {
+    const holder = $('#valuation-cases');
+    holder.innerHTML = valuationCases.length ? valuationCases.map(item => `<article class="valuation-case"><div><span>${escapeHtml(item.symbol)}</span><time>${escapeHtml(item.savedLabel || '')}</time></div><h3>${escapeHtml(item.name)}</h3><strong>${formatMoney(item.presentValue)}</strong><p class="${Number(item.upside) >= 0 ? 'positive' : 'down'}">${Number(item.upside) >= 0 ? '+' : ''}${Number(item.upside).toFixed(1)}% scenario upside</p><dl><div><dt>EPS growth</dt><dd>${Number(item.growth).toFixed(1)}%</dd></div><div><dt>Exit P/E</dt><dd>${Number(item.exitPe).toFixed(1)}x</dd></div><div><dt>Period</dt><dd>${item.years}y</dd></div></dl><footer><button type="button" data-open-case="${escapeHtml(item.id)}">Open</button><button type="button" data-delete-case="${escapeHtml(item.id)}">Delete</button></footer></article>`).join('') : '<div class="saved-case-empty"><b>No saved valuation cases yet</b><span>Build a scenario above and save it for later comparison.</span></div>';
+    holder.querySelectorAll('[data-open-case]').forEach(button => button.onclick = () => {
+      const item = valuationCases.find(entry => entry.id === button.dataset.openCase);
+      if (!item) return;
+      $('#valuation-symbol').value = item.symbol;
+      $('#valuation-price').value = item.price;
+      $('#valuation-eps').value = item.eps;
+      $('#valuation-growth').value = item.growth;
+      $('#valuation-pe').value = item.exitPe;
+      $('#valuation-discount').value = item.discount;
+      $('#valuation-years').value = item.years;
+      $('#valuation-status').textContent = `${item.symbol} · saved case loaded`;
+      calculate();
+      document.querySelector('#valuation-lab')?.scrollIntoView({ behavior:'smooth', block:'start' });
+    });
+    holder.querySelectorAll('[data-delete-case]').forEach(button => button.onclick = () => { valuationCases = valuationCases.filter(entry => entry.id !== button.dataset.deleteCase); saveToolState(); drawCases(); });
+  };
+  const normaliseEarnings = row => ({
+    date:String(row.date || row.reportDate || row.fiscalDateEnding || '').slice(0, 10),
+    symbol:String(row.symbol || row.ticker || '').toUpperCase(),
+    name:row.name || row.companyName || row.symbol || row.ticker || 'Company',
+    time:String(row.time || row.session || '').toLowerCase(),
+    eps:numberFrom(row.epsEstimated, row.epsEstimate, row.estimatedEps),
+    revenue:numberFrom(row.revenueEstimated, row.revenueEstimate, row.estimatedRevenue)
+  });
+  const drawCalendar = () => {
+    const search = $('#earnings-search').value.trim().toUpperCase();
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const days = calendarPeriod === 'all' ? Infinity : Number(calendarPeriod);
+    const filtered = calendarRows.filter(row => {
+      const date = new Date(`${row.date}T00:00:00`);
+      const distance = (date - today) / 86400000;
+      return distance >= -1 && distance <= days && (!search || row.symbol.includes(search) || String(row.name).toUpperCase().includes(search));
+    }).slice(0, 80);
+    $('#earnings-calendar-body').innerHTML = filtered.length ? filtered.map(row => {
+      const session = /bmo|before/.test(row.time) ? 'Before open' : /amc|after/.test(row.time) ? 'After close' : 'Time not reported';
+      return `<tr class="company-row" data-stock="${escapeHtml(row.symbol)}"><td><b>${escapeHtml(row.date || 'TBA')}</b></td><td>${companyIdentity(row.symbol, row.name)}</td><td>${session}</td><td>${row.eps === null ? 'Not reported' : formatMoney(row.eps)}</td><td>${row.revenue === null ? 'Not reported' : money(row.revenue)}</td><td><button class="link-button" data-page="${escapeHtml(row.symbol)}">Research</button></td></tr>`;
+    }).join('') : '<tr><td colspan="6">No provider-reported earnings events match this period.</td></tr>';
+    wireCommon();
+  };
+  const loadCalendar = async () => {
+    try {
+      const data = await getJson('/data/calendar', 45000);
+      calendarRows = (Array.isArray(data.earnings) ? data.earnings : []).map(normaliseEarnings).filter(row => row.symbol && row.date).sort((a, b) => a.date.localeCompare(b.date));
+      $('#earnings-updated').textContent = `${calendarRows.length} reported events · updated ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}`;
+      drawCalendar();
+    } catch {
+      $('#earnings-updated').textContent = 'Calendar temporarily unavailable';
+      $('#earnings-calendar-body').innerHTML = '<tr><td colspan="6">The provider calendar could not be loaded. Try again shortly.</td></tr>';
+    }
+  };
+  $('#valuation-load').onclick = () => loadValuation();
+  $('#valuation-symbol').onkeydown = event => { if (event.key === 'Enter') loadValuation(); };
+  ['valuation-price','valuation-eps','valuation-growth','valuation-pe','valuation-discount','valuation-years'].forEach(id => $(`#${id}`).oninput = calculate);
+  $('#valuation-save').onclick = () => {
+    const result = calculate();
+    if (!result) return;
+    const symbol = $('#valuation-symbol').value.trim().toUpperCase();
+    const caseName = $('#valuation-case-name').value.trim() || `${symbol} base case`;
+    valuationCases.unshift({ id:`case-${Date.now()}`, symbol, name:caseName, ...result, savedAt:new Date().toISOString(), savedLabel:new Date().toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) });
+    valuationCases = valuationCases.slice(0, 24);
+    $('#valuation-case-name').value = '';
+    saveToolState();
+    drawCases();
+  };
+  document.querySelectorAll('[data-earnings-period]').forEach(button => button.onclick = () => { calendarPeriod = button.dataset.earningsPeriod; document.querySelectorAll('[data-earnings-period]').forEach(item => item.classList.toggle('selected', item === button)); drawCalendar(); });
+  $('#earnings-search').oninput = drawCalendar;
+  drawCases();
+  loadValuation('AAPL');
+  loadCalendar();
+}
 
 setupTheme();
 setupSearch();

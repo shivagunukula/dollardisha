@@ -48,3 +48,21 @@ test('Supabase schema protects one research workspace per authenticated user', a
   assert.match(schema, /auth\.uid\(\) = owner_id/);
   assert.match(schema, /to authenticated/);
 });
+
+test('research toolkit provides valuation scenarios, earnings calendar and saved screens', async () => {
+  const [html, source, styles, server] = await Promise.all([
+    read('index.html'),
+    read('app.js'),
+    read('ui-refresh.css'),
+    read('server.mjs')
+  ]);
+  assert.match(html, /data-page="toolkit">Toolkit/);
+  assert.match(source, /function toolkitView\(\)/);
+  assert.match(source, /function setupToolkit\(\)/);
+  assert.match(source, /dd-saved-screens/);
+  assert.match(source, /dd-valuation-cases/);
+  assert.match(source, /EPS growth \/ year/);
+  assert.match(server, /url\.pathname === '\/data\/calendar'/);
+  assert.match(styles, /\.valuation-workspace/);
+  assert.match(styles, /\.saved-screen-workspace/);
+});
