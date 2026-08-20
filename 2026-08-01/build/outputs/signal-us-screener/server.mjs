@@ -1202,9 +1202,20 @@ createServer(async (req, res) => {
       return send(res, 200, await marketScan(mode));
     }
     if (url.pathname === '/data/calendar') {
-      const optional = path => fmp(path, { limit:30 }).catch(() => []);
-      const [earnings, dividends, ipos] = await Promise.all([optional('earnings-calendar'), optional('dividends-calendar'), optional('ipos-calendar')]);
-      return send(res, 200, { earnings, dividends, ipos });
+      const fromDate = new Date();
+      fromDate.setUTCDate(fromDate.getUTCDate() - 1);
+      const toDate = new Date();
+      toDate.setUTCDate(toDate.getUTCDate() + 120);
+      const range = { from:fromDate.toISOString().slice(0, 10), to:toDate.toISOString().slice(0, 10) };
+      const optional = (path, parameters = {}) => fmp(path, { ...parameters, limit:250 }).catch(() => []);
+      // FMP's stable calendar requires an explicit date range for future
+      // events. Without it the endpoint can return only old rows or none.
+      const [earnings, dividends, ipos] = await Promise.all([
+        optional('earnings-calendar', range),
+        optional('dividends-calendar', range),
+        optional('ipos-calendar', range)
+      ]);
+      return send(res, 200, { earnings, dividends, ipos, from:range.from, to:range.to, updatedAt:new Date().toISOString() });
     }
     if (url.pathname === '/data/watchlist') {
       const tickers = [...new Set(String(url.searchParams.get('symbols') || '').split(',').map(symbol).filter(Boolean))].slice(0, 30);

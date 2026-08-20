@@ -68,14 +68,21 @@ test('research toolkit provides valuation scenarios, earnings calendar and saved
 });
 
 test('research toolkit search uses the live stock directory and quote feed', async () => {
-  const [source, styles] = await Promise.all([read('app.js'), read('ui-refresh.css')]);
+  const [source, styles, server] = await Promise.all([read('app.js'), read('ui-refresh.css'), read('server.mjs')]);
   assert.match(source, /id="valuation-symbol-results"/);
+  assert.match(source, /id="valuation-company-card"/);
+  assert.match(source, /id="earnings-visible"/);
   assert.match(source, /setupValuationSearch/);
   assert.match(source, /data-valuation-symbol/);
+  assert.match(source, /activeValuationSymbol/);
   assert.match(source, /`\/data\/search\?q=\$\{encodeURIComponent\(query\)\}`/);
   assert.match(source, /`\/data\/watchlist\?symbols=\$\{encodeURIComponent\(symbols\.join\(','\)\)\}`/);
+  assert.match(server, /optional\('earnings-calendar', range\)/);
+  assert.match(server, /toDate\.setUTCDate\(toDate\.getUTCDate\(\) \+ 120\)/);
   assert.match(styles, /\.toolkit-symbol-search/);
   assert.match(styles, /\.valuation-symbol-results/);
+  assert.match(styles, /\.toolkit-company-card/);
+  assert.match(styles, /\.calendar-empty/);
 });
 
 test('navigation exposes one route per product and company research has no duplicate tabs', async () => {

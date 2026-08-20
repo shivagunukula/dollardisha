@@ -2192,16 +2192,18 @@ function toolkitView() {
   return `<div class="page toolkit-page">${pageHeader('DECISION TOOLS', 'Research Toolkit', 'Turn live company data into a repeatable valuation view, then track the earnings events that can change the thesis.')}
   <nav class="toolkit-jump" aria-label="Research toolkit sections"><a href="#valuation-lab">Valuation Lab</a><a href="#earnings-calendar">Earnings Calendar</a><a href="#saved-cases">Saved Cases</a><button type="button" data-page="screener">Open saved screens</button></nav>
   <section id="valuation-lab" class="panel toolkit-valuation"><div class="toolkit-section-head"><div><p class="crumb">VALUATION LAB</p><h2>Build an earnings-multiple scenario</h2><p>Start from the latest reported EPS and live price, then test your own growth, exit multiple and required return.</p></div><span class="toolkit-badge">Scenario, not a price target</span></div>
-    <div class="valuation-search"><label class="toolkit-symbol-search"><span>Search a US company</span><input id="valuation-symbol" maxlength="50" value="AAPL" placeholder="Ticker or company, e.g. AAPL or Apple" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="valuation-symbol-results" aria-expanded="false"><div id="valuation-symbol-results" class="compare-results valuation-symbol-results" hidden></div></label><button id="valuation-load" class="solid-btn" type="button">Load live fundamentals</button><span id="valuation-status" role="status">Ready</span></div>
+    <div class="valuation-search"><label class="toolkit-symbol-search"><span>Search a US company</span><input id="valuation-symbol" maxlength="50" value="AAPL" placeholder="Ticker or company, e.g. AAPL or Apple" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="valuation-symbol-results" aria-expanded="false"><div id="valuation-symbol-results" class="compare-results valuation-symbol-results" hidden></div></label><button id="valuation-load" class="solid-btn" type="button">Load company</button><span id="valuation-status" role="status" aria-live="polite">Ready to load live data</span></div>
+    <div id="valuation-company-card" class="toolkit-company-card" aria-live="polite"><div class="toolkit-company-placeholder"><span>LIVE INPUTS</span><b>Choose a company to populate the valuation model</b><small>DollarDisha will load the latest quote, reported TTM EPS and current P/E where available.</small></div></div>
     <div class="valuation-workspace"><div class="valuation-inputs"><label>Current price<input id="valuation-price" type="number" step="0.01"></label><label>TTM EPS<input id="valuation-eps" type="number" step="0.01"></label><label>EPS growth / year<input id="valuation-growth" type="number" step="0.1" value="12"><span>%</span></label><label>Exit P/E<input id="valuation-pe" type="number" step="0.1" value="24"><span>x</span></label><label>Required return<input id="valuation-discount" type="number" step="0.1" value="12"><span>%</span></label><label>Forecast period<select id="valuation-years"><option value="3">3 years</option><option value="5" selected>5 years</option><option value="10">10 years</option></select></label></div>
     <div class="valuation-output" id="valuation-output"><p>Load a company to calculate the scenario.</p></div></div>
-    <div class="valuation-save"><input id="valuation-case-name" maxlength="60" placeholder="Name this case, e.g. Apple base case"><button id="valuation-save" type="button" class="solid-btn">Save valuation case</button></div>
+    <div class="valuation-save"><input id="valuation-case-name" maxlength="60" placeholder="Name this case, e.g. Apple base case" aria-label="Valuation case name"><button id="valuation-save" type="button" class="solid-btn" disabled>Save valuation case</button></div>
   </section>
   <section id="earnings-calendar" class="panel toolkit-calendar"><div class="toolkit-section-head"><div><p class="crumb">EARNINGS CALENDAR</p><h2>Upcoming US company results</h2><p>Provider-reported earnings dates and estimates. Open any ticker directly in DollarDisha research.</p></div><span id="earnings-updated" class="toolkit-badge">Loading calendar</span></div>
-    <div class="calendar-toolbar"><div role="tablist" aria-label="Calendar period"><button class="selected" type="button" data-earnings-period="7">Next 7 days</button><button type="button" data-earnings-period="14">Next 14 days</button><button type="button" data-earnings-period="30">Next 30 days</button><button type="button" data-earnings-period="all">All available</button></div><input id="earnings-search" type="search" placeholder="Filter ticker or company"></div>
+    <div class="calendar-toolbar"><div role="tablist" aria-label="Calendar period"><button class="selected" type="button" data-earnings-period="7">Next 7 days</button><button type="button" data-earnings-period="14">Next 14 days</button><button type="button" data-earnings-period="30">Next 30 days</button><button type="button" data-earnings-period="all">All available</button></div><label><span class="sr-only">Filter earnings calendar</span><input id="earnings-search" type="search" placeholder="Filter ticker or company"></label></div>
+    <div class="calendar-summary"><span id="earnings-visible">Loading reported events</span><small>Dates and estimates are provider reported and may change.</small></div>
     <div class="table-wrap"><table class="earnings-calendar-table"><thead><tr><th>Date</th><th>Company</th><th>Session</th><th>EPS estimate</th><th>Revenue estimate</th><th></th></tr></thead><tbody id="earnings-calendar-body"><tr><td colspan="6">Loading the earnings calendar...</td></tr></tbody></table></div>
   </section>
-  <section id="saved-cases" class="panel saved-cases-panel"><div class="toolkit-section-head"><div><p class="crumb">YOUR WORK</p><h2>Saved valuation cases</h2><p>Cases are saved locally and merge into your signed-in research account.</p></div></div><div id="valuation-cases" class="valuation-case-grid"></div></section></div>`;
+  <section id="saved-cases" class="panel saved-cases-panel"><div class="toolkit-section-head"><div><p class="crumb">YOUR WORK</p><h2>Saved valuation cases</h2><p>Cases are saved locally and merge into your signed-in research account.</p></div><span id="saved-cases-count" class="toolkit-badge">0 saved cases</span></div><div id="valuation-cases" class="valuation-case-grid"></div></section></div>`;
 }
 
 function setupToolkit() {
@@ -2210,8 +2212,15 @@ function setupToolkit() {
   let calendarPeriod = '7';
   let valuationSearchTimer;
   let valuationSearchRequest = 0;
+  let valuationLoadRequest = 0;
+  let activeValuationSymbol = '';
   const numberFrom = (...values) => scanNumber(...values);
   const formatMoney = value => Number.isFinite(Number(value)) ? `$${Number(value).toLocaleString('en-US', { maximumFractionDigits:2 })}` : 'Not reported';
+  const setValuationStatus = (message, tone = '') => {
+    const status = $('#valuation-status');
+    status.textContent = message;
+    status.dataset.tone = tone;
+  };
   const saveToolState = () => {
     try { localStorage.setItem('dd-valuation-cases', JSON.stringify(valuationCases)); } catch {}
     queueResearchStateSync();
@@ -2225,7 +2234,8 @@ function setupToolkit() {
     const years = Number($('#valuation-years').value);
     const holder = $('#valuation-output');
     if (![price, eps, growth, exitPe, discount, years].every(Number.isFinite) || price <= 0 || eps <= 0 || exitPe <= 0 || discount <= -1) {
-      holder.innerHTML = '<div class="valuation-warning"><b>Enter positive price, EPS and exit P/E values.</b><span>Loss-making companies need a different valuation method.</span></div>';
+      holder.innerHTML = '<div class="valuation-warning"><b>Complete the live inputs and assumptions above.</b><span>Positive EPS is required for this earnings-multiple model. Loss-making companies need a different valuation method.</span></div>';
+      $('#valuation-save').disabled = true;
       return null;
     }
     const futureEps = eps * ((1 + growth) ** years);
@@ -2234,7 +2244,18 @@ function setupToolkit() {
     const upside = ((presentValue / price) - 1) * 100;
     const annualReturn = (((presentValue / price) ** (1 / years)) - 1) * 100;
     holder.innerHTML = `<div class="valuation-result-main"><span>Scenario present value</span><strong>${formatMoney(presentValue)}</strong><b class="${upside >= 0 ? 'positive' : 'down'}">${upside >= 0 ? '+' : ''}${upside.toFixed(1)}% vs live price</b></div><div class="valuation-result-grid"><div><span>Future EPS</span><b>${formatMoney(futureEps)}</b></div><div><span>Future value</span><b>${formatMoney(futurePrice)}</b></div><div><span>Annualised return</span><b>${annualReturn.toFixed(1)}%</b></div><div><span>Forecast</span><b>${years} years</b></div></div><p>Formula: EPS growth compounded for ${years} years, valued at ${exitPe.toFixed(1)}x, then discounted at ${(discount * 100).toFixed(1)}%.</p>`;
+    $('#valuation-save').disabled = !activeValuationSymbol;
     return { price, eps, growth:growth * 100, exitPe, discount:discount * 100, years, futureEps, futurePrice, presentValue, upside, annualReturn };
+  };
+  const drawValuationCompany = (ticker, data, price, eps, pe) => {
+    const profile = data.profile || {};
+    const quote = data.quote || {};
+    const name = profile.companyName || profile.name || quote.name || ticker;
+    const exchange = profile.exchangeShortName || profile.exchange || quote.exchange || 'US';
+    const change = numberFrom(quote.changesPercentage, quote.changePercentage, quote.percentChange);
+    const updated = quote.timestamp ? new Date(Number(quote.timestamp) * (Number(quote.timestamp) < 1e12 ? 1000 : 1)) : new Date();
+    const validTime = !Number.isNaN(updated.getTime());
+    $('#valuation-company-card').innerHTML = `<div class="toolkit-company-identity">${companyLogo(ticker, name, 'large')}<div><span>LIVE COMPANY INPUTS</span><h3>${escapeHtml(name)}</h3><small>${escapeHtml(ticker)} · ${escapeHtml(exchange)}${validTime ? ` · updated ${escapeHtml(updated.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }))}` : ''}</small></div></div><div class="toolkit-company-facts"><div><span>Live price</span><b>${price === null ? 'Not reported' : formatMoney(price)}</b>${change === null ? '' : `<small class="${change >= 0 ? 'positive' : 'down'}">${percent(change)} today</small>`}</div><div><span>TTM EPS</span><b>${eps === null ? 'Not reported' : formatMoney(eps)}</b><small>Latest reported</small></div><div><span>Current P/E</span><b>${pe === null ? 'Not reported' : `${Number(pe).toFixed(1)}x`}</b><small>Price ÷ TTM EPS</small></div></div>`;
   };
   const resolveValuationTicker = async symbolValue => {
     const input = $('#valuation-symbol');
@@ -2243,7 +2264,7 @@ function setupToolkit() {
     if (selected && selected === raw.toUpperCase()) return selected;
     const directTicker = raw.toUpperCase();
     if (raw.length < 2) return /^[A-Z.]{1,10}$/.test(directTicker) ? directTicker : '';
-    $('#valuation-status').textContent = `Finding ${raw} in the live US directory...`;
+    setValuationStatus(`Finding ${raw} in the live US directory...`, 'loading');
     try {
       const matches = await getJson(`/data/search?q=${encodeURIComponent(raw)}`, 15000);
       const exact = matches.find(item => String(item.symbol || item.ticker || '').toUpperCase() === directTicker);
@@ -2253,20 +2274,27 @@ function setupToolkit() {
     }
   };
   const loadValuation = async (symbolValue = $('#valuation-symbol').value) => {
+    const requestId = ++valuationLoadRequest;
     const input = $('#valuation-symbol');
     let ticker = '';
     try { ticker = await resolveValuationTicker(symbolValue); } catch {}
     if (!/^[A-Z.]{1,10}$/.test(ticker)) {
-      $('#valuation-status').textContent = 'Choose a company from the live US stock directory.';
+      setValuationStatus('Choose a company from the live US stock directory.', 'error');
       return;
     }
     input.value = ticker;
     input.dataset.symbol = ticker;
     input.setAttribute('aria-expanded', 'false');
     $('#valuation-symbol-results').hidden = true;
-    $('#valuation-status').textContent = `Loading ${ticker}...`;
+    activeValuationSymbol = '';
+    companyData = null;
+    $('#valuation-price').value = '';
+    $('#valuation-eps').value = '';
+    $('#valuation-save').disabled = true;
+    setValuationStatus(`Loading ${ticker} live quote and fundamentals...`, 'loading');
     try {
       const data = await getJson(`/data/company?symbol=${encodeURIComponent(ticker)}`, 45000);
+      if (requestId !== valuationLoadRequest) return;
       companyData = data;
       const quote = data.quote || {};
       const ratios = data.ratios || {};
@@ -2278,11 +2306,16 @@ function setupToolkit() {
       if (eps !== null) $('#valuation-eps').value = Number(eps).toFixed(2);
       if (pe !== null && pe > 0) $('#valuation-pe').value = Math.min(Math.max(Number(pe), 5), 80).toFixed(1);
       const name = data.profile?.companyName || data.profile?.name || quote.name || ticker;
-      $('#valuation-status').textContent = `${name} · live price and latest reported fundamentals loaded`;
+      activeValuationSymbol = ticker;
+      drawValuationCompany(ticker, data, price, eps, pe);
+      setValuationStatus(`${name} · live price and latest reported fundamentals loaded`, 'success');
       calculate();
     } catch {
+      if (requestId !== valuationLoadRequest) return;
       companyData = null;
-      $('#valuation-status').textContent = `${ticker} fundamentals are temporarily unavailable`;
+      activeValuationSymbol = '';
+      setValuationStatus(`${ticker} fundamentals are temporarily unavailable. Try again shortly.`, 'error');
+      $('#valuation-company-card').innerHTML = `<div class="toolkit-company-placeholder error"><span>DATA UNAVAILABLE</span><b>${escapeHtml(ticker)} could not be loaded</b><small>No values have been invented. Use Load company to retry the live providers.</small></div>`;
       calculate();
     }
   };
@@ -2301,6 +2334,8 @@ function setupToolkit() {
     input.dataset.symbol = 'AAPL';
     input.oninput = () => {
       input.dataset.symbol = '';
+      activeValuationSymbol = '';
+      $('#valuation-save').disabled = true;
       clearTimeout(valuationSearchTimer);
       const query = input.value.trim();
       if (query.length < 2) { close(); results.innerHTML = ''; return; }
@@ -2344,18 +2379,25 @@ function setupToolkit() {
   };
   const drawCases = () => {
     const holder = $('#valuation-cases');
+    $('#saved-cases-count').textContent = `${valuationCases.length} saved ${valuationCases.length === 1 ? 'case' : 'cases'}`;
     holder.innerHTML = valuationCases.length ? valuationCases.map(item => `<article class="valuation-case"><div><span>${escapeHtml(item.symbol)}</span><time>${escapeHtml(item.savedLabel || '')}</time></div><h3>${escapeHtml(item.name)}</h3><strong>${formatMoney(item.presentValue)}</strong><p class="${Number(item.upside) >= 0 ? 'positive' : 'down'}">${Number(item.upside) >= 0 ? '+' : ''}${Number(item.upside).toFixed(1)}% scenario upside</p><dl><div><dt>EPS growth</dt><dd>${Number(item.growth).toFixed(1)}%</dd></div><div><dt>Exit P/E</dt><dd>${Number(item.exitPe).toFixed(1)}x</dd></div><div><dt>Period</dt><dd>${item.years}y</dd></div></dl><footer><button type="button" data-open-case="${escapeHtml(item.id)}">Open</button><button type="button" data-delete-case="${escapeHtml(item.id)}">Delete</button></footer></article>`).join('') : '<div class="saved-case-empty"><b>No saved valuation cases yet</b><span>Build a scenario above and save it for later comparison.</span></div>';
-    holder.querySelectorAll('[data-open-case]').forEach(button => button.onclick = () => {
+    holder.querySelectorAll('[data-open-case]').forEach(button => button.onclick = async () => {
       const item = valuationCases.find(entry => entry.id === button.dataset.openCase);
       if (!item) return;
       $('#valuation-symbol').value = item.symbol;
-      $('#valuation-price').value = item.price;
-      $('#valuation-eps').value = item.eps;
+      $('#valuation-symbol').dataset.symbol = item.symbol;
       $('#valuation-growth').value = item.growth;
       $('#valuation-pe').value = item.exitPe;
       $('#valuation-discount').value = item.discount;
       $('#valuation-years').value = item.years;
-      $('#valuation-status').textContent = `${item.symbol} · saved case loaded`;
+      setValuationStatus(`${item.symbol} · refreshing live inputs for this saved case...`, 'loading');
+      await loadValuation(item.symbol);
+      // Preserve the investor's saved assumptions while refreshing the quote
+      // and reported EPS used as the model's starting point.
+      $('#valuation-growth').value = item.growth;
+      $('#valuation-pe').value = item.exitPe;
+      $('#valuation-discount').value = item.discount;
+      $('#valuation-years').value = item.years;
       calculate();
       document.querySelector('#valuation-lab')?.scrollIntoView({ behavior:'smooth', block:'start' });
     });
@@ -2378,11 +2420,17 @@ function setupToolkit() {
       const distance = (date - today) / 86400000;
       return distance >= -1 && distance <= days && (!search || row.symbol.includes(search) || String(row.name).toUpperCase().includes(search));
     }).slice(0, 80);
+    $('#earnings-visible').textContent = `${filtered.length} ${filtered.length === 1 ? 'event' : 'events'} shown${calendarRows.length ? ` from ${calendarRows.length} reported` : ''}`;
     $('#earnings-calendar-body').innerHTML = filtered.length ? filtered.map(row => {
       const session = /bmo|before/.test(row.time) ? 'Before open' : /amc|after/.test(row.time) ? 'After close' : 'Time not reported';
       return `<tr class="company-row" data-stock="${escapeHtml(row.symbol)}"><td><b>${escapeHtml(row.date || 'TBA')}</b></td><td>${companyIdentity(row.symbol, row.name)}</td><td>${session}</td><td>${row.eps === null ? 'Not reported' : formatMoney(row.eps)}</td><td>${row.revenue === null ? 'Not reported' : money(row.revenue)}</td><td><button class="link-button" data-page="${escapeHtml(row.symbol)}">Research</button></td></tr>`;
-    }).join('') : '<tr><td colspan="6">No provider-reported earnings events match this period.</td></tr>';
+    }).join('') : `<tr><td colspan="6"><div class="calendar-empty"><b>No reported earnings match this view</b><span>${search ? 'Clear the company filter or widen the date range.' : 'Widen the date range to see all provider-reported events.'}</span><button type="button" data-show-all-earnings>Show all available</button></div></td></tr>`;
     wireCommon();
+    document.querySelector('[data-show-all-earnings]')?.addEventListener('click', () => {
+      calendarPeriod = 'all';
+      document.querySelectorAll('[data-earnings-period]').forEach(item => item.classList.toggle('selected', item.dataset.earningsPeriod === 'all'));
+      drawCalendar();
+    });
   };
   const loadCalendar = async () => {
     try {
@@ -2392,6 +2440,7 @@ function setupToolkit() {
       drawCalendar();
     } catch {
       $('#earnings-updated').textContent = 'Calendar temporarily unavailable';
+      $('#earnings-visible').textContent = 'Live calendar unavailable';
       $('#earnings-calendar-body').innerHTML = '<tr><td colspan="6">The provider calendar could not be loaded. Try again shortly.</td></tr>';
     }
   };
@@ -2402,12 +2451,17 @@ function setupToolkit() {
     const result = calculate();
     if (!result) return;
     const symbol = $('#valuation-symbol').value.trim().toUpperCase();
+    if (!activeValuationSymbol || symbol !== activeValuationSymbol) {
+      setValuationStatus('Load the selected company before saving this case.', 'error');
+      return;
+    }
     const caseName = $('#valuation-case-name').value.trim() || `${symbol} base case`;
     valuationCases.unshift({ id:`case-${Date.now()}`, symbol, name:caseName, ...result, savedAt:new Date().toISOString(), savedLabel:new Date().toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) });
     valuationCases = valuationCases.slice(0, 24);
     $('#valuation-case-name').value = '';
     saveToolState();
     drawCases();
+    setValuationStatus(`${caseName} saved to your research workspace.`, 'success');
   };
   document.querySelectorAll('[data-earnings-period]').forEach(button => button.onclick = () => { calendarPeriod = button.dataset.earningsPeriod; document.querySelectorAll('[data-earnings-period]').forEach(item => item.classList.toggle('selected', item === button)); drawCalendar(); });
   $('#earnings-search').oninput = drawCalendar;
