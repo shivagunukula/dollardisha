@@ -100,3 +100,9 @@ test('live quotes and every stock search share the official Nasdaq fallback dire
   assert.match(server, /return await nasdaqDirectoryQuote\(ticker\)/);
   assert.ok((client.match(/`\/data\/search\?q=\$\{encodeURIComponent\(query\)\}`/g) || []).length >= 3);
 });
+
+test('homepage live quote cards retain their ticker bindings', async () => {
+  const client = await read('app.js');
+  assert.match(client, /data-market-ticker="\$\{ticker\}"/);
+  assert.match(client, /byTicker\.get\(card\.dataset\.marketTicker\)/);
+});
