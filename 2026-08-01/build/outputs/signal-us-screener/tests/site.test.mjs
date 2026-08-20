@@ -67,6 +67,17 @@ test('research toolkit provides valuation scenarios, earnings calendar and saved
   assert.match(styles, /\.saved-screen-workspace/);
 });
 
+test('research toolkit search uses the live stock directory and quote feed', async () => {
+  const [source, styles] = await Promise.all([read('app.js'), read('ui-refresh.css')]);
+  assert.match(source, /id="valuation-symbol-results"/);
+  assert.match(source, /setupValuationSearch/);
+  assert.match(source, /data-valuation-symbol/);
+  assert.match(source, /`\/data\/search\?q=\$\{encodeURIComponent\(query\)\}`/);
+  assert.match(source, /`\/data\/watchlist\?symbols=\$\{encodeURIComponent\(symbols\.join\(','\)\)\}`/);
+  assert.match(styles, /\.toolkit-symbol-search/);
+  assert.match(styles, /\.valuation-symbol-results/);
+});
+
 test('navigation exposes one route per product and company research has no duplicate tabs', async () => {
   const [html, source] = await Promise.all([read('index.html'), read('app.js')]);
   assert.equal((html.match(/data-page="toolkit"/g) || []).length, 1);

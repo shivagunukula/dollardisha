@@ -2544,6 +2544,10 @@ button,.link-button,.solid-btn{transition:transform .15s ease,background-color .
 .toolkit-section-head p:not(.crumb){margin:0;max-width:700px;color:var(--muted);font-size:12px;line-height:1.55}
 .toolkit-badge{display:inline-flex;align-items:center;min-height:28px;border:1px solid color-mix(in srgb,var(--green) 44%,var(--line));border-radius:999px;background:color-mix(in srgb,var(--green) 10%,var(--card));color:var(--green);padding:0 11px;font:700 9px Inter;letter-spacing:.05em;white-space:nowrap}
 .valuation-search{display:grid;grid-template-columns:minmax(220px,1fr) auto minmax(220px,1fr);align-items:end;gap:10px;padding:18px 24px;border-bottom:1px solid var(--line)}
+.toolkit-symbol-search{position:relative;min-width:0}
+.valuation-symbol-results{top:calc(100% + 7px);min-width:min(520px,90vw)}
+.valuation-symbol-results button>span{min-width:0;flex:1}
+.valuation-symbol-results button>em{font-size:10px;color:var(--green)}
 .valuation-search label,.valuation-inputs label,.saved-screen-create label{display:grid;gap:7px;color:var(--muted);font:700 10px Inter}
 .valuation-search input,.valuation-inputs input,.valuation-inputs select,.valuation-save input,.calendar-toolbar input,.saved-screen-create input{box-sizing:border-box;width:100%;min-height:40px;border:1px solid var(--line);border-radius:9px;background:var(--paper);color:var(--ink);padding:0 12px;font:600 12px Inter;outline:0}
 .valuation-search input:focus,.valuation-inputs input:focus,.valuation-inputs select:focus,.valuation-save input:focus,.calendar-toolbar input:focus,.saved-screen-create input:focus{border-color:var(--green);box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 14%,transparent)}
