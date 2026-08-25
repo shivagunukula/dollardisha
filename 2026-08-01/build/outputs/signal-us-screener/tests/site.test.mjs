@@ -146,3 +146,13 @@ test('market and screener views stay useful during partial provider coverage', a
   assert.match(server, /name: asset\.name, symbol: asset\.symbol/);
   assert.match(server, /const liveRows = rows\.filter\(item => item\.dataStatus !== 'unavailable'\)/);
 });
+
+test('phone and tablet layouts contain every tool without widening the page', async () => {
+  const [html, styles] = await Promise.all([read('index.html'), read('ui-refresh.css')]);
+  assert.match(html, /ui-refresh\.css\?v=20260825-mobile-audit/);
+  assert.match(styles, /Complete phone and tablet containment pass/);
+  assert.match(styles, /@media \(max-width: 900px\)[\s\S]*?\.toolkit-page[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(styles, /@media \(max-width: 760px\)[\s\S]*?\.filter-layout[\s\S]*?\.index-lab-grid/);
+  assert.match(styles, /\.table-wrap \{[\s\S]*?overflow-x: auto !important/);
+  assert.match(styles, /\.auth-dialog \{[\s\S]*?max-height: calc\(100dvh/);
+});

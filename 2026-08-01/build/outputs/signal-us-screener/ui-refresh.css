@@ -2605,3 +2605,192 @@ button,.link-button,.solid-btn{transition:transform .15s ease,background-color .
 .saved-screen-chip{display:flex;flex:0 0 auto;border:1px solid var(--line);border-radius:10px;background:var(--paper);overflow:hidden}.saved-screen-chip button{border:0;background:transparent;color:var(--muted);padding:8px 10px;cursor:pointer}.saved-screen-chip button:first-child{display:grid;gap:2px;text-align:left}.saved-screen-chip b{color:var(--ink);font-size:10px}.saved-screen-chip small{font-size:8px}.saved-screen-chip button:last-child{border-left:1px solid var(--line);font-size:16px}.saved-screen-chip:hover{border-color:var(--green)}
 @media(max-width:900px){.toolkit-jump{top:154px;overflow:auto}.valuation-search{grid-template-columns:1fr auto}.valuation-search #valuation-status{grid-column:1/-1}.toolkit-company-card{grid-template-columns:1fr;margin:0 24px}.toolkit-company-identity{border-right:0;border-bottom:1px solid var(--line)}.valuation-workspace{grid-template-columns:1fr}.valuation-case-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.saved-screen-create{grid-template-columns:1fr 1fr}.saved-screen-create>div{grid-column:1/-1}}
 @media(max-width:620px){.toolkit-jump{position:static}.toolkit-section-head{padding:18px;flex-direction:column}.valuation-search,.valuation-workspace{padding:16px 18px}.valuation-search{grid-template-columns:1fr}.toolkit-company-card{margin:0 18px}.toolkit-company-facts{grid-template-columns:1fr}.toolkit-company-facts>div{grid-template-columns:1fr auto;align-items:center;border-left:0;border-top:1px solid var(--line);padding:11px 16px}.toolkit-company-facts>div small{grid-column:1/-1}.valuation-inputs{grid-template-columns:1fr 1fr}.valuation-save{grid-template-columns:1fr;padding:0 18px 18px}.calendar-toolbar{align-items:stretch;flex-direction:column;padding:12px 18px}.calendar-toolbar label{width:100%}.calendar-summary{align-items:flex-start;flex-direction:column;padding:9px 18px}.valuation-case-grid{grid-template-columns:1fr;padding:16px 18px}.saved-screen-create{grid-template-columns:1fr}.saved-screen-create>div{grid-column:auto}}
+
+/* Complete phone and tablet containment pass. Wide research tables remain
+   swipeable inside their own cards instead of widening the whole document. */
+@media (max-width: 900px) {
+  .toolkit-page {
+    grid-template-columns: minmax(0, 1fr) !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  .toolkit-page > *,
+  .toolkit-valuation,
+  .toolkit-calendar,
+  .saved-cases-panel,
+  .toolkit-section-head,
+  .valuation-search,
+  .valuation-workspace,
+  .valuation-save,
+  .calendar-toolbar,
+  .calendar-summary,
+  .valuation-case-grid,
+  .toolkit-page .table-wrap {
+    box-sizing: border-box;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  .toolkit-page .table-wrap {
+    width: 100% !important;
+    overflow-x: auto !important;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 760px) {
+  .page,
+  .page > *,
+  .toolkit-page,
+  .toolkit-page > *,
+  .filter-layout,
+  .filter-layout > *,
+  .index-lab-grid,
+  .index-lab-grid > *,
+  .dashboard-grid,
+  .dashboard-grid > *,
+  .detail-grid,
+  .detail-grid > *,
+  .research-grid,
+  .research-grid > * {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .toolkit-page,
+  .index-lab-grid,
+  .dashboard-grid,
+  .detail-grid,
+  .research-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .section-header,
+  .toolkit-jump,
+  .toolkit-valuation,
+  .toolkit-calendar,
+  .saved-cases-panel,
+  .toolkit-section-head,
+  .valuation-search,
+  .valuation-workspace,
+  .valuation-save,
+  .calendar-toolbar,
+  .calendar-summary,
+  .valuation-case-grid,
+  .saved-screen-workspace,
+  .saved-screen-create {
+    box-sizing: border-box;
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .section-header > div,
+  .toolkit-section-head > div,
+  .calendar-summary > *,
+  .panel-head > div,
+  .toolkit-company-identity > div {
+    min-width: 0;
+  }
+
+  .section-header .sub,
+  .toolkit-section-head h2,
+  .toolkit-section-head p,
+  .toolkit-company-placeholder b,
+  .toolkit-company-placeholder small {
+    overflow-wrap: anywhere;
+  }
+
+  .toolkit-jump {
+    display: flex;
+    overflow-x: auto !important;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+  .toolkit-jump::-webkit-scrollbar { display: none; }
+  .toolkit-jump a,
+  .toolkit-jump button { flex: 0 0 auto; }
+
+  .filter-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) !important;
+    overflow: visible !important;
+  }
+  .filters,
+  .table-panel { width: 100% !important; min-width: 0 !important; }
+  .filter-fields { grid-template-columns: minmax(0, 1fr) !important; }
+  .screen-presets { max-width: 100%; overflow-x: auto; }
+
+  .panel,
+  .table-panel,
+  .table-wrap {
+    box-sizing: border-box;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  .table-wrap { width: 100% !important; }
+
+  .toolkit-company-card {
+    box-sizing: border-box;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    margin-inline: 18px !important;
+  }
+  .toolkit-company-identity,
+  .toolkit-company-facts,
+  .valuation-inputs,
+  .valuation-output { min-width: 0 !important; max-width: 100% !important; }
+
+  .index-hero { box-sizing: border-box; width: 100%; min-width: 0; }
+  .index-actions { display: grid !important; grid-template-columns: minmax(0, 1fr) auto; }
+  .index-actions input { min-width: 0; }
+
+  .company-page,
+  .company-page > *,
+  .company-summary,
+  .company-metrics,
+  .company-research-card,
+  .ratio-board,
+  .ratio-explorer,
+  .chart-panel,
+  .chart-area,
+  .financial-stack,
+  .financial-panel,
+  .documents-panel,
+  .intelligence-grid {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .chart-area svg,
+  .chart-area canvas { max-width: 100%; }
+
+  .auth-overlay { padding-top: env(safe-area-inset-top); }
+  .auth-dialog {
+    box-sizing: border-box;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: calc(100dvh - env(safe-area-inset-top));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+@media (max-width: 480px) {
+  .toolkit-section-head { padding: 16px 14px !important; }
+  .toolkit-section-head h2 { font-size: 19px; line-height: 1.2; }
+  .valuation-search,
+  .valuation-workspace { padding: 14px !important; }
+  .valuation-save { padding: 0 14px 14px !important; }
+  .toolkit-company-card { margin-inline: 14px !important; }
+  .valuation-inputs { grid-template-columns: minmax(0, 1fr) !important; }
+  .valuation-result-grid { grid-template-columns: minmax(0, 1fr); }
+  .calendar-toolbar,
+  .calendar-summary { padding-inline: 14px !important; }
+  .valuation-case-grid { padding: 14px !important; }
+  .index-actions { grid-template-columns: minmax(0, 1fr) !important; }
+  .index-actions .solid-btn { width: 100%; }
+  .saved-screen-create { padding: 12px !important; }
+  .auth-dialog { padding-bottom: calc(22px + env(safe-area-inset-bottom)); }
+}
