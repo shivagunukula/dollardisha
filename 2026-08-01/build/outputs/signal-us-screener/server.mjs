@@ -552,7 +552,7 @@ const globalMarketDefinitions = {
     { name:'Gold', symbol:'GC=F', fmp:'GCUSD', twelve:'XAU/USD' },
     { name:'Silver', symbol:'SI=F', fmp:'SIUSD', twelve:'XAG/USD' },
     { name:'Crude oil', symbol:'CL=F', fmp:'CLUSD', twelve:'WTI/USD' },
-    { name:'Brent crude', symbol:'BZ=F', fmp:'BZOUSD', twelve:'BRENT/USD' },
+    { name:'Brent crude', symbol:'BZ=F', fmp:'BZUSD', twelve:'BRENT/USD' },
     { name:'Natural gas', symbol:'NG=F', fmp:'NGUSD', twelve:'NATURALGAS/USD' },
     { name:'Copper', symbol:'HG=F', fmp:'HGUSD', twelve:'COPPER/USD' }
   ],
@@ -591,9 +591,11 @@ async function globalMarketPulse() {
       const load = group => Promise.all(group.map(async asset => {
         const quote = await globalAssetQuote(asset);
         return {
-          name: asset.name, symbol: asset.symbol, region: asset.region || null,
-          exchange: asset.exchange || null,
           ...quote,
+          // Provider payloads sometimes omit or replace a display name. Our
+          // curated labels identify the benchmark/commodity consistently.
+          name: asset.name, symbol: asset.symbol, region: asset.region || null,
+          exchange: asset.exchange || quote.exchange || null,
           dataStatus: quote.price !== null && quote.price !== undefined && quote.price !== '' && Number.isFinite(Number(quote.price)) ? 'live-or-latest' : 'unavailable'
         };
       }));
@@ -604,8 +606,9 @@ async function globalMarketPulse() {
       ]);
       const regions = [...new Set(globalMarketDefinitions.indices.map(item => item.region))].map(region => {
         const rows = indices.filter(item => item.region === region);
-        const changes = rows.map(item => Number(item.changesPercentage)).filter(Number.isFinite);
-        return { region, change:changes.length ? changes.reduce((sum, value) => sum + value, 0) / changes.length : null, breadth:rows.filter(item => Number(item.changesPercentage) >= 0).length, total:rows.length };
+        const liveRows = rows.filter(item => item.dataStatus !== 'unavailable');
+        const changes = liveRows.map(item => Number(item.changesPercentage)).filter(Number.isFinite);
+        return { region, change:changes.length ? changes.reduce((sum, value) => sum + value, 0) / changes.length : null, breadth:liveRows.filter(item => Number.isFinite(Number(item.changesPercentage)) && Number(item.changesPercentage) >= 0).length, total:liveRows.length };
       });
       const result = { updatedAt:new Date().toISOString(), indices, commodities, crypto, regions };
       globalMarketCache.value = result;

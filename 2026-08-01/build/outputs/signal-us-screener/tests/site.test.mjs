@@ -124,3 +124,15 @@ test('homepage live quote cards retain their ticker bindings', async () => {
   assert.match(client, /data-market-ticker="\$\{ticker\}"/);
   assert.match(client, /byTicker\.get\(card\.dataset\.marketTicker\)/);
 });
+
+test('market and screener views stay useful during partial provider coverage', async () => {
+  const [client, server] = await Promise.all([read('app.js'), read('server.mjs')]);
+  assert.match(client, /const liveAssets = rows =>/);
+  assert.match(client, /item\.dataStatus !== 'unavailable'/);
+  assert.match(client, /page !== 'screener' \|\| !\$\('#screen-table'\)/);
+  assert.match(client, /Active US listings loaded\. Adding live valuation and quality ratios/);
+  assert.match(client, /calendarPeriod = 'all'/);
+  assert.match(server, /fmp:'BZUSD'/);
+  assert.match(server, /name: asset\.name, symbol: asset\.symbol/);
+  assert.match(server, /const liveRows = rows\.filter\(item => item\.dataStatus !== 'unavailable'\)/);
+});

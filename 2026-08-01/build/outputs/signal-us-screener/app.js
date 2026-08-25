@@ -623,13 +623,14 @@ async function setupMarkets() {
       }).join('') : `<article class="cross-market-empty">${empty}</article>`;
     };
     renderList($('#global-indices'), globalIndices, 'Global exchange quotes are temporarily unavailable.');
-    renderList($('#global-commodities'), Array.isArray(data?.commodities) ? data.commodities : [], 'Commodity quotes are temporarily unavailable.');
-    renderList($('#global-crypto'), Array.isArray(data?.crypto) ? data.crypto : [], 'Crypto quotes are temporarily unavailable.');
+    const liveAssets = rows => (Array.isArray(rows) ? rows : []).filter(item => item.dataStatus !== 'unavailable' && item.provider && scanNumber(item.price) !== null);
+    renderList($('#global-commodities'), liveAssets(data?.commodities), 'Commodity quotes are temporarily unavailable.');
+    renderList($('#global-crypto'), liveAssets(data?.crypto), 'Crypto quotes are temporarily unavailable.');
     const regions = Array.isArray(data?.regions) ? data.regions.slice().sort((a, b) => Number(b.change ?? -Infinity) - Number(a.change ?? -Infinity)) : [];
     const regionHolder = $('#region-pulse');
     if (regionHolder) regionHolder.innerHTML = regions.length ? regions.map((item, index) => {
       const change = scanNumber(item.change);
-      const breadth = Number.isFinite(Number(item.breadth)) && Number.isFinite(Number(item.total)) ? `${item.breadth}/${item.total} indexes higher` : 'Breadth unavailable';
+      const breadth = Number(item.total) > 0 && Number.isFinite(Number(item.breadth)) ? `${item.breadth}/${item.total} indexes higher` : 'Breadth unavailable';
       return `<article class="region-card ${change === null ? '' : Number(change) >= 0 ? 'gain' : 'loss'}"><span>${escapeHtml(item.region)}</span><strong>${change !== null ? percent(change) : 'Unavailable'}</strong><b>${breadth}</b><small>${index === 0 && change !== null ? 'Leading region' : index === regions.length - 1 && change !== null ? 'Lagging region' : 'Regional average'}</small></article>`;
     }).join('') : '<article class="cross-market-empty">Regional performance is temporarily unavailable.</article>';
     const freshness = $('#us-market-freshness');
@@ -682,7 +683,7 @@ function setupScreener() {
     const request = ++metricRequest;
     try {
       const metricRows = await getJson(`/data/screener-metrics?symbols=${encodeURIComponent(tickers.join(','))}`, 45000);
-      if (request !== metricRequest || !Array.isArray(metricRows)) return;
+      if (request !== metricRequest || page !== 'screener' || !$('#screen-table') || !Array.isArray(metricRows)) return;
       const metricsBySymbol = new Map(metricRows.map(item => [String(item.symbol || '').toUpperCase(), item]));
       universe = universe.map(stock => ({ ...stock, ...(metricsBySymbol.get(String(stock.symbol || stock.ticker || '').toUpperCase()) || {}) }));
       draw(true);
@@ -691,6 +692,7 @@ function setupScreener() {
     }
   };
   const draw = (skipEnrichment = false) => {
+    if (page !== 'screener' || !$('#screen-table')) return;
     const search = value('screen-search').trim().toUpperCase();
     const sector = value('screen-sector');
     const exchange = value('screen-exchange');
@@ -747,19 +749,31 @@ function setupScreener() {
     $('#screen-count').textContent = force ? 'Refreshing the US stock directory…' : 'Loading active US stocks…';
     try {
       const data = await getJson(`/data/screener${force ? `?refresh=${Date.now()}` : ''}`, 25000);
+      if (page !== 'screener' || !$('#screen-table')) return;
       universe = Array.isArray(data) ? data : stocks;
+      // Draw the directory immediately. Ratios arrive progressively below,
+      // so visitors can browse companies instead of waiting on a second API.
+      draw(true);
+      const loadingNote = $('#screen-data-note');
+      if (loadingNote) loadingNote.textContent = 'Active US listings loaded. Adding live valuation and quality ratios…';
       const symbols = [...universe].sort((a, b) => Number(b.marketCap || 0) - Number(a.marketCap || 0)).slice(0, 60).map(stock => stock.symbol || stock.ticker).filter(Boolean);
       symbols.forEach(ticker => metricSymbols.add(ticker));
       const metricRows = await getJson(`/data/screener-metrics?symbols=${encodeURIComponent(symbols.join(','))}`, 45000).catch(() => []);
+      if (page !== 'screener' || !$('#screen-table')) return;
       const metricsBySymbol = new Map(metricRows.map(item => [String(item.symbol || '').toUpperCase(), item]));
       universe = universe.map(stock => ({ ...stock, ...(metricsBySymbol.get(String(stock.symbol || stock.ticker || '').toUpperCase()) || {}) }));
       const ratioCount = universe.filter(stock => scanNumber(stock.pe, stock.peRatioTTM, stock.returnOnEquityTTM) !== null).length;
-      $('#screen-data-note').textContent = `Funds and ETFs are excluded. TTM valuation or quality data is loaded for ${ratioCount.toLocaleString()} companies in this scan; open any company for its complete ratios.`;
-      if (freshness) freshness.textContent = `Live directory updated ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}`;
+      const dataNote = $('#screen-data-note');
+      if (dataNote) dataNote.textContent = `Funds and ETFs are excluded. TTM valuation or quality data is loaded for ${ratioCount.toLocaleString()} companies in this scan; open any company for its complete ratios.`;
+      const currentFreshness = $('#screen-freshness');
+      if (currentFreshness) currentFreshness.textContent = `Live directory updated ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}`;
     } catch {
+      if (page !== 'screener' || !$('#screen-table')) return;
       universe = stocks;
-      $('#screen-data-note').textContent = 'The live directory is temporarily unavailable. Showing a small local company list.';
-      if (freshness) freshness.textContent = 'Live directory unavailable';
+      const dataNote = $('#screen-data-note');
+      if (dataNote) dataNote.textContent = 'The live directory is temporarily unavailable. Showing a small local company list.';
+      const currentFreshness = $('#screen-freshness');
+      if (currentFreshness) currentFreshness.textContent = 'Live directory unavailable';
     }
     draw();
   };
@@ -2436,6 +2450,15 @@ function setupToolkit() {
     try {
       const data = await getJson('/data/calendar', 45000);
       calendarRows = (Array.isArray(data.earnings) ? data.earnings : []).map(normaliseEarnings).filter(row => row.symbol && row.date).sort((a, b) => a.date.localeCompare(b.date));
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const hasNearTermEvents = calendarRows.some(row => {
+        const distance = (new Date(`${row.date}T00:00:00`) - today) / 86400000;
+        return distance >= -1 && distance <= 7;
+      });
+      if (calendarRows.length && !hasNearTermEvents && calendarPeriod === '7') {
+        calendarPeriod = 'all';
+        document.querySelectorAll('[data-earnings-period]').forEach(item => item.classList.toggle('selected', item.dataset.earningsPeriod === 'all'));
+      }
       $('#earnings-updated').textContent = `${calendarRows.length} reported events · updated ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}`;
       drawCalendar();
     } catch {
