@@ -125,6 +125,16 @@ test('homepage live quote cards retain their ticker bindings', async () => {
   assert.match(client, /byTicker\.get\(card\.dataset\.marketTicker\)/);
 });
 
+test('homepage keeps the interactive global market performance panel', async () => {
+  const client = await read('app.js');
+  assert.match(client, /const html = legacyDashboardView\(\)/);
+  assert.match(client, /id="market-leaders-panel"/);
+  assert.match(client, /Best-performing markets/);
+  assert.match(client, /data-market-period="10y"/);
+  assert.match(client, /id="market-region-filter"/);
+  assert.match(client, /\/data\/market-performance\?period=/);
+});
+
 test('market and screener views stay useful during partial provider coverage', async () => {
   const [client, server] = await Promise.all([read('app.js'), read('server.mjs')]);
   assert.match(client, /const liveAssets = rows =>/);

@@ -1211,7 +1211,10 @@ const baseDashboardView = dashboardView;
 // the hero) while preserving the original dashboard markup below it.
 const dashboardViewBaseForLeaders = baseDashboardView;
 dashboardView = function() {
-  const html = dashboardViewBaseForLeaders();
+  // Use the complete dashboard hero as the base. The early prototype above
+  // starts with a generic page header, so the hero matcher cannot attach the
+  // global-market panel and silently returns the compact dashboard instead.
+  const html = legacyDashboardView();
   const polishedHtml = html
     .replace(/DOLLARDISHA TERMINAL[^<]*US EQUITIES/g, 'DOLLARDISHA TERMINAL · US EQUITY RESEARCH')
     .replace('DOLLARDISHA TERMINAL Â· US EQUITIES', 'DOLLARDISHA TERMINAL Â· US EQUITY RESEARCH')
@@ -1277,7 +1280,7 @@ async function hydrateMarketLeaders(period = 'day') {
         .filter(item => Number.isFinite(Number(item.change)) && (rising ? (moveFilter ? Number(item.change) >= moveFilter : Number(item.change) >= 0) : (moveFilter ? Number(item.change) <= -moveFilter : Number(item.change) < 0)))
         .sort((a, b) => rising ? Number(b.change) - Number(a.change) : Number(a.change) - Number(b.change))
         .slice(0, 8);
-      details.innerHTML = `<p class="crumb">${rising ? 'RISING' : 'FALLING'} COUNTRIES</p><strong>${rising ? 'Country benchmarks rising' : 'Country benchmarks falling'}</strong><small>${rising ? 'Benchmarks with a positive return' : 'Benchmarks with a negative return'} for the selected period. Click a region to narrow the list.</small><div class="market-benchmark-list">${matching.map(item => `<div><span><b>${escapeHtml(item.country || item.name)}</b><small>${escapeHtml(item.name)} Â· ${escapeHtml(item.region || 'Global')} Â· ${escapeHtml(item.exchange || 'Global')}</small></span><strong class="${Number(item.change) >= 0 ? 'positive' : 'down'}"><em>${percent(item.change)}</em><small>CAGR ${Number.isFinite(Number(item.cagr)) ? percent(item.cagr) : 'â€”'}</small></strong></div>`).join('') || '<small>No country benchmark matches this filter yet.</small>'}</div>`;
+      details.innerHTML = `<p class="crumb">${rising ? 'RISING' : 'FALLING'} COUNTRIES</p><strong>${rising ? 'Country benchmarks rising' : 'Country benchmarks falling'}</strong><small>${rising ? 'Benchmarks with a positive return' : 'Benchmarks with a negative return'} for the selected period. Click a region to narrow the list.</small><div class="market-benchmark-list">${matching.map(item => `<div><span><b>${escapeHtml(item.country || item.name)}</b><small>${escapeHtml(item.name)} · ${escapeHtml(item.region || 'Global')} · ${escapeHtml(item.exchange || 'Global')}</small></span><strong class="${Number(item.change) >= 0 ? 'positive' : 'down'}"><em>${percent(item.change)}</em><small>CAGR ${Number.isFinite(Number(item.cagr)) ? percent(item.cagr) : '—'}</small></strong></div>`).join('') || '<small>No country benchmark matches this filter yet.</small>'}</div>`;
     }
     const updated = document.querySelector('#market-leaders-updated');
     if (updated) updated.textContent = data.updatedAt ? `Updated ${new Date(data.updatedAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}` : 'Latest snapshot';
