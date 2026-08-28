@@ -6,14 +6,22 @@ const root = process.cwd();
 const configPath = join(root, '..', '..', 'work', 'dollardisha.env');
 let configText = '';
 try { configText = await readFile(configPath, 'utf8'); } catch { /* Production uses FMP_API_KEY from the host environment. */ }
-const env = Object.fromEntries(configText.split(/\r?\n/).filter(Boolean).map(line => line.split('=')));
+// Parse the optional local deployment file without truncating values that
+// contain an equals sign (tokens and URLs may legally contain one).
+const env = Object.fromEntries(configText.split(/\r?\n/)
+  .map(line => line.trim())
+  .filter(line => line && !line.startsWith('#'))
+  .map(line => {
+    const separator = line.indexOf('=');
+    return separator < 0 ? [line, ''] : [line.slice(0, separator).trim(), line.slice(separator + 1).trim()];
+  }));
 // Accept the concise names too. This keeps a deployment working if a host
 // dashboard saved the provider key as FMP_API or TWELVE_DATA_KEY.
 const key = process.env.FMP_API_KEY || process.env.FMP_API || env.FMP_API_KEY || env.FMP_API;
 const twelveDataKey = process.env.TWELVE_DATA_API_KEY || process.env.TWELVE_DATA_KEY || process.env.TWELVE_API_KEY || env.TWELVE_DATA_API_KEY || env.TWELVE_DATA_KEY || env.TWELVE_API_KEY;
-const supabaseUrl = process.env.SUPABASE_URL || process.env.SUPABASE_PROJECT_URL;
-const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabasePublishableKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLIC_KEY;
+const supabaseUrl = process.env.SUPABASE_URL || process.env.SUPABASE_PROJECT_URL || env.SUPABASE_URL || env.SUPABASE_PROJECT_URL;
+const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
+const supabasePublishableKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLIC_KEY || env.SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_ANON_KEY || env.SUPABASE_PUBLIC_KEY;
 const supabasePublishableKeyIsSecret = /^sb_secret_/i.test(supabasePublishableKey || '');
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || env.STRIPE_SECRET_KEY;
 const stripePriceId = process.env.STRIPE_PRICE_ID || env.STRIPE_PRICE_ID;
@@ -995,7 +1003,10 @@ createServer(async (req, res) => {
       const optional = path => fmp(path, { symbol:ticker, limit: 8 }).catch(() => []);
       const optionalQuarterly = path => fmp(path, { symbol:ticker, period:'quarter', limit: 8 }).catch(() => []);
       const [profile, quote, metrics, income, balance, cashflow, ratios, quarterlyIncome, secData] = await Promise.all([
-        optional('profile'), liveQuote(ticker),
+        optional('profile'), liveQuote(ticker).catch(error => {
+          console.warn(`Live quote unavailable for ${ticker}; loading fundamentals without it: ${error.message}`);
+          return normalizeQuote(ticker);
+        }),
         optional('key-metrics-ttm'), optional('income-statement')
         , optional('balance-sheet-statement'), optional('cash-flow-statement'), optional('ratios-ttm'), optionalQuarterly('income-statement'), secFactsForTicker(ticker).catch(() => null)
       ]);

@@ -2856,3 +2856,150 @@ button,.link-button,.solid-btn{transition:transform .15s ease,background-color .
     padding: 6px 9px;
   }
 }
+
+/* Light theme contrast pass.  The refreshed UI is dark-first, so keep a
+   complete, semantic light palette here instead of letting dark literals
+   leak into cards, tables, controls, and chart annotations. */
+html[data-theme="light"] {
+  --dd-bg: #f4f7f9;
+  --dd-surface: #ffffff;
+  --dd-surface-2: #f1f5f7;
+  --dd-surface-3: #e7eef2;
+  --dd-panel: #ffffff;
+  --dd-panel-strong: #f7fafb;
+  --dd-line: #c9d6de;
+  --dd-line-soft: #e0e8ed;
+  --dd-text: #15242c;
+  --dd-muted: #5e707a;
+  --dd-accent: #147d68;
+  --dd-aqua: #0d9b82;
+  --dd-accent-soft: #d9f2eb;
+  --dd-green: #168a70;
+  --dd-red: #c43d54;
+}
+
+html[data-theme="light"] body {
+  background: radial-gradient(900px 440px at 8% -10%, #dceee9 0%, transparent 68%), var(--dd-bg) !important;
+  color: var(--dd-text) !important;
+}
+html[data-theme="light"] .site-header {
+  background: rgba(255,255,255,.94) !important;
+  border-color: var(--dd-line) !important;
+  box-shadow: 0 8px 24px rgba(21,36,44,.08) !important;
+}
+html[data-theme="light"] .secondary-nav,
+html[data-theme="light"] .site-footer { background: #f8fbfc !important; border-color: var(--dd-line) !important; color: var(--dd-muted) !important; }
+html[data-theme="light"] .brand,
+html[data-theme="light"] .brand-word strong { color: var(--dd-text) !important; }
+html[data-theme="light"] .brand-word em { color: var(--dd-accent) !important; }
+html[data-theme="light"] .brand-word small { color: #66817b !important; }
+html[data-theme="light"] .universal-search { background: #f2f6f8 !important; border-color: var(--dd-line) !important; color: var(--dd-muted) !important; }
+html[data-theme="light"] .universal-search input { color: var(--dd-text) !important; }
+html[data-theme="light"] .nav { color: #4f626d !important; }
+html[data-theme="light"] .nav:hover,
+html[data-theme="light"] .nav.active { background: var(--dd-accent-soft) !important; color: #0e6655 !important; }
+html[data-theme="light"] .page-title,
+html[data-theme="light"] .panel-head h2,
+html[data-theme="light"] .section-header h1,
+html[data-theme="light"] .section-header h2 { color: var(--dd-text) !important; }
+html[data-theme="light"] .sub,
+html[data-theme="light"] .panel-head p,
+html[data-theme="light"] .section-header .sub { color: var(--dd-muted) !important; }
+html[data-theme="light"] .crumb,
+html[data-theme="light"] .link-button { color: #147d68 !important; }
+
+html[data-theme="light"] .panel,
+html[data-theme="light"] .market-card,
+html[data-theme="light"] .index-card,
+html[data-theme="light"] .filter-layout,
+html[data-theme="light"] .query-card,
+html[data-theme="light"] .table-panel,
+html[data-theme="light"] .company-summary,
+html[data-theme="light"] .company-research-card,
+html[data-theme="light"] .ratio-explorer,
+html[data-theme="light"] .chart-panel,
+html[data-theme="light"] .documents-panel,
+html[data-theme="light"] .intelligence-grid,
+html[data-theme="light"] .market-leaders-panel {
+  background: linear-gradient(145deg, #ffffff, #f7fafb) !important;
+  border-color: var(--dd-line) !important;
+  box-shadow: 0 10px 24px rgba(21,36,44,.07) !important;
+}
+html[data-theme="light"] .market-card strong,
+html[data-theme="light"] .index-card strong,
+html[data-theme="light"] .company-metrics b,
+html[data-theme="light"] .ratio-grid b,
+html[data-theme="light"] .ratio-cell b,
+html[data-theme="light"] .market-leaders-head h2,
+html[data-theme="light"] .market-benchmark-details > strong,
+html[data-theme="light"] .market-leader-row b { color: var(--dd-text) !important; }
+html[data-theme="light"] .market-card span,
+html[data-theme="light"] .index-card span,
+html[data-theme="light"] .company-metrics span,
+html[data-theme="light"] .ratio-grid span,
+html[data-theme="light"] .market-leaders-head > small,
+html[data-theme="light"] .market-leaders-subtitle,
+html[data-theme="light"] .market-benchmark-details > small,
+html[data-theme="light"] .market-benchmark-list span small,
+html[data-theme="light"] .market-leader-row small { color: var(--dd-muted) !important; }
+html[data-theme="light"] .dashboard-hero { background: linear-gradient(135deg,#eaf7f3,#edf3ff) !important; border-color: #b8d6d0 !important; }
+html[data-theme="light"] .dashboard-hero .page-title span { color: var(--dd-accent) !important; }
+html[data-theme="light"] .market-periods button,
+html[data-theme="light"] .market-leader-toolbar select,
+html[data-theme="light"] .market-leader-mode button { background: #f1f6f8 !important; border-color: var(--dd-line) !important; color: #526671 !important; }
+html[data-theme="light"] .market-periods button:hover,
+html[data-theme="light"] .market-periods button.selected,
+html[data-theme="light"] .market-leader-mode button:hover,
+html[data-theme="light"] .market-leader-mode button.selected { background: var(--dd-accent-soft) !important; border-color: #57bba4 !important; color: #0d745f !important; }
+html[data-theme="light"] .market-benchmark-details { background: rgba(235,245,243,.7) !important; border-color: var(--dd-line-soft) !important; }
+html[data-theme="light"] .market-leader-row { border-color: var(--dd-line-soft) !important; }
+html[data-theme="light"] .market-leader-row:hover { background: #eaf7f3 !important; }
+html[data-theme="light"] .market-leader-rank { background: #dcefeb !important; color: #167b68 !important; }
+html[data-theme="light"] .positive { color: #117b61 !important; }
+html[data-theme="light"] .down { color: #bd3850 !important; }
+
+html[data-theme="light"] .filters,
+html[data-theme="light"] .advanced-screen-builder { background: #f7fafb !important; border-color: var(--dd-line) !important; }
+html[data-theme="light"] .filters label,
+html[data-theme="light"] .result-meta,
+html[data-theme="light"] th { color: #5c707b !important; }
+html[data-theme="light"] .filters select,
+html[data-theme="light"] .query-card input,
+html[data-theme="light"] .index-actions input,
+html[data-theme="light"] .filing-search input,
+html[data-theme="light"] .alert-form input,
+html[data-theme="light"] .alert-form select,
+html[data-theme="light"] .journal-form input,
+html[data-theme="light"] .journal-form textarea,
+html[data-theme="light"] .compare-controls input,
+html[data-theme="light"] .advanced-screen-builder select,
+html[data-theme="light"] .advanced-screen-builder input { background: #ffffff !important; color: var(--dd-text) !important; border-color: var(--dd-line) !important; }
+html[data-theme="light"] th,
+html[data-theme="light"] td { border-color: var(--dd-line-soft) !important; color: var(--dd-text) !important; }
+html[data-theme="light"] .company { color: #0e5f50 !important; }
+html[data-theme="light"] .ticker { color: #70838d !important; }
+html[data-theme="light"] .company-row:hover td { background: #eaf7f3 !important; }
+html[data-theme="light"] .watch-empty { background: #f8fbfc !important; color: var(--dd-muted) !important; border-color: var(--dd-line) !important; }
+html[data-theme="light"] .solid-btn { background: linear-gradient(135deg,#1b9c7b,#147d68) !important; color: #ffffff !important; }
+html[data-theme="light"] .company-tabs { background: #f1f6f8 !important; border-color: var(--dd-line) !important; }
+html[data-theme="light"] .company-tabs a { color: #5a6d78 !important; }
+html[data-theme="light"] .company-tabs a:hover { background: var(--dd-accent-soft) !important; color: #0e6655 !important; }
+html[data-theme="light"] .summary-main,
+html[data-theme="light"] .company-metrics div,
+html[data-theme="light"] .ratio-grid > div,
+html[data-theme="light"] .ratio-cell,
+html[data-theme="light"] .intel-cards,
+html[data-theme="light"] .intel-cards > div,
+html[data-theme="light"] .filings-inline a,
+html[data-theme="light"] .compact-list > div,
+html[data-theme="light"] .compact-list > a { border-color: var(--dd-line-soft) !important; }
+html[data-theme="light"] .ratio-cell:hover,
+html[data-theme="light"] .ratio-explorer section > div:hover { background: #edf7f4 !important; border-color: #9ccfc2 !important; }
+html[data-theme="light"] .chart-grid { stroke: #cbd9df !important; }
+html[data-theme="light"] .chart-area text { fill: #647983 !important; }
+html[data-theme="light"] .chart-controls button { background: #f1f6f8 !important; border-color: var(--dd-line) !important; color: #536974 !important; }
+html[data-theme="light"] .chart-controls button.selected { background: var(--dd-accent-soft) !important; border-color: #56bca4 !important; color: #0e705c !important; }
+html[data-theme="light"] .table-wrap { scrollbar-color: #a8bbc4 #edf3f5 !important; }
+html[data-theme="light"] .data-empty,
+html[data-theme="light"] .market-leader-loading,
+html[data-theme="light"] .company-signals-loading { color: var(--dd-muted) !important; }

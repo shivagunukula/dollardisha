@@ -532,7 +532,10 @@ async function refreshLiveData() {
     else if (page === 'portfolio') await hydratePortfolio();
     else if (page === 'status') await hydrateSystemStatus();
     else if (isCompanyRoute(page)) await Promise.allSettled([hydrateCompany(page), hydrateCompanyExtras(page)]);
-    else if (page === 'markets' || page === 'screener' || page === 'indexlab' || page === 'compare' || page === 'research') render();
+    else if (page === 'markets') await setupMarkets();
+    else if (page === 'screener') $('#screen-run')?.click();
+    else if (page === 'compare') $('#compare-run')?.click();
+    else if (page === 'research') await Promise.allSettled([hydrateWorkspaceFilings(), evaluateResearchAlerts()]);
   } finally {
     liveRefreshBusy = false;
   }
@@ -1495,17 +1498,20 @@ async function hydrateMarketLeaders(period = 'day') {
 }
 function setupMarketLeaders() {
   document.querySelectorAll('[data-market-period]').forEach(button => {
-    button.addEventListener('click', () => hydrateMarketLeaders(button.dataset.marketPeriod));
+    button.onclick = () => hydrateMarketLeaders(button.dataset.marketPeriod);
   });
   document.querySelectorAll('[data-market-direction]').forEach(button => {
-    button.addEventListener('click', () => {
+    button.onclick = () => {
       marketLeadersDirection = button.dataset.marketDirection;
       document.querySelectorAll('[data-market-direction]').forEach(item => item.classList.toggle('selected', item.dataset.marketDirection === marketLeadersDirection));
       hydrateMarketLeaders(document.querySelector('[data-market-period].selected')?.dataset.marketPeriod || 'day');
-    });
+    };
   });
-  document.querySelector('#market-region-filter')?.addEventListener('change', () => hydrateMarketLeaders(document.querySelector('[data-market-period].selected')?.dataset.marketPeriod || 'day'));
-  document.querySelector('#market-move-filter')?.addEventListener('change', () => hydrateMarketLeaders(document.querySelector('[data-market-period].selected')?.dataset.marketPeriod || 'day'));
+  const refreshLeaders = () => hydrateMarketLeaders(document.querySelector('[data-market-period].selected')?.dataset.marketPeriod || 'day');
+  const regionFilter = document.querySelector('#market-region-filter');
+  const moveFilter = document.querySelector('#market-move-filter');
+  if (regionFilter) regionFilter.onchange = refreshLeaders;
+  if (moveFilter) moveFilter.onchange = refreshLeaders;
   hydrateMarketLeaders();
 }
 
