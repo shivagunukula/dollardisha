@@ -224,3 +224,16 @@ test('status dashboard reports website, providers, database and refresh policy',
   assert.match(styles, /\.status-grid/);
   assert.match(styles, /\.data-freshness/);
 });
+
+test('all tools hub exposes Screener-style research workflows and working calculators', async () => {
+  const [html, client, styles] = await Promise.all([read('index.html'), read('app.js'), read('styles.css')]);
+  assert.match(html, /data-page="tools">All tools/);
+  assert.match(client, /function toolsView\(\)/);
+  assert.match(client, /US stock screener/);
+  assert.match(client, /Global market pulse/);
+  assert.match(client, /Official filings/);
+  assert.match(client, /Position sizing/);
+  assert.match(client, /function setupTools\(\)/);
+  assert.match(styles, /\.tool-library-grid/);
+  assert.match(styles, /\.mini-calculator/);
+});

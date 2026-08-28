@@ -317,6 +317,30 @@ function researchView() {
   <div class="research-grid workspace-feed-grid"><section class="panel"><div class="panel-head"><div><h2>Watchlist filing activity</h2><p>Latest official updates across followed companies</p></div></div><div id="workspace-filings" class="activity-feed"><p class="sub">Loading watchlist disclosures…</p></div></section><section class="panel"><div class="panel-head"><div><h2>Recent research activity</h2><p>Your latest saved decisions and changes</p></div></div><div id="research-activity" class="activity-feed"></div></section></div></div>`;
 }
 
+function toolsView() {
+  const tool = (icon, title, text, page, label = 'Open tool') => `<article class="tool-library-card"><div class="tool-library-icon" aria-hidden="true">${icon}</div><div><h3>${title}</h3><p>${text}</p><button type="button" class="link-button" data-page="${page}">${label} →</button></div></article>`;
+  return `<div class="page tools-library-page">${pageHeader('DOLLARDISHA TOOLKIT', 'Research tools', 'Everything you need to move from discovery to a documented investment decision.')}
+    <section class="tool-library-hero"><div><p class="crumb">A COMPLETE RESEARCH WORKFLOW</p><h2>Find. Filter. Understand.</h2><p>Use live quotes, fundamentals, filings and your own assumptions together. Every tool links back to the company pages and saved research.</p></div><div class="tool-library-stats"><div><b>Live</b><span>quotes & scans</span></div><div><b>SEC</b><span>official filings</span></div><div><b>Saved</b><span>ideas & alerts</span></div></div></section>
+    <section class="tool-library-section"><div class="section-header"><div><p class="crumb">DISCOVER</p><h2>Find opportunities</h2></div></div><div class="tool-library-grid">${tool('⌕','US stock screener','Combine valuation, growth, quality, size, sector, exchange and liquidity filters.','screener')}${tool('↗','Market scans','Review gainers, laggards, volume leaders, US indices, global benchmarks, commodities and crypto.','markets')}${tool('◎','Global market pulse','Compare regional benchmark performance across day, month, YTD, 3M, 6M, 1Y, 3Y, 5Y and 10Y.','markets','View markets')}${tool('↔','Compare companies','Search the complete directory and compare prices, valuation, growth and quality side by side.','compare')}</div></section>
+    <section class="tool-library-section"><div class="section-header"><div><p class="crumb">ANALYSE</p><h2>Go deeper on a company</h2></div></div><div class="tool-library-grid">${tool('▦','Company research','Open overview, charts, PE/EPS history, moving averages, financials, ratios, peers, filings and pros & cons.','AAPL','Open example')}${tool('◫','Research workspace','Save thesis cards, catalysts, risks, filing activity and price or earnings alerts.','research')}${tool('▤','Official filings','Find 10-K, 10-Q, 8-K and other issuer documents from SEC EDGAR.','research','Find filings')}${tool('★','Watchlist','Track saved companies with live price, market cap, P/E and daily change updates.','watchlist')}</div></section>
+    <section class="tool-library-section"><div class="section-header"><div><p class="crumb">MODEL</p><h2>Test your assumptions</h2></div></div><div class="tool-library-grid">${tool('⌁','Valuation lab','Build an earnings-growth and exit-multiple scenario from live price and reported TTM EPS.','toolkit')}${tool('₹','INR return calculator','Translate a US stock return and USD/INR move into an estimated rupee outcome.','toolkit')}${tool('◈','Custom index','Create a named, equal-weight basket and monitor its holdings together.','indexlab')}${tool('▣','Portfolio tracker','Record shares and average cost, then follow live value, allocation and return.','portfolio')}</div></section>
+    <section class="tool-calculator-grid"><article class="panel mini-calculator"><div class="panel-head"><div><p class="crumb">QUICK CALCULATOR</p><h2>CAGR return</h2><p>Annualised return from an investment’s start and end value.</p></div></div><div class="mini-calculator-fields"><label>Starting value<input id="tool-cagr-start" type="number" min="0" step="0.01" value="1000"></label><label>Ending value<input id="tool-cagr-end" type="number" min="0" step="0.01" value="1500"></label><label>Years<input id="tool-cagr-years" type="number" min="0.1" step="0.1" value="3"></label></div><output id="tool-cagr-result">CAGR: 14.47%</output></article><article class="panel mini-calculator"><div class="panel-head"><div><p class="crumb">QUICK CALCULATOR</p><h2>PEG ratio</h2><p>Compare P/E with expected annual EPS growth.</p></div></div><div class="mini-calculator-fields"><label>P/E<input id="tool-peg-pe" type="number" min="0" step="0.1" value="25"></label><label>EPS growth %<input id="tool-peg-growth" type="number" min="0.1" step="0.1" value="15"></label></div><output id="tool-peg-result">PEG: 1.67x</output></article><article class="panel mini-calculator"><div class="panel-head"><div><p class="crumb">QUICK CALCULATOR</p><h2>Position sizing</h2><p>Estimate shares from a risk budget and stop-loss distance.</p></div></div><div class="mini-calculator-fields"><label>Portfolio value<input id="tool-size-portfolio" type="number" min="0" step="100" value="10000"></label><label>Risk %<input id="tool-size-risk" type="number" min="0.1" step="0.1" value="1"></label><label>Entry price<input id="tool-size-entry" type="number" min="0.01" step="0.01" value="100"></label><label>Stop price<input id="tool-size-stop" type="number" min="0" step="0.01" value="90"></label></div><output id="tool-size-result">Suggested size: 10 shares</output></article></section>
+    <section class="tool-library-footer panel"><b>Need the full data view?</b><span>Search any ticker to open its complete DollarDisha research page.</span><button type="button" class="solid-btn" data-page="screener">Open stock screener</button></section></div>`;
+}
+
+function setupTools() {
+  const calc = () => {
+    const start = Number($('#tool-cagr-start')?.value), end = Number($('#tool-cagr-end')?.value), years = Number($('#tool-cagr-years')?.value);
+    if (start > 0 && end >= 0 && years > 0) $('#tool-cagr-result').textContent = `CAGR: ${(((end / start) ** (1 / years) - 1) * 100).toFixed(2)}%`;
+    const pe = Number($('#tool-peg-pe')?.value), growth = Number($('#tool-peg-growth')?.value);
+    if (pe >= 0 && growth > 0) $('#tool-peg-result').textContent = `PEG: ${(pe / growth).toFixed(2)}x`;
+    const portfolio = Number($('#tool-size-portfolio')?.value), risk = Number($('#tool-size-risk')?.value) / 100, entry = Number($('#tool-size-entry')?.value), stop = Number($('#tool-size-stop')?.value);
+    if (portfolio > 0 && risk > 0 && entry > stop) $('#tool-size-result').textContent = `Suggested size: ${Math.floor((portfolio * risk) / (entry - stop)).toLocaleString('en-US')} shares`;
+  };
+  ['tool-cagr-start','tool-cagr-end','tool-cagr-years','tool-peg-pe','tool-peg-growth','tool-size-portfolio','tool-size-risk','tool-size-entry','tool-size-stop'].forEach(id => { const input = $(`#${id}`); if (input) input.oninput = calc; });
+  calc();
+}
+
 function compareView() { return `<div class="page">${pageHeader('RESEARCH SIDE BY SIDE', 'Compare companies', 'Search the complete US stock directory and compare two companies side by side.')}<section class="panel compare-panel"><div class="compare-controls"><div class="compare-picker"><label for="compare-a">First company</label><div class="compare-search"><span>⌕</span><input id="compare-a" value="AAPL" maxlength="50" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="compare-a-results"><div id="compare-a-results" class="compare-results" hidden></div></div></div><span class="compare-vs">VS</span><div class="compare-picker"><label for="compare-b">Second company</label><div class="compare-search"><span>⌕</span><input id="compare-b" value="MSFT" maxlength="50" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="compare-b-results"><div id="compare-b-results" class="compare-results" hidden></div></div></div><button id="compare-run" class="solid-btn">Compare stocks</button></div><div id="comparison"></div></section></div>`; }
 function watchlistView() { const placeholders = watchlist.map(ticker => `<tr class="company-row" data-stock="${ticker}"><td class="company">${companyIdentity(ticker, ticker, 'Updating live data…')}</td><td colspan="4">Loading latest values…</td><td>${watchButton(ticker)}</td></tr>`).join(''); return `<div class="page">${pageHeader('YOUR RESEARCH', 'Watchlist', 'Latest available prices and fundamentals. Values refresh every minute while this page is open.')}<section class="panel"><div class="watchlist-toolbar"><span id="watchlist-status" role="status" aria-live="polite">${watchlist.length ? 'Loading live prices…' : 'Add a company to begin.'}</span>${watchlist.length ? '<button type="button" class="link-button" data-refresh-watchlist>Refresh now</button>' : ''}</div><div class="table-wrap"><table><thead><tr><th>Company</th><th>Price</th><th>Market cap</th><th>P/E</th><th>Today</th><th></th></tr></thead><tbody id="watchlist-body">${placeholders || '<tr><td colspan="6">Your watchlist is empty. Add a company from any scan.</td></tr>'}</tbody></table></div></section></div>`; }
 
@@ -428,7 +452,7 @@ function setupQuarterlyDetails(holder) {
   });
 }
 function render() {
-  const view = page === 'dashboard' ? dashboardView() : page === 'markets' ? marketsView() : page === 'screener' ? screenerView() : page === 'indexlab' ? indexView() : page === 'research' ? researchView() : page === 'compare' ? compareView() : page === 'watchlist' ? watchlistView() : page === 'toolkit' ? toolkitView() : page === 'portfolio' ? portfolioView() : page === 'status' ? statusView() : companyView(page);
+  const view = page === 'dashboard' ? dashboardView() : page === 'markets' ? marketsView() : page === 'screener' ? screenerView() : page === 'indexlab' ? indexView() : page === 'research' ? researchView() : page === 'compare' ? compareView() : page === 'watchlist' ? watchlistView() : page === 'toolkit' ? toolkitView() : page === 'tools' ? toolsView() : page === 'portfolio' ? portfolioView() : page === 'status' ? statusView() : companyView(page);
   const content = $('#content');
   content.classList.remove('route-ready');
   content.innerHTML = view;
@@ -444,9 +468,10 @@ function render() {
   if (page === 'watchlist') hydrateWatchlist();
   else { clearTimeout(watchlistRefreshTimer); watchlistRefreshTimer = null; }
   if (page === 'toolkit') setupToolkit();
+  if (page === 'tools') setupTools();
   if (page === 'portfolio') setupPortfolio();
   if (page === 'status') setupSystemStatus();
-  if (!['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'portfolio', 'status'].includes(page)) {
+  if (!['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'tools', 'portfolio', 'status'].includes(page)) {
     const companyPage = content.querySelector('.company-page');
     if (companyPage) { companyPage.classList.add('company-loading'); companyPage.setAttribute('aria-busy', 'true'); }
     hydrateCompany(page);
@@ -461,7 +486,7 @@ function render() {
 const LIVE_REFRESH_MS = 60 * 1000;
 let liveRefreshTimer = null;
 let liveRefreshBusy = false;
-const isCompanyRoute = route => !['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'portfolio', 'status'].includes(route);
+const isCompanyRoute = route => !['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'tools', 'portfolio', 'status'].includes(route);
 async function refreshLiveData() {
   if (document.hidden || liveRefreshBusy) return;
   liveRefreshBusy = true;
