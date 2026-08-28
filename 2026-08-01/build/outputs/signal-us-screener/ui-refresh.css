@@ -17,6 +17,12 @@
   --dd-radius: 12px;
 }
 
+/* Advanced, formula-style screening rule. */
+.advanced-screen-builder{display:grid;grid-template-columns:minmax(210px,1fr) 170px 150px 130px auto;align-items:center;gap:10px;margin:0 0 12px;padding:13px 14px;border:1px solid var(--line);border-radius:13px;background:linear-gradient(135deg,color-mix(in srgb,var(--card) 94%,var(--green)),var(--card));box-shadow:0 10px 24px #0000000a}.advanced-screen-builder>div{display:grid;gap:4px}.advanced-screen-builder b{color:var(--ink);font-size:12px}.advanced-screen-builder small{color:var(--muted);font-size:9px;line-height:1.4}.advanced-screen-builder select,.advanced-screen-builder input{box-sizing:border-box;width:100%;min-height:38px;border:1px solid var(--line);border-radius:9px;background:var(--paper);color:var(--ink);padding:0 10px;font:600 11px Inter;outline:0}.advanced-screen-builder select:focus,.advanced-screen-builder input:focus{border-color:var(--green);box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 14%,transparent)}
+html[data-theme="light"] .advanced-screen-builder{background:linear-gradient(135deg,#f4fbf7,#fff)}
+@media(max-width:900px){.advanced-screen-builder{grid-template-columns:1fr 1fr}.advanced-screen-builder>div{grid-column:1/-1}}
+@media(max-width:620px){.advanced-screen-builder{grid-template-columns:1fr}.advanced-screen-builder .link-button{justify-self:start}}
+
 html { scroll-behavior: smooth; }
 body {
   min-height: 100vh;

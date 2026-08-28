@@ -281,6 +281,7 @@ function marketsView() {
 function screenerView() {
   return `<div class="page">${pageHeader('DISCOVER', 'US stock screener', 'Filter a broad US-equity universe, customise your query and export a research list.')}
   <div class="query-card"><div><b>Build a US equity screen</b><small>Search once, then combine size, liquidity, valuation and quality filters.</small></div><input id="screen-search" placeholder="Search a company or ticker"><button class="solid-btn" id="screen-run">Refresh data</button><button class="link-button" id="export-screen">Export CSV</button></div>
+  <section class="advanced-screen-builder" aria-label="Advanced formula filter"><div><b>Advanced filter</b><small>Add one extra rule to any screen without writing code.</small></div><select id="screen-formula-metric" aria-label="Formula metric"><option value="none">No extra rule</option><option value="pe">P/E</option><option value="roe">ROE %</option><option value="eps">EPS</option><option value="growth">Revenue growth %</option><option value="debt">Debt to equity</option><option value="dividend">Dividend yield %</option><option value="cap">Market cap ($B)</option><option value="volume">Daily volume</option></select><select id="screen-formula-op" aria-label="Formula operator"><option value="gte">at least</option><option value="lte">at most</option><option value="gt">greater than</option><option value="lt">less than</option></select><input id="screen-formula-value" type="number" step="any" placeholder="Value" aria-label="Formula value"><button class="link-button" id="screen-formula-clear" type="button">Clear rule</button></section>
   <div class="screen-presets" aria-label="Quick screening presets"><span>Popular screens</span><button data-screen-preset="mega">Mega-cap leaders</button><button data-screen-preset="value">Profitable value</button><button data-screen-preset="quality">High ROE</button><button data-screen-preset="liquid">Highly liquid</button><button data-screen-preset="dividend">Dividend payers</button><button data-screen-preset="reset">Clear all</button></div>
   <section class="saved-screen-workspace" aria-label="Saved screens"><div class="saved-screen-create"><div><b>Saved screens</b><small>Keep a reusable filter set and detect result changes whenever you run it.</small></div><label><span>Screen name</span><input id="saved-screen-name" maxlength="50" placeholder="e.g. Profitable technology"></label><label class="saved-alert-toggle"><input id="saved-screen-alert" type="checkbox" checked><span>Track result changes</span></label><button class="solid-btn" id="save-current-screen" type="button">Save current screen</button></div><div id="saved-screen-list" class="saved-screen-list"></div></section>
   <div class="filter-layout"><aside class="filters"><div class="filter-title"><span>Filter stocks</span><b>Active US listings</b></div>
@@ -781,6 +782,17 @@ function setupScreener() {
     const minEps = Number(value('screen-eps'));
     const minGrowth = Number(value('screen-growth'));
     const minVolume = Number(value('screen-volume'));
+    const formulaMetric = value('screen-formula-metric');
+    const formulaOp = value('screen-formula-op');
+    const formulaValue = Number(value('screen-formula-value'));
+    const formulaPass = stock => {
+      if (formulaMetric === 'none' || !Number.isFinite(formulaValue)) return true;
+      const cap = Number(scanNumber(stock.marketCap, stock.cap ? stock.cap * 1e9 : null) || 0);
+      const raw = formulaMetric === 'pe' ? scanNumber(stock.pe, stock.peRatioTTM) : formulaMetric === 'roe' ? scanPercent(scanNumber(stock.returnOnEquityTTM, stock.roeTTM, stock.roe)) : formulaMetric === 'eps' ? scanNumber(stock.epsTTM, stock.netIncomePerShareTTM) : formulaMetric === 'growth' ? Number(scanNumber(stock.revenueGrowthTTM) || 0) * 100 : formulaMetric === 'debt' ? scanNumber(stock.debtToEquityRatioTTM, stock.debtToEquity) : formulaMetric === 'dividend' ? Number(scanNumber(stock.dividendYieldTTM) || 0) * 100 : formulaMetric === 'cap' ? cap / 1e9 : Number(scanNumber(stock.volume, stock.avgVolume) || 0);
+      if (!Number.isFinite(Number(raw))) return false;
+      const n = Number(raw);
+      return formulaOp === 'lte' ? n <= formulaValue : formulaOp === 'gt' ? n > formulaValue : formulaOp === 'lt' ? n < formulaValue : n >= formulaValue;
+    };
     const dividend = value('screen-dividend');
     const sort = value('screen-sort');
     results = universe.filter(stock => {
@@ -805,7 +817,7 @@ function setupScreener() {
         (minRoe === 0 || (roe !== null && roe >= minRoe)) &&
         (minEps <= -999998 || (eps !== null && eps >= minEps)) &&
         (minGrowth <= -999998 || (growth !== null && growth >= minGrowth)) && volume >= minVolume &&
-        (dividend === 'all' || paysDividend);
+        (dividend === 'all' || paysDividend) && formulaPass(stock);
     });
     const sorter = {
       cap: (a, b) => Number(b.marketCap || 0) - Number(a.marketCap || 0),
@@ -861,9 +873,9 @@ function setupScreener() {
     quality: { cap:'large', roe:'20', sort:'roe' },
     liquid: { cap:'large', volume:'10000000', sort:'volume' },
     dividend: { dividend:'payer', sort:'cap' },
-    reset: { sector:'all', exchange:'all', cap:'all', price:'all', pe:'999', roe:'0', eps:'-999999', growth:'-999999', volume:'0', dividend:'all', sort:'cap' }
+    reset: { sector:'all', exchange:'all', cap:'all', price:'all', pe:'999', roe:'0', eps:'-999999', growth:'-999999', volume:'0', dividend:'all', sort:'cap', 'formula-metric':'none', 'formula-op':'gte', 'formula-value':'' }
   };
-  const screenFilterNames = ['sector', 'exchange', 'cap', 'price', 'pe', 'roe', 'eps', 'growth', 'volume', 'dividend', 'sort'];
+  const screenFilterNames = ['sector', 'exchange', 'cap', 'price', 'pe', 'roe', 'eps', 'growth', 'volume', 'dividend', 'sort', 'formula-metric', 'formula-op', 'formula-value'];
   const currentScreenFilters = () => Object.fromEntries(screenFilterNames.map(name => [name, $(`#screen-${name}`)?.value || presets.reset[name]]));
   const saveScreens = () => {
     try { localStorage.setItem('dd-saved-screens', JSON.stringify(savedScreens)); } catch {}
@@ -920,7 +932,8 @@ function setupScreener() {
     document.querySelectorAll('[data-screen-preset]').forEach(item => item.classList.toggle('selected', item === button && button.dataset.screenPreset !== 'reset'));
     draw();
   });
-  ['screen-search', 'screen-sector', 'screen-exchange', 'screen-cap', 'screen-price', 'screen-pe', 'screen-roe', 'screen-eps', 'screen-growth', 'screen-volume', 'screen-dividend', 'screen-sort'].forEach(id => $(`#${id}`).oninput = draw);
+  ['screen-search', 'screen-sector', 'screen-exchange', 'screen-cap', 'screen-price', 'screen-pe', 'screen-roe', 'screen-eps', 'screen-growth', 'screen-volume', 'screen-dividend', 'screen-sort', 'screen-formula-metric', 'screen-formula-op', 'screen-formula-value'].forEach(id => $(`#${id}`).oninput = draw);
+  $('#screen-formula-clear').onclick = () => { $('#screen-formula-metric').value = 'none'; $('#screen-formula-value').value = ''; draw(); };
   $('#screen-run').onclick = () => load(true);
   $('#export-screen').onclick = () => {
     const csv = ['Symbol,Company,Price,Market Cap,P/E,ROE,Volume,Sector', ...results.map(stock => {

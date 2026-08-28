@@ -237,3 +237,12 @@ test('all tools hub exposes Screener-style research workflows and working calcul
   assert.match(styles, /\.tool-library-grid/);
   assert.match(styles, /\.mini-calculator/);
 });
+
+test('stock screener supports an additional formula-style rule', async () => {
+  const [client, styles] = await Promise.all([read('app.js'), read('ui-refresh.css')]);
+  assert.match(client, /Advanced filter/);
+  assert.match(client, /screen-formula-metric/);
+  assert.match(client, /formulaPass/);
+  assert.match(client, /screen-formula-clear/);
+  assert.match(styles, /\.advanced-screen-builder/);
+});
