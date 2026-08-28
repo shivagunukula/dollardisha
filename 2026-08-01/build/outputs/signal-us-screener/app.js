@@ -1486,12 +1486,14 @@ async function hydrateMarketLeaders(period = 'day') {
     const moveFilter = Number(document.querySelector('#market-move-filter')?.value || 0);
     const rows = (data.regions || []).filter(row => {
       if (!row || !row.region || (regionFilter !== 'all' && row.region !== regionFilter)) return false;
-      const change = Number(row.change);
-      if (!Number.isFinite(change)) return false;
+      // Do not coerce a missing return to zero: Number(null) is 0 and used to
+      // make unavailable regions look like flat, valid market observations.
+      const change = scanNumber(row.change);
+      if (change === null) return false;
       const inDirection = marketLeadersDirection === 'leaders' ? change >= 0 : change < 0;
       return inDirection && (!moveFilter || Math.abs(change) >= moveFilter);
     }).sort((a, b) => {
-      const left = Number(a.change); const right = Number(b.change);
+      const left = scanNumber(a.change); const right = scanNumber(b.change);
       return marketLeadersDirection === 'leaders' ? right - left : left - right;
     }).slice(0, 5);
     holder.innerHTML = rows.length ? rows.map((row, index) => {
@@ -1505,7 +1507,11 @@ async function hydrateMarketLeaders(period = 'day') {
     const showDetails = (region) => {
       const row = (data.regions || []).find(item => item.region === region);
       if (!details || !row) return;
-      details.innerHTML = `<p class="crumb">${escapeHtml(row.region)} BENCHMARKS</p><strong>${escapeHtml(row.region)} market detail</strong><div class="market-benchmark-list">${(row.benchmarks || []).map(item => `<div><span><b>${escapeHtml(item.country || item.name)}</b><small>${escapeHtml(item.name)} · ${escapeHtml(item.exchange || 'Global')}</small></span><strong class="${Number(item.change) >= 0 ? 'positive' : 'down'}"><em>${Number.isFinite(Number(item.change)) ? percent(item.change) : 'Unavailable'}</em><small>CAGR ${Number.isFinite(Number(item.cagr)) ? percent(item.cagr) : '—'}</small></strong></div>`).join('') || '<small>No benchmark detail is available for this region yet.</small>'}</div>`;
+      details.innerHTML = `<p class="crumb">${escapeHtml(row.region)} BENCHMARKS</p><strong>${escapeHtml(row.region)} market detail</strong><div class="market-benchmark-list">${(row.benchmarks || []).map(item => {
+        const itemChange = scanNumber(item.change);
+        const itemCagr = scanNumber(item.cagr);
+        return `<div><span><b>${escapeHtml(item.country || item.name)}</b><small>${escapeHtml(item.name)} · ${escapeHtml(item.exchange || 'Global')}</small></span><strong class="${itemChange === null ? '' : itemChange >= 0 ? 'positive' : 'down'}"><em>${itemChange === null ? 'Unavailable' : percent(itemChange)}</em><small>CAGR ${itemCagr === null ? '—' : percent(itemCagr)}</small></strong></div>`;
+      }).join('') || '<small>No benchmark detail is available for this region yet.</small>'}</div>`;
     };
     document.querySelectorAll('[data-market-region-row]').forEach(rowButton => rowButton.addEventListener('click', () => showDetails(rowButton.dataset.marketRegionRow)));
     if (rows[0]) showDetails(rows[0].region);
@@ -1515,10 +1521,20 @@ async function hydrateMarketLeaders(period = 'day') {
         .flatMap(item => (item.benchmarks || []).map(benchmark => ({ ...benchmark, region: item.region })));
       const rising = marketLeadersDirection === 'leaders';
       const matching = allBenchmarks
-        .filter(item => Number.isFinite(Number(item.change)) && (rising ? (moveFilter ? Number(item.change) >= moveFilter : Number(item.change) >= 0) : (moveFilter ? Number(item.change) <= -moveFilter : Number(item.change) < 0)))
-        .sort((a, b) => rising ? Number(b.change) - Number(a.change) : Number(a.change) - Number(b.change))
+        .filter(item => {
+          const change = scanNumber(item.change);
+          return change !== null && (rising ? (moveFilter ? change >= moveFilter : change >= 0) : (moveFilter ? change <= -moveFilter : change < 0));
+        })
+        .sort((a, b) => {
+          const left = scanNumber(a.change); const right = scanNumber(b.change);
+          return rising ? right - left : left - right;
+        })
         .slice(0, 8);
-      details.innerHTML = `<p class="crumb">${rising ? 'RISING' : 'FALLING'} COUNTRIES</p><strong>${rising ? 'Country benchmarks rising' : 'Country benchmarks falling'}</strong><small>${rising ? 'Benchmarks with a positive return' : 'Benchmarks with a negative return'} for the selected period. Click a region to narrow the list.</small><div class="market-benchmark-list">${matching.map(item => `<div><span><b>${escapeHtml(item.country || item.name)}</b><small>${escapeHtml(item.name)} · ${escapeHtml(item.region || 'Global')} · ${escapeHtml(item.exchange || 'Global')}</small></span><strong class="${Number(item.change) >= 0 ? 'positive' : 'down'}"><em>${percent(item.change)}</em><small>CAGR ${Number.isFinite(Number(item.cagr)) ? percent(item.cagr) : '—'}</small></strong></div>`).join('') || '<small>No country benchmark matches this filter yet.</small>'}</div>`;
+      details.innerHTML = `<p class="crumb">${rising ? 'RISING' : 'FALLING'} COUNTRIES</p><strong>${rising ? 'Country benchmarks rising' : 'Country benchmarks falling'}</strong><small>${rising ? 'Benchmarks with a positive return' : 'Benchmarks with a negative return'} for the selected period. Click a region to narrow the list.</small><div class="market-benchmark-list">${matching.map(item => {
+        const itemChange = scanNumber(item.change);
+        const itemCagr = scanNumber(item.cagr);
+        return `<div><span><b>${escapeHtml(item.country || item.name)}</b><small>${escapeHtml(item.name)} · ${escapeHtml(item.region || 'Global')} · ${escapeHtml(item.exchange || 'Global')}</small></span><strong class="${itemChange >= 0 ? 'positive' : 'down'}"><em>${percent(itemChange)}</em><small>CAGR ${itemCagr === null ? '—' : percent(itemCagr)}</small></strong></div>`;
+      }).join('') || '<small>No country benchmark matches this filter yet.</small>'}</div>`;
     }
     const updated = document.querySelector('#market-leaders-updated');
     if (updated) updated.textContent = data.updatedAt ? `Updated ${new Date(data.updatedAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}` : 'Latest snapshot';

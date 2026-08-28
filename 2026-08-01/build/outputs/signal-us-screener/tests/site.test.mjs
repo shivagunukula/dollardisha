@@ -140,6 +140,13 @@ test('homepage keeps the interactive global market performance panel', async () 
   assert.match(client, /\/data\/market-performance\?period=/);
 });
 
+test('global market rankings never treat missing returns as zero', async () => {
+  const client = await read('app.js');
+  assert.match(client, /const change = scanNumber\(row\.change\);[\s\S]*?if \(change === null\) return false;/);
+  assert.match(client, /const itemChange = scanNumber\(item\.change\)/);
+  assert.doesNotMatch(client, /Number\.isFinite\(Number\(item\.change\)\)/);
+});
+
 test('market and screener views stay useful during partial provider coverage', async () => {
   const [client, server] = await Promise.all([read('app.js'), read('server.mjs')]);
   assert.match(client, /const liveAssets = rows =>/);
