@@ -83,12 +83,12 @@
       <button id="account-button" class="account-button" type="button" aria-haspopup="dialog" aria-label="Log in to DollarDisha"><span class="account-avatar account-brand-mark" aria-hidden="true"><img src="/assets/dollardisha-app-icon.png" alt=""></span><span class="account-label">Log in</span></button>
     </div>
     <div class="secondary-nav">
-      <div><a class="nav" href="#compare" data-page="compare">Compare companies</a><a class="nav" href="#indexlab" data-page="indexlab">Custom index</a></div>
-      <span>US equity research for Indian investors · Data for education, not investment advice.</span>
+      <div><a class="nav" href="#compare" data-page="compare">Compare</a><a class="nav" href="#portfolio" data-page="portfolio">Portfolio</a><a class="nav" href="#research" data-page="research">Workspace</a><a class="nav" href="#indexlab" data-page="indexlab">Custom index</a></div>
+      <button class="data-freshness" type="button" data-page="status" title="Open live data status"><span aria-hidden="true"></span><b>Live data</b><small id="data-freshness-label">checking…</small></button>
     </div>
   </header>
   <main id="content"><section class="seo-intro"><p class="crumb">DOLLARDISHA · US EQUITY RESEARCH</p><h1>Research US stocks with clarity</h1><p>DollarDisha helps Indian investors research US-listed companies with live market quotes, financial statements, valuation ratios, technical charts, market scans and official SEC filings.</p><nav aria-label="Research sections"><a href="#screener">Stock screener</a><a href="#markets">Market scans</a><a href="#compare">Compare companies</a><a href="#research">SEC research hub</a></nav><noscript><p>JavaScript is required for interactive quotes and charts. You can still read our <a href="/methodology.html">data and methodology</a>.</p></noscript></section></main>
-  <footer class="site-footer"><div class="footer-inner"><div class="footer-brand"><strong>Dollar<span>Disha</span></strong><small>US EQUITY RESEARCH</small></div><div class="footer-links"><a href="/about.html">About DollarDisha</a><a href="/methodology.html">Data & methodology</a><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="https://www.sec.gov/edgar/searchedgar/companysearch.html" target="_blank" rel="noreferrer">Official SEC filings</a><a href="mailto:support@dollardisha.in">Contact support</a></div><div class="footer-note"><span>© 2026 DollarDisha</span><span>Market data may be delayed or unavailable.</span><span>For research and education only. Not investment advice.</span></div></div></footer>
+  <footer class="site-footer"><div class="footer-inner"><div class="footer-brand"><strong>Dollar<span>Disha</span></strong><small>US EQUITY RESEARCH</small></div><div class="footer-links"><a href="/about.html">About DollarDisha</a><a href="/methodology.html">Data & methodology</a><a href="/#status">Live data status</a><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="https://www.sec.gov/edgar/searchedgar/companysearch.html" target="_blank" rel="noreferrer">Official SEC filings</a><a href="mailto:support@dollardisha.in">Contact support</a></div><div class="footer-note"><span>© 2026 DollarDisha</span><span>Market data may be delayed or unavailable.</span><span>For research and education only. Not investment advice.</span></div></div></footer>
   <div id="auth-modal" class="auth-overlay" hidden>
     <section class="auth-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-title">
       <button id="auth-close" class="auth-close" type="button" aria-label="Close account window">×</button>
@@ -119,6 +119,6 @@
     </section>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="/app.js?v=20260820-navigation-cleanup"></script>
+  <script src="/app.js?v=20260826-research-workspace"></script>
 </body>
 </html>

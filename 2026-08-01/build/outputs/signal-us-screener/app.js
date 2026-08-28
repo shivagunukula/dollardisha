@@ -70,6 +70,8 @@ let notes = JSON.parse(localStorage.getItem('dd-research-notes') || '[]');
 let alerts = JSON.parse(localStorage.getItem('dd-price-alerts') || '[]');
 let savedScreens = JSON.parse(localStorage.getItem('dd-saved-screens') || '[]');
 let valuationCases = JSON.parse(localStorage.getItem('dd-valuation-cases') || '[]');
+let portfolio = JSON.parse(localStorage.getItem('dd-portfolio') || '{"name":"My US portfolio","holdings":[],"updatedAt":null}');
+let researchActivity = JSON.parse(localStorage.getItem('dd-research-activity') || '[]');
 let authClient = null;
 let authSession = null;
 let authMode = 'login';
@@ -83,7 +85,9 @@ function localResearchState() {
     notes:[
       ...(Array.isArray(notes) ? notes : []),
       ...(Array.isArray(savedScreens) ? savedScreens : []).map(item => ({ kind:'saved-screen', payload:item })),
-      ...(Array.isArray(valuationCases) ? valuationCases : []).map(item => ({ kind:'valuation-case', payload:item }))
+      ...(Array.isArray(valuationCases) ? valuationCases : []).map(item => ({ kind:'valuation-case', payload:item })),
+      { kind:'portfolio', payload:portfolio },
+      { kind:'activity-log', payload:{ items:researchActivity, updatedAt:new Date().toISOString() } }
     ],
     alerts:Array.isArray(alerts) ? alerts : []
   };
@@ -104,6 +108,10 @@ function saveResearchStateLocally(state) {
   notes = syncedItems.filter(item => !item?.kind);
   savedScreens = syncedItems.filter(item => item?.kind === 'saved-screen' && item.payload).map(item => item.payload);
   valuationCases = syncedItems.filter(item => item?.kind === 'valuation-case' && item.payload).map(item => item.payload);
+  const portfolioItems = syncedItems.filter(item => item?.kind === 'portfolio' && item.payload).map(item => item.payload);
+  const activityItems = syncedItems.filter(item => item?.kind === 'activity-log' && item.payload).map(item => item.payload);
+  portfolio = portfolioItems.sort((a, b) => String(a.updatedAt || '').localeCompare(String(b.updatedAt || ''))).at(-1) || portfolio;
+  researchActivity = activityItems.sort((a, b) => String(a.updatedAt || '').localeCompare(String(b.updatedAt || ''))).at(-1)?.items || researchActivity;
   alerts = state.alerts;
   try {
     localStorage.setItem('dd-watchlist', JSON.stringify(watchlist));
@@ -112,8 +120,16 @@ function saveResearchStateLocally(state) {
     localStorage.setItem('dd-price-alerts', JSON.stringify(alerts));
     localStorage.setItem('dd-saved-screens', JSON.stringify(savedScreens));
     localStorage.setItem('dd-valuation-cases', JSON.stringify(valuationCases));
+    localStorage.setItem('dd-portfolio', JSON.stringify(portfolio));
+    localStorage.setItem('dd-research-activity', JSON.stringify(researchActivity));
     if (basket.name && !legacyIndexNames.has(basket.name)) localStorage.setItem('dd-custom-index-name-set', '1');
   } catch {}
+}
+function recordResearchActivity(type, title, detail = '', ticker = '') {
+  researchActivity.unshift({ id:`activity-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, type, title, detail, ticker:String(ticker || '').toUpperCase(), at:new Date().toISOString() });
+  researchActivity = researchActivity.slice(0, 60);
+  try { localStorage.setItem('dd-research-activity', JSON.stringify(researchActivity)); } catch {}
+  queueResearchStateSync();
 }
 async function persistResearchState() {
   const user = authSession?.user;
@@ -147,7 +163,7 @@ async function syncResearchState(user) {
     };
     saveResearchStateLocally(merged);
     await persistResearchState();
-    if (['watchlist', 'indexlab', 'research', 'screener', 'toolkit'].includes(page)) render();
+    if (['watchlist', 'indexlab', 'research', 'screener', 'toolkit', 'portfolio'].includes(page)) render();
   } catch (error) {
     syncedResearchUser = null;
     console.warn(`DollarDisha account sync is unavailable: ${error.message}`);
@@ -266,7 +282,7 @@ function screenerView() {
   return `<div class="page">${pageHeader('DISCOVER', 'US stock screener', 'Filter a broad US-equity universe, customise your query and export a research list.')}
   <div class="query-card"><div><b>Build a US equity screen</b><small>Search once, then combine size, liquidity, valuation and quality filters.</small></div><input id="screen-search" placeholder="Search a company or ticker"><button class="solid-btn" id="screen-run">Refresh data</button><button class="link-button" id="export-screen">Export CSV</button></div>
   <div class="screen-presets" aria-label="Quick screening presets"><span>Popular screens</span><button data-screen-preset="mega">Mega-cap leaders</button><button data-screen-preset="value">Profitable value</button><button data-screen-preset="quality">High ROE</button><button data-screen-preset="liquid">Highly liquid</button><button data-screen-preset="dividend">Dividend payers</button><button data-screen-preset="reset">Clear all</button></div>
-  <section class="saved-screen-workspace" aria-label="Saved screens"><div class="saved-screen-create"><div><b>Saved screens</b><small>Keep a reusable filter set in your DollarDisha account.</small></div><label><span>Screen name</span><input id="saved-screen-name" maxlength="50" placeholder="e.g. Profitable technology"></label><button class="solid-btn" id="save-current-screen" type="button">Save current screen</button></div><div id="saved-screen-list" class="saved-screen-list"></div></section>
+  <section class="saved-screen-workspace" aria-label="Saved screens"><div class="saved-screen-create"><div><b>Saved screens</b><small>Keep a reusable filter set and detect result changes whenever you run it.</small></div><label><span>Screen name</span><input id="saved-screen-name" maxlength="50" placeholder="e.g. Profitable technology"></label><label class="saved-alert-toggle"><input id="saved-screen-alert" type="checkbox" checked><span>Track result changes</span></label><button class="solid-btn" id="save-current-screen" type="button">Save current screen</button></div><div id="saved-screen-list" class="saved-screen-list"></div></section>
   <div class="filter-layout"><aside class="filters"><div class="filter-title"><span>Filter stocks</span><b>Active US listings</b></div>
     <div class="filter-fields">
       <label>Sector<select id="screen-sector"><option value="all">All sectors</option><option>Technology</option><option>Healthcare</option><option>Financial Services</option><option>Consumer Cyclical</option><option>Communication Services</option><option>Industrials</option><option>Consumer Defensive</option><option>Energy</option><option>Basic Materials</option><option>Real Estate</option><option>Utilities</option></select></label>
@@ -293,10 +309,12 @@ function indexView() {
 }
 
 function researchView() {
-  return `<div class="page">${pageHeader('COMPANY DISCLOSURES & YOUR RESEARCH', 'Research Hub', 'Read official SEC filings, save price-alert ideas and record your own investment research.')}
-  <div class="research-grid"><section class="panel"><div class="panel-head"><div><h2>SEC filing finder</h2><p>Official company disclosures from EDGAR</p></div></div><div class="filing-search"><input id="filing-ticker" value="AAPL" maxlength="10" placeholder="Ticker e.g. AAPL"><button id="filing-find" class="solid-btn">Find filings</button></div><div id="filing-results" class="filing-results"><p class="sub">Search a US ticker to see its latest SEC filings.</p></div></section>
-  <section class="panel"><div class="panel-head"><div><h2>Price-alert ideas</h2><p>Saved in this browser</p></div></div><div class="alert-form"><input id="alert-ticker" placeholder="Ticker"><select id="alert-direction"><option value="above">Price goes above</option><option value="below">Price goes below</option></select><input id="alert-price" type="number" placeholder="Price"><button id="alert-add" class="solid-btn">Save alert</button></div><div id="alerts-list" class="alert-list"></div></section></div>
-  <section class="panel journal-panel"><div class="panel-head"><div><h2>Research journal</h2><p>Write the reason, risk and evidence behind every idea.</p></div></div><div class="journal-form"><input id="note-ticker" placeholder="Ticker, e.g. NVDA"><textarea id="note-text" placeholder="What do you believe? What would prove you wrong?"></textarea><button id="note-save" class="solid-btn">Save research note</button></div><div id="notes-list" class="notes-list"></div></section></div>`;
+  return `<div class="page research-workspace">${pageHeader('YOUR RESEARCH SYSTEM', 'Research Workspace', 'Track a thesis, monitor catalysts and review official company disclosures in one place.')}
+  <section class="workspace-summary"><div><span>WATCHLIST</span><b>${watchlist.length}</b><small>companies followed</small></div><div><span>ACTIVE ALERTS</span><b>${alerts.length}</b><small>price and earnings</small></div><div><span>THESIS CARDS</span><b>${notes.length}</b><small>ideas under review</small></div><div><span>LAST ACTIVITY</span><b>${researchActivity[0] ? new Date(researchActivity[0].at).toLocaleDateString('en-IN', { day:'numeric', month:'short' }) : '—'}</b><small>research action</small></div></section>
+  <div class="research-grid"><section class="panel"><div class="panel-head"><div><h2>Official filing finder</h2><p>Issuer disclosures direct from SEC EDGAR</p></div></div><div class="filing-search"><input id="filing-ticker" value="AAPL" maxlength="10" placeholder="Ticker e.g. AAPL"><button id="filing-find" class="solid-btn">Find filings</button></div><div id="filing-results" class="filing-results"><p class="sub">Search a US ticker to see its latest official filings.</p></div></section>
+  <section class="panel"><div class="panel-head"><div><h2>Research alerts</h2><p>Price levels and earnings dates you want to revisit</p></div></div><div class="alert-form"><input id="alert-ticker" placeholder="Ticker"><select id="alert-direction"><option value="above">Price goes above</option><option value="below">Price goes below</option></select><input id="alert-price" type="number" min="0" step="0.01" placeholder="Price"><button id="alert-add" class="solid-btn">Add alert</button></div><div id="alerts-list" class="alert-list"></div></section></div>
+  <section class="panel journal-panel"><div class="panel-head"><div><h2>Thesis tracker</h2><p>Record the thesis, risk, catalyst and next review date before acting.</p></div></div><div class="thesis-form"><input id="note-ticker" placeholder="Ticker, e.g. NVDA"><select id="note-status"><option>Researching</option><option>Watching</option><option>Owned</option><option>Closed</option></select><select id="note-conviction"><option value="1">Conviction 1/5</option><option value="2">Conviction 2/5</option><option value="3" selected>Conviction 3/5</option><option value="4">Conviction 4/5</option><option value="5">Conviction 5/5</option></select><input id="note-review" type="date" title="Next review date"><textarea id="note-text" placeholder="Core thesis — what has to be true?"></textarea><textarea id="note-risk" placeholder="Key risk — what would prove you wrong?"></textarea><textarea id="note-catalyst" placeholder="Catalyst — what could change market expectations?"></textarea><button id="note-save" class="solid-btn">Save thesis card</button></div><div id="notes-list" class="notes-list thesis-list"></div></section>
+  <div class="research-grid workspace-feed-grid"><section class="panel"><div class="panel-head"><div><h2>Watchlist filing activity</h2><p>Latest official updates across followed companies</p></div></div><div id="workspace-filings" class="activity-feed"><p class="sub">Loading watchlist disclosures…</p></div></section><section class="panel"><div class="panel-head"><div><h2>Recent research activity</h2><p>Your latest saved decisions and changes</p></div></div><div id="research-activity" class="activity-feed"></div></section></div></div>`;
 }
 
 function compareView() { return `<div class="page">${pageHeader('RESEARCH SIDE BY SIDE', 'Compare companies', 'Search the complete US stock directory and compare two companies side by side.')}<section class="panel compare-panel"><div class="compare-controls"><div class="compare-picker"><label for="compare-a">First company</label><div class="compare-search"><span>⌕</span><input id="compare-a" value="AAPL" maxlength="50" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="compare-a-results"><div id="compare-a-results" class="compare-results" hidden></div></div></div><span class="compare-vs">VS</span><div class="compare-picker"><label for="compare-b">Second company</label><div class="compare-search"><span>⌕</span><input id="compare-b" value="MSFT" maxlength="50" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="compare-b-results"><div id="compare-b-results" class="compare-results" hidden></div></div></div><button id="compare-run" class="solid-btn">Compare stocks</button></div><div id="comparison"></div></section></div>`; }
@@ -380,6 +398,22 @@ function quarterlyResultsTable(rows) {
   return `<div class="table-wrap quarterly-table-wrap"><table class="quarterly-table"><thead><tr><th>Metric</th>${quarters.map((row, index) => `<th class="${index === quarters.length - 1 ? 'latest-quarter' : ''}">${escapeHtml(quarterlyPeriodLabel(row))}${index === quarters.length - 1 ? '<small>Latest</small>' : ''}</th>`).join('')}</tr></thead><tbody>${metrics.map(([label, format, className = ''], metricIndex) => `<tr class="${className}"><td>${detailFields[label] ? `<button class="quarter-toggle" type="button" data-quarter-toggle="${key(metricIndex)}" aria-expanded="false">${label}<span>+</span></button>` : label}</td>${quarters.map((row, index) => `<td class="${index === quarters.length - 1 ? 'latest-quarter' : ''}">${format(row)}</td>`).join('')}</tr>${detailRow(label, metricIndex)}`).join('')}</tbody></table></div>`;
 }
 
+function portfolioView() {
+  const holdings = Array.isArray(portfolio?.holdings) ? portfolio.holdings : [];
+  return `<div class="page portfolio-page">${pageHeader('PORTFOLIO RESEARCH', 'Portfolio Lab', 'Monitor a personal US-stock portfolio in dollars and rupees with live market data. Research only — not brokerage execution.')}
+  <section class="portfolio-command panel"><div><label>Portfolio name<input id="portfolio-name" maxlength="60" value="${escapeHtml(portfolio?.name || 'My US portfolio')}"></label></div><div class="portfolio-add"><label class="portfolio-symbol-search">Company<input id="portfolio-symbol" autocomplete="off" placeholder="Search ticker or company" role="combobox" aria-controls="portfolio-symbol-results"><div id="portfolio-symbol-results" class="compare-results" hidden></div></label><label>Shares<input id="portfolio-shares" type="number" min="0.000001" step="any" placeholder="10"></label><label>Average cost (USD)<input id="portfolio-cost" type="number" min="0" step="0.01" placeholder="150.00"></label><button id="portfolio-add" class="solid-btn" type="button">Add holding</button></div></section>
+  <section class="portfolio-kpis"><article><span>MARKET VALUE</span><b id="portfolio-market-value">Loading…</b><small id="portfolio-market-inr">Converting to INR…</small></article><article><span>TODAY</span><b id="portfolio-day-change">—</b><small>live daily change</small></article><article><span>TOTAL RETURN</span><b id="portfolio-total-return">—</b><small>vs average cost</small></article><article><span>USD / INR</span><b id="portfolio-fx">Loading…</b><small id="portfolio-updated">checking live feeds</small></article></section>
+  <div class="portfolio-layout"><section class="panel"><div class="panel-head"><div><h2>Holdings</h2><p>${holdings.length} ${holdings.length === 1 ? 'company' : 'companies'} · values refresh every minute</p></div><button id="portfolio-refresh" type="button" class="link-button">Refresh live data</button></div><div class="table-wrap"><table class="portfolio-table"><thead><tr><th>Company</th><th>Shares</th><th>Avg cost</th><th>Live price</th><th>Market value</th><th>Today</th><th>Total return</th><th></th></tr></thead><tbody id="portfolio-body"><tr><td colspan="8">${holdings.length ? 'Loading live portfolio data…' : 'Add your first holding above.'}</td></tr></tbody></table></div></section><aside class="panel allocation-panel"><div class="panel-head"><div><h2>Allocation</h2><p>Current market-value weights</p></div></div><div id="portfolio-allocation" class="allocation-list"><p class="sub">Add holdings to see allocation.</p></div></aside></div>
+  <p class="portfolio-disclaimer">DollarDisha does not connect to your broker and does not place trades. Prices and currency conversion can be delayed. For research and education only.</p></div>`;
+}
+
+function statusView() {
+  return `<div class="page status-page">${pageHeader('LIVE OPERATIONS', 'Data & System Status', 'See which market-data services are connected, when data was last checked and whether the research tools are operating normally.')}
+  <section class="status-hero panel"><div><span class="status-dot"></span><div><b id="system-overall">Checking DollarDisha services…</b><small id="system-checked">Connecting to the live server</small></div></div><button id="status-refresh" class="solid-btn" type="button">Run live check</button></section>
+  <section class="status-grid"><article class="panel"><span>WEBSITE</span><b id="status-website">Checking</b><small>Application server and secure connection</small></article><article class="panel"><span>FMP</span><b id="status-fmp">Checking</b><small>Quotes, fundamentals and calendars</small></article><article class="panel"><span>TWELVE DATA</span><b id="status-twelve">Checking</b><small>Independent live-quote confirmation</small></article><article class="panel"><span>GLOBAL MARKETS</span><b id="status-global">Checking</b><small>Indices, commodities and crypto pulse</small></article><article class="panel"><span>DATABASE</span><b id="status-database">Checking</b><small>Signed-in research workspace</small></article><article class="panel"><span>AUTOMATIC UPDATE</span><b>Every 60 seconds</b><small>Server snapshots refresh even without an open browser tab</small></article></section>
+  <section class="panel status-details"><div class="panel-head"><div><h2>Data policy</h2><p>How DollarDisha handles provider gaps</p></div></div><div class="status-policy"><div><b>Dual-provider validation</b><p>FMP and Twelve Data are combined where coverage overlaps. Official Nasdaq and public market sources are used only as resilient fallbacks.</p></div><div><b>No invented values</b><p>A dash or “not reported” means a provider did not return a reliable figure. DollarDisha never fills financial data with estimates.</p></div><div><b>Official documents</b><p>Company filings link directly to SEC EDGAR. Third-party documents are not mixed into issuer disclosures.</p></div></div></section></div>`;
+}
+
 function setupQuarterlyDetails(holder) {
   if (!holder) return;
   holder.querySelectorAll('[data-quarter-toggle]').forEach(button => button.onclick = () => {
@@ -394,7 +428,7 @@ function setupQuarterlyDetails(holder) {
   });
 }
 function render() {
-  const view = page === 'dashboard' ? dashboardView() : page === 'markets' ? marketsView() : page === 'screener' ? screenerView() : page === 'indexlab' ? indexView() : page === 'research' ? researchView() : page === 'compare' ? compareView() : page === 'watchlist' ? watchlistView() : page === 'toolkit' ? toolkitView() : companyView(page);
+  const view = page === 'dashboard' ? dashboardView() : page === 'markets' ? marketsView() : page === 'screener' ? screenerView() : page === 'indexlab' ? indexView() : page === 'research' ? researchView() : page === 'compare' ? compareView() : page === 'watchlist' ? watchlistView() : page === 'toolkit' ? toolkitView() : page === 'portfolio' ? portfolioView() : page === 'status' ? statusView() : companyView(page);
   const content = $('#content');
   content.classList.remove('route-ready');
   content.innerHTML = view;
@@ -410,7 +444,9 @@ function render() {
   if (page === 'watchlist') hydrateWatchlist();
   else { clearTimeout(watchlistRefreshTimer); watchlistRefreshTimer = null; }
   if (page === 'toolkit') setupToolkit();
-  if (!['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit'].includes(page)) {
+  if (page === 'portfolio') setupPortfolio();
+  if (page === 'status') setupSystemStatus();
+  if (!['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'portfolio', 'status'].includes(page)) {
     const companyPage = content.querySelector('.company-page');
     if (companyPage) { companyPage.classList.add('company-loading'); companyPage.setAttribute('aria-busy', 'true'); }
     hydrateCompany(page);
@@ -425,7 +461,7 @@ function render() {
 const LIVE_REFRESH_MS = 60 * 1000;
 let liveRefreshTimer = null;
 let liveRefreshBusy = false;
-const isCompanyRoute = route => !['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit'].includes(route);
+const isCompanyRoute = route => !['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'portfolio', 'status'].includes(route);
 async function refreshLiveData() {
   if (document.hidden || liveRefreshBusy) return;
   liveRefreshBusy = true;
@@ -433,8 +469,10 @@ async function refreshLiveData() {
     jsonRequestCache.clear();
     if (page === 'dashboard') await hydrateDashboard();
     else if (page === 'watchlist') await hydrateWatchlist();
+    else if (page === 'portfolio') await hydratePortfolio();
+    else if (page === 'status') await hydrateSystemStatus();
     else if (isCompanyRoute(page)) await Promise.allSettled([hydrateCompany(page), hydrateCompanyExtras(page)]);
-    else if (page === 'markets' || page === 'screener' || page === 'indexlab' || page === 'compare') render();
+    else if (page === 'markets' || page === 'screener' || page === 'indexlab' || page === 'compare' || page === 'research') render();
   } finally {
     liveRefreshBusy = false;
   }
@@ -528,10 +566,18 @@ function wireCommon() {
       if (event.button === 1 && !event.target.closest('[data-watch]')) { event.preventDefault(); openRouteInNewTab(target); }
     };
   });
-  document.querySelectorAll('[data-watch]').forEach((button) => button.onclick = (event) => { event.stopPropagation(); const ticker = button.dataset.watch; watchlist = watchlist.includes(ticker) ? watchlist.filter((item) => item !== ticker) : [...watchlist, ticker]; localStorage.setItem('dd-watchlist', JSON.stringify(watchlist)); queueResearchStateSync(); render(); });
+  document.querySelectorAll('[data-watch]').forEach((button) => button.onclick = (event) => { event.stopPropagation(); const ticker = button.dataset.watch; const removing = watchlist.includes(ticker); watchlist = removing ? watchlist.filter((item) => item !== ticker) : [...watchlist, ticker]; localStorage.setItem('dd-watchlist', JSON.stringify(watchlist)); recordResearchActivity('watchlist', `${removing ? 'Removed' : 'Added'} ${ticker} ${removing ? 'from' : 'to'} watchlist`, '', ticker); queueResearchStateSync(); render(); });
   document.querySelectorAll('[data-refresh-watchlist]').forEach((button) => button.onclick = () => hydrateWatchlist());
 }
 const jsonRequestCache = new Map();
+function markDataFreshness(value = new Date()) {
+  const label = $('#data-freshness-label');
+  if (!label) return;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return;
+  label.textContent = date.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+  label.closest('.data-freshness')?.classList.add('is-live');
+}
 async function getJson(url, timeout = 9000) {
   const cacheable = url.startsWith('/data/company?') || url.startsWith('/data/market') || url.startsWith('/data/indices') || url.startsWith('/data/global-markets') || url.startsWith('/data/watchlist?');
   const maxAge = url.startsWith('/data/company?') ? 30000 : url.startsWith('/data/watchlist?') ? 15000 : 10000;
@@ -544,7 +590,9 @@ async function getJson(url, timeout = 9000) {
       try {
         const response = await fetch(url, { signal:controller.signal, cache:'no-store', headers:{ Accept:'application/json' } });
         if (!response.ok) throw new Error(`Request failed (${response.status})`);
-        return await response.json();
+        const data = await response.json();
+        markDataFreshness(data?.updatedAt || data?.checkedAt || new Date());
+        return data;
       } catch (error) {
         lastError = error;
         if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 180));
@@ -795,7 +843,7 @@ function setupScreener() {
     const holder = $('#saved-screen-list');
     if (!holder) return;
     holder.innerHTML = savedScreens.length
-      ? savedScreens.map(item => `<div class="saved-screen-chip"><button type="button" data-load-screen="${escapeHtml(item.id)}"><b>${escapeHtml(item.name)}</b><small>${escapeHtml(item.summary || 'Custom screen')}</small></button><button type="button" data-delete-screen="${escapeHtml(item.id)}" aria-label="Delete ${escapeHtml(item.name)}">×</button></div>`).join('')
+      ? savedScreens.map(item => `<div class="saved-screen-chip"><button type="button" data-load-screen="${escapeHtml(item.id)}"><b>${escapeHtml(item.name)}</b><small>${escapeHtml(item.summary || 'Custom screen')}</small><em>${item.alertEnabled ? `${Number(item.changedCount || 0)} changes · alerts on` : 'change alerts off'}</em></button><button type="button" data-toggle-screen-alert="${escapeHtml(item.id)}" aria-label="Toggle result alerts">${item.alertEnabled ? '◉' : '○'}</button><button type="button" data-delete-screen="${escapeHtml(item.id)}" aria-label="Delete ${escapeHtml(item.name)}">×</button></div>`).join('')
       : '<p>No saved screens yet. Set filters, give the screen a name, and save it here.</p>';
     holder.querySelectorAll('[data-load-screen]').forEach(button => button.onclick = () => {
       const item = savedScreens.find(screen => screen.id === button.dataset.loadScreen);
@@ -803,7 +851,16 @@ function setupScreener() {
       Object.entries(item.filters || {}).forEach(([name, selected]) => { const input = $(`#screen-${name}`); if (input) input.value = selected; });
       $('#screen-search').value = item.search || '';
       draw();
+      if (item.alertEnabled) {
+        const symbols = results.slice(0, 60).map(stock => String(stock.symbol || stock.ticker || '').toUpperCase()).filter(Boolean);
+        const previous = Array.isArray(item.lastResultSymbols) ? item.lastResultSymbols : [];
+        item.changedCount = previous.length ? symbols.filter(symbol => !previous.includes(symbol)).length + previous.filter(symbol => !symbols.includes(symbol)).length : 0;
+        item.lastResultSymbols = symbols; item.lastCheckedAt = new Date().toISOString();
+        if (item.changedCount) recordResearchActivity('screen', `${item.name} changed`, `${item.changedCount} companies entered or left`, '');
+        saveScreens(); drawSavedScreens();
+      }
     });
+    holder.querySelectorAll('[data-toggle-screen-alert]').forEach(button => button.onclick = () => { const item = savedScreens.find(screen => screen.id === button.dataset.toggleScreenAlert); if (!item) return; item.alertEnabled = !item.alertEnabled; saveScreens(); drawSavedScreens(); });
     holder.querySelectorAll('[data-delete-screen]').forEach(button => button.onclick = () => {
       savedScreens = savedScreens.filter(screen => screen.id !== button.dataset.deleteScreen);
       saveScreens();
@@ -817,10 +874,11 @@ function setupScreener() {
     input.setCustomValidity('');
     const filters = currentScreenFilters();
     const active = Object.entries(filters).filter(([key, selected]) => selected !== presets.reset[key]).map(([key, selected]) => `${key}: ${selected}`);
-    savedScreens.unshift({ id:`screen-${Date.now()}`, name, filters, search:$('#screen-search').value.trim(), summary:active.slice(0, 3).join(' · ') || 'All active US listings', savedAt:new Date().toISOString() });
+    savedScreens.unshift({ id:`screen-${Date.now()}`, name, filters, search:$('#screen-search').value.trim(), summary:active.slice(0, 3).join(' · ') || 'All active US listings', alertEnabled:$('#saved-screen-alert').checked, lastResultSymbols:results.slice(0, 60).map(stock => String(stock.symbol || stock.ticker || '').toUpperCase()).filter(Boolean), lastCheckedAt:new Date().toISOString(), savedAt:new Date().toISOString() });
     savedScreens = savedScreens.slice(0, 20);
     input.value = '';
     saveScreens();
+    recordResearchActivity('screen', `Saved screen: ${name}`, active.slice(0, 3).join(' · ') || 'All active US listings');
     drawSavedScreens();
   };
   drawSavedScreens();
@@ -847,8 +905,59 @@ function setupScreener() {
   };
   load(false);
 }
-function drawResearchLists() { $('#alerts-list').innerHTML = alerts.map((alert, index) => `<div class="alert-item"><span><b>${alert.ticker}</b> · price ${alert.direction} $${alert.price}</span><button data-delete-alert="${index}">Remove</button></div>`).join('') || '<div class="empty-small">No alert ideas saved yet.</div>'; $('#notes-list').innerHTML = notes.slice().reverse().map((note, index) => `<article class="note-item"><div><b>${note.ticker}</b><small>${note.date}</small></div><p>${escapeHtml(note.text)}</p><button data-delete-note="${notes.length - 1 - index}">Delete</button></article>`).join('') || '<div class="empty-small">No research notes yet.</div>'; document.querySelectorAll('[data-delete-alert]').forEach((button) => button.onclick = () => { alerts.splice(Number(button.dataset.deleteAlert), 1); localStorage.setItem('dd-price-alerts', JSON.stringify(alerts)); queueResearchStateSync(); drawResearchLists(); }); document.querySelectorAll('[data-delete-note]').forEach((button) => button.onclick = () => { notes.splice(Number(button.dataset.deleteNote), 1); localStorage.setItem('dd-research-notes', JSON.stringify(notes)); queueResearchStateSync(); drawResearchLists(); }); }
-function setupResearch() { const findFilings = async () => { const ticker = $('#filing-ticker').value.trim().toUpperCase(); if (!/^[A-Z.]{1,10}$/.test(ticker)) return; $('#filing-results').innerHTML = '<p class="sub">Loading official SEC filings…</p>'; try { const data = await getJson(`/data/filings?symbol=${ticker}`); $('#filing-results').innerHTML = `<div class="filing-company"><b>${escapeHtml(data.companyName)}</b><small>${data.symbol} · CIK ${data.cik}</small></div>` + (data.filings || []).map((filing) => `<a class="filing-row" href="${filing.url || '#'}" target="_blank" rel="noreferrer"><span class="filing-form">${escapeHtml(filing.form || 'Filing')}</span><span>${escapeHtml(filing.description || filing.reportDate || 'SEC filing')}<small>Filed ${escapeHtml(filing.filedAt || '—')}</small></span><b>Open ↗</b></a>`).join(''); } catch { $('#filing-results').innerHTML = '<p class="sub">Filings are temporarily unavailable. Try again shortly.</p>'; } }; $('#filing-find').onclick = findFilings; $('#alert-add').onclick = () => { const ticker = $('#alert-ticker').value.trim().toUpperCase(); const price = Number($('#alert-price').value); if (/^[A-Z.]{1,10}$/.test(ticker) && price > 0) { alerts.push({ ticker, price, direction: $('#alert-direction').value }); localStorage.setItem('dd-price-alerts', JSON.stringify(alerts)); queueResearchStateSync(); drawResearchLists(); } }; $('#note-save').onclick = () => { const ticker = $('#note-ticker').value.trim().toUpperCase(); const text = $('#note-text').value.trim(); if (/^[A-Z.]{1,10}$/.test(ticker) && text) { notes.push({ ticker, text, date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) }); localStorage.setItem('dd-research-notes', JSON.stringify(notes)); queueResearchStateSync(); $('#note-text').value = ''; drawResearchLists(); } }; drawResearchLists(); }
+function drawResearchLists() {
+  const alertsHolder = $('#alerts-list');
+  if (alertsHolder) alertsHolder.innerHTML = alerts.map((alert, index) => {
+    const earnings = alert.type === 'earnings';
+    const triggered = alert.triggered === true;
+    const detail = earnings ? `${alert.date || 'Date TBA'} · earnings event` : `price ${alert.direction || 'above'} $${Number(alert.price || 0).toFixed(2)}`;
+    return `<div class="alert-item ${triggered ? 'triggered' : ''}"><span><b>${escapeHtml(alert.ticker)}</b> · ${escapeHtml(detail)}<small>${alert.currentPrice ? `Live $${Number(alert.currentPrice).toFixed(2)} · ` : ''}${triggered ? 'Condition reached' : 'Monitoring'}</small></span><button data-delete-alert="${index}">Remove</button></div>`;
+  }).join('') || '<div class="empty-small">No research alerts saved yet.</div>';
+  const notesHolder = $('#notes-list');
+  if (notesHolder) notesHolder.innerHTML = notes.slice().reverse().map((note, index) => `<article class="note-item thesis-card"><div><span><b>${escapeHtml(note.ticker)}</b><em>${escapeHtml(note.status || 'Researching')}</em></span><small>${escapeHtml(note.date || '')}${note.reviewDate ? ` · review ${escapeHtml(note.reviewDate)}` : ''}</small></div><p><strong>THESIS</strong>${escapeHtml(note.text)}</p>${note.risk ? `<p><strong>RISK</strong>${escapeHtml(note.risk)}</p>` : ''}${note.catalyst ? `<p><strong>CATALYST</strong>${escapeHtml(note.catalyst)}</p>` : ''}<footer><span>Conviction ${escapeHtml(note.conviction || '3')}/5</span><button data-delete-note="${notes.length - 1 - index}">Delete</button></footer></article>`).join('') || '<div class="empty-small">No thesis cards yet.</div>';
+  document.querySelectorAll('[data-delete-alert]').forEach(button => button.onclick = () => { const removed = alerts.splice(Number(button.dataset.deleteAlert), 1)[0]; localStorage.setItem('dd-price-alerts', JSON.stringify(alerts)); recordResearchActivity('alert', 'Removed research alert', removed?.ticker || '', removed?.ticker); queueResearchStateSync(); drawResearchLists(); });
+  document.querySelectorAll('[data-delete-note]').forEach(button => button.onclick = () => { const removed = notes.splice(Number(button.dataset.deleteNote), 1)[0]; localStorage.setItem('dd-research-notes', JSON.stringify(notes)); recordResearchActivity('thesis', 'Removed thesis card', removed?.ticker || '', removed?.ticker); queueResearchStateSync(); drawResearchLists(); });
+}
+async function evaluateResearchAlerts() {
+  const priceAlerts = alerts.filter(item => item.type !== 'earnings' && item.ticker);
+  const symbols = [...new Set(priceAlerts.map(item => item.ticker))];
+  if (!symbols.length) return;
+  try {
+    const quotes = await getJson(`/data/watchlist?symbols=${encodeURIComponent(symbols.join(','))}`, 30000);
+    const bySymbol = new Map((quotes || []).map(item => [String(item.symbol || '').toUpperCase(), item]));
+    let changed = false;
+    priceAlerts.forEach(alert => {
+      const price = Number(bySymbol.get(alert.ticker)?.price);
+      if (!Number.isFinite(price)) return;
+      const reached = alert.direction === 'below' ? price <= Number(alert.price) : price >= Number(alert.price);
+      if (alert.currentPrice !== price || alert.triggered !== reached) changed = true;
+      alert.currentPrice = price; alert.triggered = reached; alert.checkedAt = new Date().toISOString();
+    });
+    if (changed) { localStorage.setItem('dd-price-alerts', JSON.stringify(alerts)); queueResearchStateSync(); drawResearchLists(); }
+  } catch {}
+}
+async function hydrateWorkspaceFilings() {
+  const holder = $('#workspace-filings');
+  if (!holder) return;
+  const symbols = watchlist.slice(0, 6);
+  if (!symbols.length) { holder.innerHTML = '<p class="sub">Follow companies to build an automatic official-filings feed.</p>'; return; }
+  try {
+    const results = await Promise.allSettled(symbols.map(ticker => getJson(`/data/filings?symbol=${encodeURIComponent(ticker)}`, 30000)));
+    const filings = results.flatMap((result, index) => result.status === 'fulfilled' ? (result.value.filings || []).slice(0, 2).map(item => ({ ...item, ticker:symbols[index] })) : []).sort((a, b) => String(b.filedAt || '').localeCompare(String(a.filedAt || ''))).slice(0, 10);
+    holder.innerHTML = filings.map(item => `<a href="${escapeHtml(item.url || '#')}" target="_blank" rel="noreferrer"><span class="activity-icon">SEC</span><span><b>${escapeHtml(item.ticker)} · ${escapeHtml(item.form)}</b><small>${escapeHtml(item.category || item.description || 'Company filing')} · ${escapeHtml(item.filedAt || '')}</small></span><em>Open ↗</em></a>`).join('') || '<p class="sub">No recent issuer filings were returned.</p>';
+  } catch { holder.innerHTML = '<p class="sub">The official-filings feed is temporarily unavailable.</p>'; }
+}
+function drawResearchActivity() {
+  const holder = $('#research-activity'); if (!holder) return;
+  holder.innerHTML = researchActivity.slice(0, 12).map(item => `<div><span class="activity-icon">${escapeHtml(String(item.type || 'R').slice(0, 2).toUpperCase())}</span><span><b>${escapeHtml(item.title)}</b><small>${escapeHtml(item.detail || item.ticker || '')} · ${new Date(item.at).toLocaleString('en-IN', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}</small></span></div>`).join('') || '<p class="sub">Saved alerts, thesis changes and portfolio actions will appear here.</p>';
+}
+function setupResearch() {
+  const findFilings = async () => { const ticker = $('#filing-ticker').value.trim().toUpperCase(); if (!/^[A-Z.]{1,10}$/.test(ticker)) return; $('#filing-results').innerHTML = '<p class="sub">Loading official SEC filings…</p>'; try { const data = await getJson(`/data/filings?symbol=${ticker}`); $('#filing-results').innerHTML = `<div class="filing-company"><b>${escapeHtml(data.companyName)}</b><small>${data.symbol} · CIK ${data.cik}</small></div>` + (data.filings || []).slice(0, 12).map(filing => `<a class="filing-row" href="${filing.url || '#'}" target="_blank" rel="noreferrer"><span class="filing-form">${escapeHtml(filing.form || 'Filing')}</span><span>${escapeHtml(filing.description || filing.reportDate || 'SEC filing')}<small>Filed ${escapeHtml(filing.filedAt || '—')}</small></span><b>Open ↗</b></a>`).join(''); recordResearchActivity('filing', `Reviewed ${ticker} filings`, `${(data.filings || []).length} official documents`, ticker); drawResearchActivity(); } catch { $('#filing-results').innerHTML = '<p class="sub">Filings are temporarily unavailable. Try again shortly.</p>'; } };
+  $('#filing-find').onclick = findFilings;
+  $('#alert-add').onclick = () => { const ticker = $('#alert-ticker').value.trim().toUpperCase(); const price = Number($('#alert-price').value); if (/^[A-Z.]{1,10}$/.test(ticker) && price > 0) { alerts.push({ id:`alert-${Date.now()}`, type:'price', ticker, price, direction:$('#alert-direction').value, createdAt:new Date().toISOString() }); localStorage.setItem('dd-price-alerts', JSON.stringify(alerts)); recordResearchActivity('alert', `Added ${ticker} price alert`, `${$('#alert-direction').value} $${price.toFixed(2)}`, ticker); queueResearchStateSync(); drawResearchLists(); evaluateResearchAlerts(); } };
+  $('#note-save').onclick = () => { const ticker = $('#note-ticker').value.trim().toUpperCase(); const text = $('#note-text').value.trim(); if (/^[A-Z.]{1,10}$/.test(ticker) && text) { const item = { id:`thesis-${Date.now()}`, ticker, text, risk:$('#note-risk').value.trim(), catalyst:$('#note-catalyst').value.trim(), status:$('#note-status').value, conviction:$('#note-conviction').value, reviewDate:$('#note-review').value, date:new Date().toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }), createdAt:new Date().toISOString() }; notes.push(item); localStorage.setItem('dd-research-notes', JSON.stringify(notes)); recordResearchActivity('thesis', `Saved ${ticker} thesis`, item.status, ticker); queueResearchStateSync(); ['note-text','note-risk','note-catalyst'].forEach(id => $(`#${id}`).value = ''); drawResearchLists(); drawResearchActivity(); } };
+  drawResearchLists(); drawResearchActivity(); evaluateResearchAlerts(); hydrateWorkspaceFilings();
+}
 function setupCompare() {
   const readTicker = input => String(input.dataset.symbol || input.value).trim().toUpperCase();
   const wirePicker = (inputId, resultsId) => {
@@ -910,13 +1019,32 @@ function setupCompare() {
     try {
       const data = await Promise.all(tickers.map(ticker => getJson(`/data/company?symbol=${encodeURIComponent(ticker)}`)));
       const fields = [['Price', d => d.quote?.price ? `$${Number(d.quote.price).toFixed(2)}` : '—'], ['Market cap', d => money(d.profile?.mktCap || d.quote?.marketCap)], ['P/E ratio', d => d.ratios?.peRatioTTM ? `${Number(d.ratios.peRatioTTM).toFixed(1)}x` : '—'], ['Price to book', d => d.ratios?.priceToBookRatioTTM ? `${Number(d.ratios.priceToBookRatioTTM).toFixed(1)}x` : '—'], ['Return on equity', d => Number.isFinite(Number(d.ratios?.returnOnEquityTTM)) ? `${(Number(d.ratios.returnOnEquityTTM) * 100).toFixed(1)}%` : '—'], ['Dividend yield', d => Number.isFinite(Number(d.ratios?.dividendYieldTTM)) ? `${(Number(d.ratios.dividendYieldTTM) * 100).toFixed(2)}%` : '—'], ['Sector', d => d.profile?.sector || '—']];
-      $('#comparison').innerHTML = `<div class="comparison-grid"><div></div>${data.map(d => { const ticker = d.quote?.symbol || d.profile?.symbol || ''; const name = d.profile?.companyName || ticker; return `<div class="compare-company">${companyLogo(ticker, name)}<span><b>${escapeHtml(name)}</b><small>${escapeHtml(ticker)}</small></span></div>`; }).join('')}${fields.map(([name, fn]) => `<div class="compare-label">${name}</div>${data.map(d => `<div class="compare-value">${fn(d)}</div>`).join('')}`).join('')}</div>`;
+      $('#comparison').innerHTML = `<section class="compare-performance"><div class="panel-head"><div><h2>Relative performance</h2><p>Both stocks rebased to 0% across the latest year</p></div><span>Live market history</span></div><div id="comparison-chart" class="comparison-chart">Loading performance chart…</div></section><div class="comparison-grid"><div></div>${data.map(d => { const ticker = d.quote?.symbol || d.profile?.symbol || ''; const name = d.profile?.companyName || ticker; return `<div class="compare-company">${companyLogo(ticker, name)}<span><b>${escapeHtml(name)}</b><small>${escapeHtml(ticker)}</small></span></div>`; }).join('')}${fields.map(([name, fn]) => `<div class="compare-label">${name}</div>${data.map(d => `<div class="compare-value">${fn(d)}</div>`).join('')}`).join('')}</div>`;
+      drawComparisonChart(tickers);
     } catch { $('#comparison').innerHTML = '<p class="sub">Live comparison is unavailable. Please try again shortly.</p>'; }
   };
   wirePicker('compare-a', 'compare-a-results');
   wirePicker('compare-b', 'compare-b-results');
   $('#compare-run').onclick = run;
   run();
+}
+async function drawComparisonChart(tickers) {
+  const holder = $('#comparison-chart'); if (!holder) return;
+  try {
+    const charts = await Promise.all(tickers.map(ticker => getJson(`/data/chart?symbol=${encodeURIComponent(ticker)}&points=260`, 45000)));
+    if (!$('#comparison-chart')) return;
+    const series = charts.map((chart, seriesIndex) => {
+      const values = (chart.values || []).map(item => Number(item.close ?? item.price ?? item.value)).filter(Number.isFinite);
+      const base = values[0];
+      return { ticker:tickers[seriesIndex], values:values.map(value => ((value / base) - 1) * 100) };
+    }).filter(item => item.values.length > 2);
+    if (!series.length) throw new Error('No chart values');
+    const width = 1000, height = 280, pad = 42;
+    const all = series.flatMap(item => item.values); const min = Math.min(...all, 0), max = Math.max(...all, 0); const range = Math.max(1, max - min);
+    const pathFor = values => values.map((value, index) => `${index ? 'L' : 'M'}${(pad + (index / Math.max(1, values.length - 1)) * (width - pad * 2)).toFixed(1)},${(height - pad - ((value - min) / range) * (height - pad * 2)).toFixed(1)}`).join(' ');
+    const zeroY = height - pad - ((0 - min) / range) * (height - pad * 2);
+    holder.innerHTML = `<div class="compare-chart-legend">${series.map((item, index) => `<span class="series-${index}"><i></i>${escapeHtml(item.ticker)} <b>${item.values.at(-1) >= 0 ? '+' : ''}${item.values.at(-1).toFixed(1)}%</b></span>`).join('')}</div><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Relative stock performance"><line x1="${pad}" x2="${width-pad}" y1="${zeroY}" y2="${zeroY}" class="zero-line"/>${series.map((item,index) => `<path d="${pathFor(item.values)}" class="series-line series-${index}"/>`).join('')}<text x="${pad}" y="${height-12}">1 year ago</text><text x="${width-pad}" y="${height-12}" text-anchor="end">Latest</text></svg>`;
+  } catch { holder.textContent = 'Relative performance is temporarily unavailable.'; }
 }
 function ratioCard(label, value) { return `<div><span>${label}</span><b>${value}</b></div>`; }
 async function hydrateCompany(ticker) { try { const data = await getJson(`/data/company?symbol=${encodeURIComponent(ticker)}`); const profile = data.profile || {}; const quote = data.quote || {}; const ratios = data.ratios || {}; const metrics = data.metrics || {}; const set = (id, value) => { const element = $(`#${id}`); if (element) element.textContent = value; }; const valid = value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)); const ratio = (value, digits = 2) => valid(value) ? Number(value).toFixed(digits) : '—'; const pct = (value, digits = 1) => valid(value) ? `${(Number(value) * 100).toFixed(digits)}%` : '—'; set('company-title', profile.companyName || ticker); set('company-subtitle', `${ticker} · ${profile.exchangeShortName || profile.exchange || 'US Equity'}`); set('company-description', profile.description || 'Company profile is unavailable from the current provider.'); set('company-cap', usd(profile.mktCap || quote.marketCap)); set('company-price', quote.price ? `$${Number(quote.price).toFixed(2)}` : '—'); const change = quote.changesPercentage; const changeElement = $('#company-change'); if (changeElement) { changeElement.textContent = Number.isFinite(Number(change)) ? `${percent(change)} today` : 'Latest available quote'; changeElement.className = Number(change) >= 0 ? 'positive' : 'down'; } set('company-range', quote.dayHigh && quote.dayLow ? `$${Number(quote.dayLow).toFixed(2)} / $${Number(quote.dayHigh).toFixed(2)}` : '—'); set('company-pe', valid(ratios.peRatioTTM) ? `${ratio(ratios.peRatioTTM, 1)}x` : '—'); set('company-book', valid(metrics.bookValuePerShareTTM) ? `$${ratio(metrics.bookValuePerShareTTM, 2)}` : '—'); set('company-dividend', pct(ratios.dividendYieldTTM, 2)); set('company-roe', pct(ratios.returnOnEquityTTM)); set('company-current', ratio(ratios.currentRatioTTM)); set('company-debt', ratio(ratios.debtToEquityRatioTTM)); set('company-pb', valid(ratios.priceToBookRatioTTM) ? `${ratio(ratios.priceToBookRatioTTM, 1)}x` : '—'); set('company-volume', whole(quote.volume)); set('company-sector', profile.sector || '—'); const site = $('#company-site'); if (site) site.innerHTML = profile.website ? `<a href="${escapeHtml(profile.website)}" target="_blank" rel="noreferrer">Website ↗</a>` : '—'; const points = $('#company-keypoints'); const income = data.income || []; if (points) { const latest = income[0] || {}; const previous = income[1] || {}; const growth = latest.revenue && previous.revenue ? ((latest.revenue - previous.revenue) / Math.abs(previous.revenue)) * 100 : null; points.innerHTML = `<p class="about-label">KEY POINTS</p><ul>${Number.isFinite(growth) ? `<li>Revenue changed ${percent(growth)} in the latest reported year.</li>` : ''}${latest.netIncome && latest.revenue ? `<li>Latest reported net margin: ${((latest.netIncome / latest.revenue) * 100).toFixed(1)}%.</li>` : ''}</ul>`; } const financials = $('#financials'); if (financials) financials.innerHTML = financialTable('Income statement', data.income || [], [['Revenue','revenue'],['Gross profit','grossProfit'],['Operating income','operatingIncome'],['Net income','netIncome'],['EPS','eps']]) + financialTable('Balance sheet', data.balance || [], [['Cash & equivalents','cashAndCashEquivalents'],['Total assets','totalAssets'],['Total debt','totalDebt'],['Total liabilities','totalLiabilities'],['Total equity','totalStockholdersEquity']]) + financialTable('Cash flow', data.cashflow || [], [['Operating cash flow','operatingCashFlow'],['Capital expenditure','capitalExpenditure'],['Free cash flow','freeCashFlow'],['Net income','netIncome']]); const ratiosElement = $('#company-ratios'); if (ratiosElement) ratiosElement.innerHTML = ratioCard('P/E', valid(ratios.peRatioTTM) ? `${ratio(ratios.peRatioTTM, 1)}x` : '—') + ratioCard('Price to book', valid(ratios.priceToBookRatioTTM) ? `${ratio(ratios.priceToBookRatioTTM, 1)}x` : '—') + ratioCard('Return on equity', pct(ratios.returnOnEquityTTM)) + ratioCard('Current ratio', ratio(ratios.currentRatioTTM)) + ratioCard('Debt to equity', ratio(ratios.debtToEquityRatioTTM)) + ratioCard('Dividend yield', pct(ratios.dividendYieldTTM, 2)); getJson(`/data/chart?symbol=${encodeURIComponent(ticker)}&points=${companyChartOptions.points}`).then(chart => { const holder = $('#company-chart'); if (holder) holder.innerHTML = drawCompanyChart(chart.values || []); }).catch(() => { const holder = $('#company-chart'); if (holder) holder.innerHTML = '<p class="data-empty">Price history is temporarily unavailable.</p>'; }); } catch { const description = $('#company-description'); if (description) description.textContent = 'Live company data is temporarily unavailable.'; } }
@@ -2207,7 +2335,7 @@ hydrateCompany = async function(ticker) {
 
 function toolkitView() {
   return `<div class="page toolkit-page">${pageHeader('DECISION TOOLS', 'Research Toolkit', 'Turn live company data into a repeatable valuation view, then track the earnings events that can change the thesis.')}
-  <nav class="toolkit-jump" aria-label="Research toolkit sections"><a href="#valuation-lab">Valuation Lab</a><a href="#earnings-calendar">Earnings Calendar</a><a href="#saved-cases">Saved Cases</a><button type="button" data-page="screener">Open saved screens</button></nav>
+  <nav class="toolkit-jump" aria-label="Research toolkit sections"><a href="#valuation-lab">Valuation Lab</a><a href="#india-return-tool">INR Return</a><a href="#earnings-calendar">Earnings Calendar</a><a href="#saved-cases">Saved Cases</a><button type="button" data-page="screener">Open saved screens</button></nav>
   <section id="valuation-lab" class="panel toolkit-valuation"><div class="toolkit-section-head"><div><p class="crumb">VALUATION LAB</p><h2>Build an earnings-multiple scenario</h2><p>Start from the latest reported EPS and live price, then test your own growth, exit multiple and required return.</p></div><span class="toolkit-badge">Scenario, not a price target</span></div>
     <div class="valuation-search"><label class="toolkit-symbol-search"><span>Search a US company</span><input id="valuation-symbol" maxlength="50" value="AAPL" placeholder="Ticker or company, e.g. AAPL or Apple" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="valuation-symbol-results" aria-expanded="false"><div id="valuation-symbol-results" class="compare-results valuation-symbol-results" hidden></div></label><button id="valuation-load" class="solid-btn" type="button">Load company</button><span id="valuation-status" role="status" aria-live="polite">Ready to load live data</span></div>
     <div id="valuation-company-card" class="toolkit-company-card" aria-live="polite"><div class="toolkit-company-placeholder"><span>LIVE INPUTS</span><b>Choose a company to populate the valuation model</b><small>DollarDisha will load the latest quote, reported TTM EPS and current P/E where available.</small></div></div>
@@ -2215,10 +2343,11 @@ function toolkitView() {
     <div class="valuation-output" id="valuation-output"><p>Load a company to calculate the scenario.</p></div></div>
     <div class="valuation-save"><input id="valuation-case-name" maxlength="60" placeholder="Name this case, e.g. Apple base case" aria-label="Valuation case name"><button id="valuation-save" type="button" class="solid-btn" disabled>Save valuation case</button></div>
   </section>
+  <section id="india-return-tool" class="panel india-return-tool"><div class="toolkit-section-head"><div><p class="crumb">INDIAN INVESTOR TOOL</p><h2>Translate a US return into rupees</h2><p>See how the stock return and the USD/INR move combine for an Indian investor.</p></div><span id="india-fx-rate" class="toolkit-badge">Loading USD/INR</span></div><div class="india-return-grid"><label>Investment in USD<input id="india-usd-amount" type="number" min="0" step="100" value="1000"></label><label>US stock return<input id="india-stock-return" type="number" step="0.1" value="10"><span>%</span></label><label>USD/INR move<input id="india-fx-change" type="number" step="0.1" value="2"><span>%</span></label><div class="india-return-output"><span>Estimated value in INR</span><strong id="india-final-inr">—</strong><b id="india-total-return">—</b><small>Before tax, fees and currency-conversion costs</small></div></div></section>
   <section id="earnings-calendar" class="panel toolkit-calendar"><div class="toolkit-section-head"><div><p class="crumb">EARNINGS CALENDAR</p><h2>Upcoming US company results</h2><p>Provider-reported earnings dates and estimates. Open any ticker directly in DollarDisha research.</p></div><span id="earnings-updated" class="toolkit-badge">Loading calendar</span></div>
     <div class="calendar-toolbar"><div role="tablist" aria-label="Calendar period"><button class="selected" type="button" data-earnings-period="7">Next 7 days</button><button type="button" data-earnings-period="14">Next 14 days</button><button type="button" data-earnings-period="30">Next 30 days</button><button type="button" data-earnings-period="all">All available</button></div><label><span class="sr-only">Filter earnings calendar</span><input id="earnings-search" type="search" placeholder="Filter ticker or company"></label></div>
     <div class="calendar-summary"><span id="earnings-visible">Loading reported events</span><small>Dates and estimates are provider reported and may change.</small></div>
-    <div class="table-wrap"><table class="earnings-calendar-table"><thead><tr><th>Date</th><th>Company</th><th>Session</th><th>EPS estimate</th><th>Revenue estimate</th><th></th></tr></thead><tbody id="earnings-calendar-body"><tr><td colspan="6">Loading the earnings calendar...</td></tr></tbody></table></div>
+    <div class="table-wrap"><table class="earnings-calendar-table"><thead><tr><th>Date</th><th>Company</th><th>Session</th><th>EPS estimate</th><th>Revenue estimate</th><th>Alert</th><th></th></tr></thead><tbody id="earnings-calendar-body"><tr><td colspan="7">Loading the earnings calendar...</td></tr></tbody></table></div>
   </section>
   <section id="saved-cases" class="panel saved-cases-panel"><div class="toolkit-section-head"><div><p class="crumb">YOUR WORK</p><h2>Saved valuation cases</h2><p>Cases are saved locally and merge into your signed-in research account.</p></div><span id="saved-cases-count" class="toolkit-badge">0 saved cases</span></div><div id="valuation-cases" class="valuation-case-grid"></div></section></div>`;
 }
@@ -2440,9 +2569,20 @@ function setupToolkit() {
     $('#earnings-visible').textContent = `${filtered.length} ${filtered.length === 1 ? 'event' : 'events'} shown${calendarRows.length ? ` from ${calendarRows.length} reported` : ''}`;
     $('#earnings-calendar-body').innerHTML = filtered.length ? filtered.map(row => {
       const session = /bmo|before/.test(row.time) ? 'Before open' : /amc|after/.test(row.time) ? 'After close' : 'Time not reported';
-      return `<tr class="company-row" data-stock="${escapeHtml(row.symbol)}"><td><b>${escapeHtml(row.date || 'TBA')}</b></td><td>${companyIdentity(row.symbol, row.name)}</td><td>${session}</td><td>${row.eps === null ? 'Not reported' : formatMoney(row.eps)}</td><td>${row.revenue === null ? 'Not reported' : money(row.revenue)}</td><td><button class="link-button" data-page="${escapeHtml(row.symbol)}">Research</button></td></tr>`;
-    }).join('') : `<tr><td colspan="6"><div class="calendar-empty"><b>No reported earnings match this view</b><span>${search ? 'Clear the company filter or widen the date range.' : 'Widen the date range to see all provider-reported events.'}</span><button type="button" data-show-all-earnings>Show all available</button></div></td></tr>`;
+      const tracked = alerts.some(item => item.type === 'earnings' && item.ticker === row.symbol && item.date === row.date);
+      return `<tr class="company-row" data-stock="${escapeHtml(row.symbol)}"><td><b>${escapeHtml(row.date || 'TBA')}</b></td><td>${companyIdentity(row.symbol, row.name)}</td><td>${session}</td><td>${row.eps === null ? 'Not reported' : formatMoney(row.eps)}</td><td>${row.revenue === null ? 'Not reported' : money(row.revenue)}</td><td><button class="track-earnings ${tracked ? 'tracked' : ''}" type="button" data-track-earnings="${escapeHtml(row.symbol)}" data-earnings-date="${escapeHtml(row.date)}" data-earnings-name="${escapeHtml(row.name)}">${tracked ? 'Tracking' : 'Track'}</button></td><td><button class="link-button" data-page="${escapeHtml(row.symbol)}">Research</button></td></tr>`;
+    }).join('') : `<tr><td colspan="7"><div class="calendar-empty"><b>No reported earnings match this view</b><span>${search ? 'Clear the company filter or widen the date range.' : 'Widen the date range to see all provider-reported events.'}</span><button type="button" data-show-all-earnings>Show all available</button></div></td></tr>`;
     wireCommon();
+    document.querySelectorAll('[data-track-earnings]').forEach(button => button.onclick = event => {
+      event.stopPropagation();
+      const ticker = button.dataset.trackEarnings; const date = button.dataset.earningsDate;
+      const index = alerts.findIndex(item => item.type === 'earnings' && item.ticker === ticker && item.date === date);
+      if (index >= 0) alerts.splice(index, 1);
+      else alerts.unshift({ id:`earnings-${Date.now()}`, type:'earnings', ticker, date, name:button.dataset.earningsName, createdAt:new Date().toISOString() });
+      localStorage.setItem('dd-price-alerts', JSON.stringify(alerts));
+      recordResearchActivity('earnings', `${index >= 0 ? 'Stopped' : 'Started'} tracking ${ticker} earnings`, date, ticker);
+      queueResearchStateSync(); drawCalendar();
+    });
     document.querySelector('[data-show-all-earnings]')?.addEventListener('click', () => {
       calendarPeriod = 'all';
       document.querySelectorAll('[data-earnings-period]').forEach(item => item.classList.toggle('selected', item.dataset.earningsPeriod === 'all'));
@@ -2467,9 +2607,18 @@ function setupToolkit() {
     } catch {
       $('#earnings-updated').textContent = 'Calendar temporarily unavailable';
       $('#earnings-visible').textContent = 'Live calendar unavailable';
-      $('#earnings-calendar-body').innerHTML = '<tr><td colspan="6">The provider calendar could not be loaded. Try again shortly.</td></tr>';
+      $('#earnings-calendar-body').innerHTML = '<tr><td colspan="7">The provider calendar could not be loaded. Try again shortly.</td></tr>';
     }
   };
+  let liveUsdInr = 0;
+  const calculateIndiaReturn = () => {
+    const amount = Number($('#india-usd-amount').value); const stockReturn = Number($('#india-stock-return').value) / 100; const fxChange = Number($('#india-fx-change').value) / 100;
+    if (!(amount >= 0) || !Number.isFinite(stockReturn) || !Number.isFinite(fxChange) || !(liveUsdInr > 0)) return;
+    const initialInr = amount * liveUsdInr; const finalInr = amount * (1 + stockReturn) * liveUsdInr * (1 + fxChange); const total = initialInr ? ((finalInr / initialInr) - 1) * 100 : 0;
+    $('#india-final-inr').textContent = inr(finalInr); $('#india-total-return').textContent = `${total >= 0 ? '+' : ''}${total.toFixed(2)}% combined INR return`; $('#india-total-return').className = total >= 0 ? 'positive' : 'down';
+  };
+  getJson('/data/fx-rate', 30000).then(data => { liveUsdInr = Number(data.rate); $('#india-fx-rate').textContent = `USD/INR ₹${liveUsdInr.toFixed(2)} · live`; calculateIndiaReturn(); }).catch(() => { $('#india-fx-rate').textContent = 'USD/INR unavailable'; });
+  ['india-usd-amount','india-stock-return','india-fx-change'].forEach(id => $(`#${id}`).oninput = calculateIndiaReturn);
   $('#valuation-load').onclick = () => loadValuation();
   setupValuationSearch();
   ['valuation-price','valuation-eps','valuation-growth','valuation-pe','valuation-discount','valuation-years'].forEach(id => $(`#${id}`).oninput = calculate);
@@ -2484,6 +2633,7 @@ function setupToolkit() {
     const caseName = $('#valuation-case-name').value.trim() || `${symbol} base case`;
     valuationCases.unshift({ id:`case-${Date.now()}`, symbol, name:caseName, ...result, savedAt:new Date().toISOString(), savedLabel:new Date().toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) });
     valuationCases = valuationCases.slice(0, 24);
+    recordResearchActivity('valuation', `Saved ${symbol} valuation case`, caseName, symbol);
     $('#valuation-case-name').value = '';
     saveToolState();
     drawCases();
@@ -2495,6 +2645,77 @@ function setupToolkit() {
   loadValuation('AAPL');
   loadCalendar();
 }
+
+function savePortfolio() {
+  portfolio.updatedAt = new Date().toISOString();
+  try { localStorage.setItem('dd-portfolio', JSON.stringify(portfolio)); } catch {}
+  queueResearchStateSync();
+}
+function inr(value) {
+  return Number.isFinite(Number(value)) ? new Intl.NumberFormat('en-IN', { style:'currency', currency:'INR', maximumFractionDigits:0 }).format(Number(value)) : '—';
+}
+async function hydratePortfolio() {
+  const holder = $('#portfolio-body'); if (!holder) return;
+  const holdings = Array.isArray(portfolio?.holdings) ? portfolio.holdings : [];
+  if (!holdings.length) { holder.innerHTML = '<tr><td colspan="8">Add your first holding above.</td></tr>'; return; }
+  try {
+    const [rows, fx] = await Promise.all([
+      getJson(`/data/watchlist?symbols=${encodeURIComponent(holdings.map(item => item.symbol).join(','))}`, 45000),
+      getJson('/data/fx-rate', 20000).catch(() => ({ rate:null }))
+    ]);
+    if (page !== 'portfolio' || !$('#portfolio-body')) return;
+    const bySymbol = new Map((rows || []).map(row => [String(row.symbol || '').toUpperCase(), row]));
+    const enriched = holdings.map(item => ({ ...item, quote:bySymbol.get(item.symbol) || {} }));
+    const marketValue = enriched.reduce((sum, item) => sum + Number(item.shares || 0) * Number(item.quote.price || 0), 0);
+    const costValue = enriched.reduce((sum, item) => sum + Number(item.shares || 0) * Number(item.averageCost || 0), 0);
+    const dayChange = enriched.reduce((sum, item) => { const price = Number(item.quote.price || 0); const change = Number(item.quote.changesPercentage ?? item.quote.changePercentage); return sum + (Number.isFinite(change) ? Number(item.shares || 0) * price * (change / (100 + change)) : 0); }, 0);
+    const totalReturn = marketValue - costValue;
+    $('#portfolio-market-value').textContent = money(marketValue);
+    $('#portfolio-market-inr').textContent = Number.isFinite(Number(fx.rate)) ? `${inr(marketValue * Number(fx.rate))} at ₹${Number(fx.rate).toFixed(2)}/USD` : 'USD/INR temporarily unavailable';
+    $('#portfolio-day-change').textContent = `${dayChange >= 0 ? '+' : '-'}${money(Math.abs(dayChange))}`;
+    $('#portfolio-day-change').className = dayChange >= 0 ? 'positive' : 'down';
+    $('#portfolio-total-return').textContent = costValue ? `${totalReturn >= 0 ? '+' : '-'}${money(Math.abs(totalReturn))} · ${percent((totalReturn / costValue) * 100)}` : '—';
+    $('#portfolio-total-return').className = totalReturn >= 0 ? 'positive' : 'down';
+    $('#portfolio-fx').textContent = Number.isFinite(Number(fx.rate)) ? `₹${Number(fx.rate).toFixed(2)}` : '—';
+    $('#portfolio-updated').textContent = `updated ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}`;
+    holder.innerHTML = enriched.map(item => {
+      const price = Number(item.quote.price); const value = Number(item.shares) * (Number.isFinite(price) ? price : 0); const cost = Number(item.shares) * Number(item.averageCost || 0); const gain = value - cost; const change = Number(item.quote.changesPercentage ?? item.quote.changePercentage);
+      return `<tr class="company-row" data-stock="${escapeHtml(item.symbol)}"><td>${companyIdentity(item.symbol, item.quote.name || item.name || item.symbol, item.quote.sector || 'US Equity')}</td><td>${Number(item.shares).toLocaleString('en-US', { maximumFractionDigits:6 })}</td><td>$${Number(item.averageCost).toFixed(2)}</td><td>${Number.isFinite(price) ? `$${price.toFixed(2)}` : '—'}</td><td>${value ? money(value) : '—'}</td><td class="${change >= 0 ? 'positive' : 'down'}">${Number.isFinite(change) ? percent(change) : '—'}</td><td class="${gain >= 0 ? 'positive' : 'down'}">${cost && value ? `${percent((gain / cost) * 100)} · ${gain >= 0 ? '+' : '-'}${money(Math.abs(gain))}` : '—'}</td><td><button type="button" data-remove-holding="${escapeHtml(item.symbol)}">Remove</button></td></tr>`;
+    }).join('');
+    const allocation = $('#portfolio-allocation');
+    allocation.innerHTML = marketValue ? enriched.sort((a, b) => Number(b.shares) * Number(b.quote.price || 0) - Number(a.shares) * Number(a.quote.price || 0)).map(item => { const value = Number(item.shares) * Number(item.quote.price || 0); const weight = (value / marketValue) * 100; return `<div><span><b>${escapeHtml(item.symbol)}</b><small>${money(value)}</small></span><em>${weight.toFixed(1)}%</em><i style="--allocation:${Math.max(1, weight)}%"></i></div>`; }).join('') : '<p class="sub">Live values are unavailable.</p>';
+    holder.querySelectorAll('[data-remove-holding]').forEach(button => button.onclick = event => { event.stopPropagation(); const ticker = button.dataset.removeHolding; portfolio.holdings = portfolio.holdings.filter(item => item.symbol !== ticker); savePortfolio(); recordResearchActivity('portfolio', `Removed ${ticker} from portfolio`, '', ticker); render(); });
+    wireCommon();
+  } catch {
+    holder.innerHTML = '<tr><td colspan="8">Live portfolio data is temporarily unavailable. Your saved holdings are safe.</td></tr>';
+  }
+}
+function setupPortfolio() {
+  const input = $('#portfolio-symbol'); const results = $('#portfolio-symbol-results'); let timer; let selected = null;
+  input.oninput = () => { selected = null; clearTimeout(timer); const query = input.value.trim(); if (query.length < 1) { results.hidden = true; return; } timer = setTimeout(async () => { results.hidden = false; results.innerHTML = '<button disabled>Searching live directory…</button>'; try { const found = await getJson(`/data/search?q=${encodeURIComponent(query)}`, 15000); results.innerHTML = (found || []).slice(0, 8).map(item => { const symbol = String(item.symbol || item.ticker || '').toUpperCase(); const name = item.name || item.companyName || symbol; return `<button type="button" data-portfolio-symbol="${escapeHtml(symbol)}" data-portfolio-name="${escapeHtml(name)}">${companyLogo(symbol, name, 'small')}<span><b>${escapeHtml(name)}</b><small>${escapeHtml(symbol)} · ${escapeHtml(item.exchangeShortName || item.exchange || 'NASDAQ/NYSE')}</small></span></button>`; }).join('') || '<button disabled>No matching US company</button>'; results.querySelectorAll('[data-portfolio-symbol]').forEach(button => button.onclick = () => { selected = { symbol:button.dataset.portfolioSymbol, name:button.dataset.portfolioName }; input.value = selected.symbol; results.hidden = true; $('#portfolio-shares').focus(); }); } catch { results.innerHTML = '<button disabled>Directory temporarily unavailable</button>'; } }, 180); };
+  input.onblur = () => setTimeout(() => { results.hidden = true; }, 160);
+  $('#portfolio-add').onclick = async () => { let symbol = String(selected?.symbol || input.value).trim().toUpperCase(); if (!/^[A-Z.]{1,10}$/.test(symbol)) return input.focus(); const shares = Number($('#portfolio-shares').value); const averageCost = Number($('#portfolio-cost').value); if (!(shares > 0) || !(averageCost >= 0)) return $('#portfolio-shares').focus(); const existing = portfolio.holdings.find(item => item.symbol === symbol); if (existing) { const oldShares = Number(existing.shares); const totalShares = oldShares + shares; existing.averageCost = totalShares ? ((oldShares * Number(existing.averageCost) + shares * averageCost) / totalShares) : averageCost; existing.shares = totalShares; } else portfolio.holdings.push({ symbol, name:selected?.name || symbol, shares, averageCost, addedAt:new Date().toISOString() }); savePortfolio(); recordResearchActivity('portfolio', `Added ${symbol} to portfolio`, `${shares} shares at $${averageCost.toFixed(2)}`, symbol); render(); };
+  $('#portfolio-name').onchange = () => { portfolio.name = $('#portfolio-name').value.trim().slice(0, 60) || 'My US portfolio'; savePortfolio(); };
+  $('#portfolio-refresh').onclick = () => { jsonRequestCache.clear(); hydratePortfolio(); };
+  hydratePortfolio();
+}
+async function hydrateSystemStatus() {
+  if (!$('#system-overall')) return;
+  try {
+    const status = await getJson('/data/system-status', 30000);
+    if (page !== 'status' || !$('#system-overall')) return;
+    const label = value => value ? 'Operational' : 'Unavailable';
+    $('#system-overall').textContent = status.status === 'ok' ? 'All core systems operational' : 'Some live-data services are degraded';
+    $('#system-checked').textContent = `Last checked ${new Date(status.checkedAt).toLocaleString()} · server uptime ${status.uptimeHours.toFixed(1)} hours`;
+    $('#status-website').textContent = label(status.website);
+    $('#status-fmp').textContent = label(status.providers?.fmp);
+    $('#status-twelve').textContent = label(status.providers?.twelveData);
+    $('#status-global').textContent = label(status.globalMarkets?.available);
+    $('#status-database').textContent = status.databaseConfigured ? 'Connected' : 'Not configured';
+    document.querySelector('.status-hero')?.classList.toggle('degraded', status.status !== 'ok');
+  } catch { $('#system-overall').textContent = 'Live status check failed'; $('#system-checked').textContent = 'The website is open, but the operations endpoint did not respond.'; }
+}
+function setupSystemStatus() { $('#status-refresh').onclick = () => { jsonRequestCache.clear(); hydrateSystemStatus(); }; hydrateSystemStatus(); }
 
 setupTheme();
 setupSearch();

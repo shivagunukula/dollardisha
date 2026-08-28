@@ -895,6 +895,38 @@ createServer(async (req, res) => {
         checkedAt: new Date().toISOString()
       });
     }
+    if (url.pathname === '/data/fx-rate') {
+      let fxQuote = null;
+      try {
+        fxQuote = await combinedQuote({ symbol:'USDINR', twelveSymbol:'USD/INR', fmpSymbol:'USDINR', exchange:'FOREX', quiet:true });
+      } catch {}
+      if (!finiteValue(fxQuote?.price)) {
+        try { fxQuote = normalizeQuote('USDINR', { ...(await yahooQuote('INR=X')), provider:'yahoo', providers:['yahoo'] }); } catch {}
+      }
+      const rate = finiteValue(fxQuote?.price);
+      if (!rate) return send(res, 503, { error:'USD/INR is temporarily unavailable.', updatedAt:new Date().toISOString() });
+      return send(res, 200, {
+        pair:'USD/INR',
+        rate,
+        change:finiteValue(fxQuote?.changesPercentage, fxQuote?.changePercentage),
+        provider:fxQuote?.provider || 'live market feed',
+        updatedAt:new Date().toISOString()
+      });
+    }
+    if (url.pathname === '/data/system-status') {
+      const pulse = await globalMarketPulse().catch(() => null);
+      const globalAvailable = Boolean(pulse?.indices?.some(row => finiteValue(row?.price)));
+      const coreProviders = Boolean(key) && Boolean(twelveDataKey);
+      return send(res, 200, {
+        status:coreProviders && globalAvailable ? 'ok' : 'degraded',
+        website:true,
+        uptimeHours:(Date.now() - startedAt) / 3600000,
+        providers:{ fmp:Boolean(key), twelveData:Boolean(twelveDataKey) },
+        databaseConfigured:Boolean(supabaseUrl && supabaseKey),
+        globalMarkets:{ available:globalAvailable, updatedAt:pulse?.updatedAt || null },
+        checkedAt:new Date().toISOString()
+      });
+    }
     if (url.pathname === '/data/company-logo') {
       const ticker = symbol(url.searchParams.get('symbol'));
       if (!ticker) return send(res, 400, { error:'Invalid ticker.' });

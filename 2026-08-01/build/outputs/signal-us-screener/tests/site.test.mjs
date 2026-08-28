@@ -156,3 +156,66 @@ test('phone and tablet layouts contain every tool without widening the page', as
   assert.match(styles, /\.table-wrap \{[\s\S]*?overflow-x: auto !important/);
   assert.match(styles, /\.auth-dialog \{[\s\S]*?max-height: calc\(100dvh/);
 });
+
+test('research workspace combines alerts, thesis tracking, filings and activity', async () => {
+  const [client, styles] = await Promise.all([read('app.js'), read('ui-refresh.css')]);
+  assert.match(client, /function researchView\(\)/);
+  assert.match(client, /Research alerts/);
+  assert.match(client, /Thesis tracker/);
+  assert.match(client, /Watchlist filing activity/);
+  assert.match(client, /Recent research activity/);
+  assert.match(client, /function recordResearchActivity/);
+  assert.match(client, /dd-research-activity/);
+  assert.match(styles, /\.workspace-summary/);
+  assert.match(styles, /\.thesis-card/);
+  assert.match(styles, /\.activity-feed/);
+});
+
+test('portfolio dashboard tracks holdings, INR value, allocation and live returns', async () => {
+  const [html, client, server, styles] = await Promise.all([
+    read('index.html'),
+    read('app.js'),
+    read('server.mjs'),
+    read('ui-refresh.css')
+  ]);
+  assert.match(html, /data-page="portfolio">Portfolio/);
+  assert.match(client, /function portfolioView\(\)/);
+  assert.match(client, /function setupPortfolio\(\)/);
+  assert.match(client, /function hydratePortfolio\(\)/);
+  assert.match(client, /portfolio-market-inr/);
+  assert.match(client, /Allocation/);
+  assert.match(client, /dd-portfolio/);
+  assert.match(server, /url\.pathname === '\/data\/fx-rate'/);
+  assert.match(styles, /\.portfolio-kpis/);
+  assert.match(styles, /\.portfolio-allocation/);
+});
+
+test('comparison charts and toolkit INR returns use live provider data', async () => {
+  const [client, server, styles] = await Promise.all([read('app.js'), read('server.mjs'), read('ui-refresh.css')]);
+  assert.match(client, /function drawComparisonChart\(tickers\)/);
+  assert.match(client, /Relative performance/);
+  assert.match(client, /INDIAN INVESTOR TOOL/);
+  assert.match(client, /id="india-fx-rate"/);
+  assert.match(client, /Track result changes/);
+  assert.match(client, /data-track-earnings/);
+  assert.match(server, /combinedQuote\(\{ symbol:'USDINR'/);
+  assert.match(styles, /\.comparison-chart/);
+  assert.match(styles, /\.india-return-grid/);
+});
+
+test('status dashboard reports website, providers, database and refresh policy', async () => {
+  const [html, client, server, styles] = await Promise.all([
+    read('index.html'),
+    read('app.js'),
+    read('server.mjs'),
+    read('ui-refresh.css')
+  ]);
+  assert.match(html, /data-page="status"/);
+  assert.match(client, /function statusView\(\)/);
+  assert.match(client, /function setupSystemStatus\(\)/);
+  assert.match(client, /AUTOMATIC UPDATE/);
+  assert.match(client, /markDataFreshness/);
+  assert.match(server, /url\.pathname === '\/data\/system-status'/);
+  assert.match(styles, /\.status-grid/);
+  assert.match(styles, /\.data-freshness/);
+});
