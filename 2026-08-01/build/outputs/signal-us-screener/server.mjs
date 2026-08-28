@@ -1000,8 +1000,8 @@ createServer(async (req, res) => {
     if (url.pathname === '/data/company' || url.pathname === '/api/company') {
       const ticker = symbol(url.searchParams.get('symbol'));
       if (!ticker) return send(res, 400, { error:'Invalid ticker.' });
-      const optional = path => fmp(path, { symbol:ticker, limit: 8 }).catch(() => []);
-      const optionalQuarterly = path => fmp(path, { symbol:ticker, period:'quarter', limit: 8 }).catch(() => []);
+      const optional = path => fmp(path, { symbol:ticker, limit: 20 }).catch(() => []);
+      const optionalQuarterly = path => fmp(path, { symbol:ticker, period:'quarter', limit: 12 }).catch(() => []);
       const [profile, quote, metrics, income, balance, cashflow, ratios, quarterlyIncome, secData] = await Promise.all([
         optional('profile'), liveQuote(ticker).catch(error => {
           console.warn(`Live quote unavailable for ${ticker}; loading fundamentals without it: ${error.message}`);
