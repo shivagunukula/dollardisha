@@ -439,6 +439,33 @@ function statusView() {
   <section class="panel status-details"><div class="panel-head"><div><h2>Data policy</h2><p>How DollarDisha handles provider gaps</p></div></div><div class="status-policy"><div><b>Dual-provider validation</b><p>FMP and Twelve Data are combined where coverage overlaps. Official Nasdaq and public market sources are used only as resilient fallbacks.</p></div><div><b>No invented values</b><p>A dash or “not reported” means a provider did not return a reliable figure. DollarDisha never fills financial data with estimates.</p></div><div><b>Official documents</b><p>Company filings link directly to SEC EDGAR. Third-party documents are not mixed into issuer disclosures.</p></div></div></section></div>`;
 }
 
+function pricingView() {
+  return `<div class="page pricing-page">${pageHeader('DOLLARDISHA PRO', 'Research without limits', 'Unlock the complete research workspace for serious US-equity analysis. One simple plan, billed monthly, with no confusing tiers.')}
+  <section class="pricing-hero panel"><div><p class="crumb">BUILT FOR INDIAN INVESTORS</p><h2>Make every research session count.</h2><p class="sub">Pro brings live market context, deeper company pages and a faster workflow together in one focused plan.</p><div class="pricing-proof"><span>✓ Live quote refresh</span><span>✓ Full research pages</span><span>✓ Cancel anytime</span></div></div><div class="price-card"><span class="price-card-label">DOLLARDISHA PRO</span><div class="price"><strong>$9</strong><span>/ month</span></div><p>Early-access launch price</p><button type="button" class="solid-btn pricing-cta" data-start-checkout>Start Pro</button><small id="billing-status" aria-live="polite">Secure checkout will open in a new window.</small></div></section>
+  <section class="pricing-grid"><article class="panel"><h2>Everything in Pro</h2><ul class="feature-list"><li><b>Live market data</b><span>Quotes, indices and market scans refreshed every minute.</span></li><li><b>Complete company research</b><span>Profiles, valuation ratios, EPS, PE, financials and trend charts.</span></li><li><b>Powerful screening</b><span>Saved screens, advanced formulas and quick filters across US equities.</span></li><li><b>Research workspace</b><span>Watchlists, comparisons, portfolio tracking, notes and alerts.</span></li><li><b>Official filings</b><span>Issuer documents linked directly to SEC EDGAR.</span></li></ul></article><article class="panel pricing-free"><h2>Free access</h2><p class="sub">Explore DollarDisha before upgrading.</p><div class="free-row"><span>Company discovery</span><b>Included</b></div><div class="free-row"><span>Basic market pulse</span><b>Included</b></div><div class="free-row"><span>Full research workspace</span><b>Pro</b></div><div class="free-row"><span>Saved screens & alerts</span><b>Pro</b></div><button type="button" class="link-button" data-page="dashboard">Continue exploring →</button></article></section>
+  <p class="pricing-note">Market data may be delayed or unavailable. DollarDisha is for research and education only, not investment advice. Subscription access is activated after successful payment.</p></div>`;
+}
+
+async function setupPricing() {
+  const button = document.querySelector('[data-start-checkout]');
+  const status = $('#billing-status');
+  if (!button) return;
+  button.onclick = async () => {
+    button.disabled = true;
+    if (status) status.textContent = 'Preparing secure checkout…';
+    try {
+      const response = await fetch('/api/billing/create-checkout-session', { method:'POST', headers:{ Accept:'application/json' } });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Checkout is not configured yet.');
+      if (data.url) window.location.assign(data.url);
+      else throw new Error('Checkout link was not returned.');
+    } catch (error) {
+      if (status) status.textContent = error.message;
+      button.disabled = false;
+    }
+  };
+}
+
 function setupQuarterlyDetails(holder) {
   if (!holder) return;
   holder.querySelectorAll('[data-quarter-toggle]').forEach(button => button.onclick = () => {
@@ -453,7 +480,7 @@ function setupQuarterlyDetails(holder) {
   });
 }
 function render() {
-  const view = page === 'dashboard' ? dashboardView() : page === 'markets' ? marketsView() : page === 'screener' ? screenerView() : page === 'indexlab' ? indexView() : page === 'research' ? researchView() : page === 'compare' ? compareView() : page === 'watchlist' ? watchlistView() : page === 'toolkit' ? toolkitView() : page === 'tools' ? toolsView() : page === 'portfolio' ? portfolioView() : page === 'status' ? statusView() : companyView(page);
+  const view = page === 'dashboard' ? dashboardView() : page === 'markets' ? marketsView() : page === 'screener' ? screenerView() : page === 'indexlab' ? indexView() : page === 'research' ? researchView() : page === 'compare' ? compareView() : page === 'watchlist' ? watchlistView() : page === 'toolkit' ? toolkitView() : page === 'tools' ? toolsView() : page === 'portfolio' ? portfolioView() : page === 'status' ? statusView() : page === 'pricing' ? pricingView() : companyView(page);
   const content = $('#content');
   content.classList.remove('route-ready');
   content.innerHTML = view;
@@ -472,7 +499,8 @@ function render() {
   if (page === 'tools') setupTools();
   if (page === 'portfolio') setupPortfolio();
   if (page === 'status') setupSystemStatus();
-  if (!['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'tools', 'portfolio', 'status'].includes(page)) {
+  if (page === 'pricing') setupPricing();
+  if (!['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'tools', 'portfolio', 'status', 'pricing'].includes(page)) {
     const companyPage = content.querySelector('.company-page');
     if (companyPage) { companyPage.classList.add('company-loading'); companyPage.setAttribute('aria-busy', 'true'); }
     hydrateCompany(page);
@@ -487,7 +515,7 @@ function render() {
 const LIVE_REFRESH_MS = 60 * 1000;
 let liveRefreshTimer = null;
 let liveRefreshBusy = false;
-const isCompanyRoute = route => !['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'tools', 'portfolio', 'status'].includes(route);
+const isCompanyRoute = route => !['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'tools', 'portfolio', 'status', 'pricing'].includes(route);
 async function refreshLiveData() {
   if (document.hidden || liveRefreshBusy) return;
   liveRefreshBusy = true;

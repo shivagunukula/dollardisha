@@ -15,6 +15,9 @@ const supabaseUrl = process.env.SUPABASE_URL || process.env.SUPABASE_PROJECT_URL
 const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabasePublishableKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLIC_KEY;
 const supabasePublishableKeyIsSecret = /^sb_secret_/i.test(supabasePublishableKey || '');
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY || env.STRIPE_SECRET_KEY;
+const stripePriceId = process.env.STRIPE_PRICE_ID || env.STRIPE_PRICE_ID;
+const publicAppUrl = process.env.PUBLIC_APP_URL || env.PUBLIC_APP_URL || 'https://dollardisha.in';
 if (supabasePublishableKeyIsSecret) console.warn('SUPABASE_PUBLISHABLE_KEY contains a secret key. Use the sb_publishable_ key in the browser instead.');
 if (!key) console.warn('FMP_API_KEY is not configured. DollarDisha will use its quote fallback where available.');
 const mime = {
@@ -926,6 +929,22 @@ createServer(async (req, res) => {
         globalMarkets:{ available:globalAvailable, updatedAt:pulse?.updatedAt || null },
         checkedAt:new Date().toISOString()
       });
+    }
+    if (url.pathname === '/api/billing/create-checkout-session') {
+      if (req.method !== 'POST') return send(res, 405, { error:'Use POST to start checkout.' }, 'application/json; charset=utf-8', { Allow:'POST' });
+      if (!stripeSecretKey || !stripePriceId) return send(res, 503, { error:'DollarDisha Pro checkout is being connected. Add STRIPE_SECRET_KEY and STRIPE_PRICE_ID in the hosting environment, then redeploy.' });
+      const form = new URLSearchParams({
+        mode:'subscription',
+        'line_items[0][price]':stripePriceId,
+        'line_items[0][quantity]':'1',
+        success_url:`${publicAppUrl}/#pricing?checkout=success`,
+        cancel_url:`${publicAppUrl}/#pricing?checkout=cancelled`,
+        'subscription_data[description]':'DollarDisha Pro monthly subscription'
+      });
+      const response = await fetch('https://api.stripe.com/v1/checkout/sessions', { method:'POST', headers:{ Authorization:`Bearer ${stripeSecretKey}`, 'Content-Type':'application/x-www-form-urlencoded' }, body:form, signal:AbortSignal.timeout(10000) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.url) return send(res, 502, { error:'Secure checkout could not be created. Check the Stripe price and account settings.' });
+      return send(res, 200, { url:data.url });
     }
     if (url.pathname === '/data/company-logo') {
       const ticker = symbol(url.searchParams.get('symbol'));
