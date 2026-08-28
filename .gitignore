@@ -1,0 +1,11 @@
+# Local configuration and credentials must never be committed.
+.env
+.env.*
+*.env
+!.env.example
+
+# Common local and build artifacts.
+node_modules/
+npm-debug.log*
+.DS_Store
+Thumbs.db
