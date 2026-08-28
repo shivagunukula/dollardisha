@@ -785,11 +785,13 @@ html[data-theme="light"] .data-freshness,html[data-theme="light"] .workspace-sum
 
 /* Motion: noticeable enough to feel polished, quiet enough for research */
 @keyframes dd-page-in {
-  from { opacity: 0; transform: translateY(8px); }
+  /* Keep the route painted during navigation. A transparent root causes a
+     visible flash while the SPA swaps views or a new tab hydrates. */
+  from { opacity: 1; transform: translateY(5px); }
   to { opacity: 1; transform: translateY(0); }
 }
 @keyframes dd-card-in {
-  from { opacity: 0; transform: translateY(10px) scale(.995); }
+  from { opacity: 1; transform: translateY(6px) scale(.998); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes dd-price-in {
@@ -2443,15 +2445,16 @@ button,.link-button,.solid-btn{transition:transform .15s ease,background-color .
 
 /* Purposeful site motion -------------------------------------------------- */
 #content {
-  transition: opacity .18s ease;
+  transition: none;
 }
 #content:not(.route-ready) {
-  opacity: .985;
+  opacity: 1;
 }
 .motion-enabled .motion-reveal {
-  opacity: 0;
-  transform: translate3d(0, 12px, 0);
-  filter: saturate(.94);
+  /* Do not hide content while IntersectionObserver waits for it. */
+  opacity: 1;
+  transform: translate3d(0, 6px, 0);
+  filter: none;
 }
 .motion-enabled .motion-reveal.is-visible {
   animation: dd-reveal .48s cubic-bezier(.22,.72,.24,1) var(--motion-delay, 0ms) both;
@@ -2524,7 +2527,7 @@ button,.link-button,.solid-btn{transition:transform .15s ease,background-color .
   left: 0;
 }
 @keyframes dd-reveal {
-  from { opacity: 0; transform: translate3d(0,12px,0); filter: saturate(.94); }
+  from { opacity: 1; transform: translate3d(0,6px,0); filter: none; }
   to { opacity: 1; transform: translate3d(0,0,0); filter: none; }
 }
 @keyframes dd-company-loading {
