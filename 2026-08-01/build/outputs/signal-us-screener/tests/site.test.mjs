@@ -100,6 +100,11 @@ test('navigation exposes one route per product and company research has no dupli
   assert.match(source, /const routeSections = new Set\(\['overview', 'chart', 'strengths', 'quarterly', 'financials', 'peers', 'intelligence', 'documents'\]\)/);
 });
 
+test('app-level hash navigation wins over the current company path', async () => {
+  const source = await read('app.js');
+  assert.match(source, /const routeFromLocation = \(\) => routeFromHash\(\) \|\| routeFromPath\(\);/);
+});
+
 test('durable stock URLs load client assets from the site root', async () => {
   const html = await read('index.html');
   assert.match(html, /href="\/styles\.css/);

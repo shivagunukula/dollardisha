@@ -496,7 +496,12 @@ const routeFromPath = () => {
   const match = window.location.pathname.match(/^\/stocks\/([A-Z0-9][A-Z0-9._-]{0,14})\/?$/i);
   return match ? match[1].toUpperCase() : null;
 };
-const routeFromLocation = () => routeFromPath() || routeFromHash();
+// A hash route is an app-level destination even when the current URL is a
+// company path.  Without this precedence, clicking Home/Market/Screens from
+// `/stocks/AAPL` leaves the path route in control and appears to do nothing.
+// Section hashes such as `#chart` intentionally return null above, so they
+// continue to behave as normal in-page anchors on a company page.
+const routeFromLocation = () => routeFromHash() || routeFromPath();
 const routeHref = target => {
   const next = String(target || 'dashboard');
   return isCompanyRoute(next) ? `/stocks/${encodeURIComponent(next.toUpperCase())}` : `/#${encodeURIComponent(next)}`;
