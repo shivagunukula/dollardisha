@@ -17,6 +17,11 @@ const supabasePublishableKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.e
 const supabasePublishableKeyIsSecret = /^sb_secret_/i.test(supabasePublishableKey || '');
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || env.STRIPE_SECRET_KEY;
 const stripePriceId = process.env.STRIPE_PRICE_ID || env.STRIPE_PRICE_ID;
+const stripePlanPrices = {
+  monthly: process.env.STRIPE_PRICE_MONTHLY_ID || env.STRIPE_PRICE_MONTHLY_ID || stripePriceId,
+  'six-month': process.env.STRIPE_PRICE_SIX_MONTH_ID || env.STRIPE_PRICE_SIX_MONTH_ID,
+  annual: process.env.STRIPE_PRICE_ANNUAL_ID || env.STRIPE_PRICE_ANNUAL_ID
+};
 const publicAppUrl = process.env.PUBLIC_APP_URL || env.PUBLIC_APP_URL || 'https://dollardisha.in';
 if (supabasePublishableKeyIsSecret) console.warn('SUPABASE_PUBLISHABLE_KEY contains a secret key. Use the sb_publishable_ key in the browser instead.');
 if (!key) console.warn('FMP_API_KEY is not configured. DollarDisha will use its quote fallback where available.');
@@ -932,10 +937,12 @@ createServer(async (req, res) => {
     }
     if (url.pathname === '/api/billing/create-checkout-session') {
       if (req.method !== 'POST') return send(res, 405, { error:'Use POST to start checkout.' }, 'application/json; charset=utf-8', { Allow:'POST' });
-      if (!stripeSecretKey || !stripePriceId) return send(res, 503, { error:'DollarDisha Pro checkout is being connected. Add STRIPE_SECRET_KEY and STRIPE_PRICE_ID in the hosting environment, then redeploy.' });
+      const plan = ['monthly', 'six-month', 'annual'].includes(url.searchParams.get('plan')) ? url.searchParams.get('plan') : 'monthly';
+      const selectedPriceId = stripePlanPrices[plan];
+      if (!stripeSecretKey || !selectedPriceId) return send(res, 503, { error:`${plan === 'six-month' ? '6-month' : plan === 'annual' ? 'Annual' : 'Monthly'} Pro checkout is not configured yet. Add the matching Stripe price ID in the hosting environment, then redeploy.` });
       const form = new URLSearchParams({
         mode:'subscription',
-        'line_items[0][price]':stripePriceId,
+        'line_items[0][price]':selectedPriceId,
         'line_items[0][quantity]':'1',
         success_url:`${publicAppUrl}/#pricing?checkout=success`,
         cancel_url:`${publicAppUrl}/#pricing?checkout=cancelled`,
