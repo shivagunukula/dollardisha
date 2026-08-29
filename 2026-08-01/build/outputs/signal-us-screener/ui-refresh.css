@@ -2996,3 +2996,39 @@ html[data-theme="light"] .table-wrap { scrollbar-color: #a8bbc4 #edf3f5 !importa
 html[data-theme="light"] .data-empty,
 html[data-theme="light"] .market-leader-loading,
 html[data-theme="light"] .company-signals-loading { color: var(--dd-muted) !important; }
+/* Earnings dashboard and source-backed company event timeline */
+.earnings-dashboard-panel,.company-events-panel{overflow:hidden}
+.earnings-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line,#26324d);border-top:1px solid var(--line,#26324d);border-bottom:1px solid var(--line,#26324d)}
+.earnings-summary-grid article{min-height:112px;padding:20px;background:var(--panel,#111a2b)}
+.earnings-summary-grid span,.earnings-summary-grid small{display:block;color:var(--muted,#94a3b8)}
+.earnings-summary-grid span{font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+.earnings-summary-grid b{display:block;margin:10px 0 7px;color:var(--text,#f3f6ff);font-size:22px;line-height:1.15}
+.earnings-summary-grid small{font-size:10px}
+.earnings-history-wrap{margin:18px}
+.earnings-history-table th,.earnings-history-table td{white-space:nowrap}
+.earnings-history-table tbody tr:hover{background:color-mix(in srgb,var(--accent,#53d8b0) 7%,transparent)}
+.earnings-source-note{margin:0;padding:0 18px 18px;color:var(--muted,#94a3b8);font-size:10px;line-height:1.55}
+.earnings-empty{display:grid;gap:7px;padding:28px 22px;color:var(--muted,#94a3b8)}
+.earnings-empty b{color:var(--text,#f3f6ff);font-size:15px}
+.event-filter-bar{display:flex;gap:8px;flex-wrap:wrap;padding:0 18px 16px;border-bottom:1px solid var(--line,#26324d)}
+.event-filter-bar button{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border:1px solid var(--line,#33415f);border-radius:999px;background:transparent;color:var(--muted,#aeb8cc);font:700 10px Inter,sans-serif;cursor:pointer}
+.event-filter-bar button span{display:grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:color-mix(in srgb,var(--accent,#53d8b0) 12%,transparent);font-size:9px}
+.event-filter-bar button.active,.event-filter-bar button:hover{border-color:var(--accent,#53d8b0);background:color-mix(in srgb,var(--accent,#53d8b0) 12%,transparent);color:var(--text,#f3f6ff)}
+.company-event-list{position:relative;padding:8px 18px 12px}
+.company-event-list:before{content:"";position:absolute;top:18px;bottom:22px;left:145px;width:1px;background:var(--line,#2b3854)}
+.company-event-item{position:relative;display:grid;grid-template-columns:108px 18px minmax(0,1fr) auto;gap:14px;align-items:center;min-height:82px;padding:12px 4px;border-bottom:1px solid var(--line,#26324d)}
+.company-event-item:last-child{border-bottom:0}
+.company-event-item time b,.company-event-item time small{display:block}
+.company-event-item time b{color:var(--text,#f3f6ff);font-size:12px}
+.company-event-item time small{margin-top:5px;color:var(--muted,#94a3b8);font-size:9px;text-transform:uppercase;letter-spacing:.08em}
+.event-marker{position:relative;z-index:1;width:11px;height:11px;border:2px solid var(--panel,#111a2b);border-radius:50%;background:var(--accent,#53d8b0);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent,#53d8b0) 35%,transparent)}
+.event-filing .event-marker{background:#8297ff}.event-dividend .event-marker{background:#e8b95c}.event-call .event-marker{background:#ca8cff}
+.event-kind{color:var(--accent,#53d8b0);font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em}
+.company-event-item h3{margin:4px 0;color:var(--text,#f3f6ff);font-size:13px}
+.company-event-item p{margin:0;color:var(--muted,#94a3b8);font-size:10px}
+.company-event-item aside a,.company-event-item aside button{display:inline-flex;padding:7px 10px;border:1px solid var(--line,#34415f);border-radius:7px;background:transparent;color:var(--accent,#53d8b0);font:700 9px Inter,sans-serif;text-decoration:none;cursor:pointer}
+html[data-theme="light"] .earnings-summary-grid article{background:#fff}
+html[data-theme="light"] .earnings-summary-grid b,html[data-theme="light"] .earnings-empty b,html[data-theme="light"] .company-event-item time b,html[data-theme="light"] .company-event-item h3{color:#17312e}
+html[data-theme="light"] .event-marker{border-color:#fff}
+@media(max-width:900px){.earnings-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.company-event-list:before{left:125px}.company-event-item{grid-template-columns:88px 18px minmax(0,1fr)}}
+@media(max-width:620px){.earnings-summary-grid{grid-template-columns:1fr 1fr}.earnings-summary-grid article{min-height:96px;padding:15px}.earnings-summary-grid b{font-size:17px}.company-event-list{padding-inline:12px}.company-event-list:before{display:none}.company-event-item{grid-template-columns:1fr;gap:6px;padding:14px 2px}.event-marker{display:none}.company-event-item aside{margin-top:4px}.event-filter-bar{padding-inline:12px}.earnings-history-wrap{margin-inline:12px}}

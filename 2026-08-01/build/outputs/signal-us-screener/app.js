@@ -549,7 +549,7 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden) refreshLiveData();
 });
 
-const routeSections = new Set(['overview', 'chart', 'strengths', 'quarterly', 'financials', 'peers', 'intelligence', 'documents']);
+const routeSections = new Set(['overview', 'chart', 'earnings', 'strengths', 'quarterly', 'financials', 'peers', 'intelligence', 'events', 'documents']);
 const routeFromHash = () => {
   const raw = window.location.hash.replace(/^#/, '');
   if (!raw || raw.includes('=') || raw.startsWith('access_token') || raw.startsWith('error')) return null;
@@ -648,7 +648,7 @@ function markDataFreshness(value = new Date()) {
   label.closest('.data-freshness')?.classList.add('is-live');
 }
 async function getJson(url, timeout = 9000) {
-  const cacheable = url.startsWith('/data/company?') || url.startsWith('/data/market') || url.startsWith('/data/indices') || url.startsWith('/data/global-markets') || url.startsWith('/data/watchlist?');
+  const cacheable = url.startsWith('/data/company?') || url.startsWith('/data/company-intel?') || url.startsWith('/data/filings?') || url.startsWith('/data/market') || url.startsWith('/data/indices') || url.startsWith('/data/global-markets') || url.startsWith('/data/watchlist?');
   const maxAge = url.startsWith('/data/company?') ? 30000 : url.startsWith('/data/watchlist?') ? 15000 : 10000;
   if (cacheable && jsonRequestCache.has(url)) return jsonRequestCache.get(url);
   const request = (async () => {
@@ -1184,7 +1184,7 @@ function companyView(ticker) {
       </div>
       <button class="solid-btn ${watchlist.includes(ticker) ? 'saved' : ''}" data-watch="${ticker}">${watchlist.includes(ticker) ? 'Following' : 'Follow'}</button>
     </div>
-    <nav class="company-tabs"><a href="#overview">Overview</a><a href="#chart">Chart</a><a href="#strengths">Pros &amp; cons</a><a href="#quarterly">Quarterly</a><a href="#financials">Financials</a><a href="#peers">Peers</a><a href="#intelligence">Intelligence</a><a href="#documents">Documents</a></nav>
+    <nav class="company-tabs"><a href="#overview">Overview</a><a href="#chart">Chart</a><a href="#earnings">Earnings</a><a href="#strengths">Pros &amp; cons</a><a href="#quarterly">Quarterly</a><a href="#financials">Financials</a><a href="#peers">Peers</a><a href="#intelligence">Outlook</a><a href="#events">Events</a><a href="#documents">Documents</a></nav>
     <div class="company-actionbar"><span class="live-pill"><i></i> Live research data</span><span id="company-freshness">Updating from connected providers…</span><button type="button" class="link-button" id="company-refresh">Refresh data</button><button type="button" class="solid-btn" id="company-export">Export research CSV</button></div>
     <div id="overview" class="company-overview-stack">
       <section class="panel company-summary company-research-card">
@@ -1211,6 +1211,7 @@ function companyView(ticker) {
       <section class="panel growth-panel"><div class="panel-head"><div><h2>Long-term performance</h2><p>Calculated from reported annual statements and current market data</p></div><span class="data-badge">Reported history</span></div><div id="company-growth-cards" class="growth-cards"><div><span>Sales CAGR</span><b>—</b><small>5 years</small></div><div><span>Profit CAGR</span><b>—</b><small>5 years</small></div><div><span>EPS trend</span><b>—</b><small>Latest vs prior year</small></div><div><span>ROE</span><b id="growth-roe">—</b><small>TTM</small></div></div></section>
     </div>
     <section id="chart" class="panel chart-panel"><div class="panel-head"><div><h2>Price & volume</h2><p>Historical market data · select the time range below</p></div></div><div id="company-chart" class="chart-area">Loading chart…</div></section>
+    <section id="earnings" class="panel earnings-dashboard-panel"><div class="panel-head"><div><h2>Earnings dashboard</h2><p>Provider-reported estimates, actual results and surprise history</p></div><span class="data-badge" id="earnings-confidence">Checking coverage…</span></div><div id="company-earnings-dashboard"><p class="data-empty">Loading earnings data…</p></div></section>
     <section id="strengths" class="panel company-signals-panel" aria-labelledby="company-signals-title">
       <div class="panel-head"><div><h2 id="company-signals-title">Pros &amp; cons</h2><p>Automatically calculated from reported financial data</p></div><span class="signals-badge">Rules-based</span></div>
       <div id="company-signals" class="company-signals-loading">Analysing the latest reported figures...</div>
@@ -1218,7 +1219,8 @@ function companyView(ticker) {
     <section id="quarterly" class="panel financial-panel quarterly-panel"><div class="panel-head"><div><h2>Quarterly results</h2><p>USD millions except per-share data · latest reported quarters</p></div><span class="quarterly-source">Reported data</span></div><div id="company-quarterly"><p class="data-empty">Loading quarterly results…</p></div></section>
     <div id="financials" class="financial-stack"></div>
     <section id="peers" class="panel documents-panel"><div class="panel-head"><div><h2>Peer comparison</h2><p>Companies in the same sector and industry</p></div><input id="peer-search" class="peer-search" placeholder="Find a peer…" aria-label="Find a peer"></div><div id="company-peers" class="data-empty">Peer data is loading…</div></section>
-    <section id="intelligence" class="research-grid intelligence-grid"><div class="panel"><div class="panel-head"><div><h2>Analyst & financial strength</h2><p>Consensus, financial scores and owner earnings</p></div></div><div id="company-intel" class="data-empty">Loading analyst and financial-strength data…</div></div><div class="panel"><div class="panel-head"><div><h2>Company leadership</h2><p>Executives reported by the provider</p></div></div><div id="company-executives" class="data-empty">Loading executive data…</div></div><div class="panel"><div class="panel-head"><div><h2>News & company events</h2><p>Latest available provider headlines, earnings and dividends</p></div></div><div id="company-updates" class="data-empty">Loading company updates…</div></div><div class="panel"><div class="panel-head"><div><h2>Insider activity</h2><p>Reported insider transactions</p></div></div><div id="company-insiders" class="data-empty">Loading insider activity…</div></div></section>
+    <section id="intelligence" class="research-grid intelligence-grid"><div class="panel"><div class="panel-head"><div><h2>Analyst & financial strength</h2><p>Consensus, financial scores and owner earnings</p></div></div><div id="company-intel" class="data-empty">Loading analyst and financial-strength data…</div></div><div class="panel"><div class="panel-head"><div><h2>Company leadership</h2><p>Executives reported by the provider</p></div></div><div id="company-executives" class="data-empty">Loading executive data…</div></div><div class="panel"><div class="panel-head"><div><h2>Insider activity</h2><p>Reported insider transactions</p></div></div><div id="company-insiders" class="data-empty">Loading insider activity…</div></div></section>
+    <section id="events" class="panel company-events-panel"><div class="panel-head"><div><h2>Company event timeline</h2><p>Earnings, dividends, calls and official SEC filings in one place</p></div><span class="data-badge" id="events-updated">Loading events…</span></div><div id="company-event-timeline"><p class="data-empty">Building the reported event timeline…</p></div></section>
     <section id="documents" class="panel documents-panel"><div class="panel-head"><div><h2>Recent SEC filings</h2><p>Official documents, direct from the SEC</p></div></div><div id="company-documents" class="data-empty">Loading recent filings…</div></section>
   </div>`;
 }
@@ -1347,6 +1349,113 @@ function renderCompanySignals(holder, data) {
   </div><p class="signals-note">Automatically generated from reported financial statements and ratios using fixed research rules. For education only, not investment advice.</p>`;
 }
 
+function reportedNumber(...values) {
+  const value = values.find(item => item !== null && item !== undefined && item !== '' && Number.isFinite(Number(item)));
+  return value === undefined ? null : Number(value);
+}
+
+function reportedDate(...values) {
+  const value = values.find(item => item && !Number.isNaN(new Date(item).getTime()));
+  return value ? String(value).slice(0, 10) : '';
+}
+
+function renderEarningsDashboard(holder, intel) {
+  if (!holder) return;
+  const rows = (Array.isArray(intel?.earnings) ? intel.earnings : []).map(item => ({
+    date:reportedDate(item.date, item.fiscalDateEnding, item.reportedDate),
+    period:item.fiscalDateEnding || item.period || item.date || '',
+    epsActual:reportedNumber(item.eps, item.epsActual, item.epsReported),
+    epsEstimate:reportedNumber(item.epsEstimated, item.epsEstimate, item.estimatedEps),
+    revenueActual:reportedNumber(item.revenue, item.revenueActual, item.revenueReported),
+    revenueEstimate:reportedNumber(item.revenueEstimated, item.revenueEstimate, item.estimatedRevenue),
+    session:item.time || item.session || ''
+  })).filter(item => item.date).sort((a, b) => b.date.localeCompare(a.date));
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = rows.filter(item => item.date >= today).sort((a, b) => a.date.localeCompare(b.date))[0] || null;
+  const completed = rows.filter(item => item.date < today && (item.epsActual !== null || item.revenueActual !== null));
+  const latest = completed[0] || rows.find(item => item.epsActual !== null || item.revenueActual !== null) || null;
+  const surprise = row => row?.epsActual !== null && row?.epsEstimate !== null && row.epsEstimate !== 0 ? ((row.epsActual - row.epsEstimate) / Math.abs(row.epsEstimate)) * 100 : null;
+  const surpriseLabel = row => {
+    const value = surprise(row);
+    return value === null ? 'Not reported' : `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
+  };
+  const moneyValue = value => value === null ? 'Not reported' : usd(value);
+  const epsValue = value => value === null ? 'Not reported' : `$${value.toFixed(2)}`;
+  const status = $('#earnings-confidence');
+  if (status) status.textContent = rows.length >= 4 ? 'Provider history available' : rows.length ? 'Partial provider coverage' : 'Not reported by provider';
+  if (!rows.length) {
+    holder.innerHTML = '<div class="earnings-empty"><b>No earnings dataset was returned</b><span>The quarterly financial statements below may still be available. DollarDisha does not estimate missing results or dates.</span></div>';
+    return;
+  }
+  const summary = [
+    ['Next report', upcoming?.date || 'Not reported', upcoming?.session ? String(upcoming.session).toUpperCase() : 'Provider date'],
+    ['EPS estimate', epsValue(upcoming?.epsEstimate ?? null), upcoming ? 'Upcoming consensus' : 'No upcoming event returned'],
+    ['Revenue estimate', moneyValue(upcoming?.revenueEstimate ?? null), upcoming ? 'Upcoming consensus' : 'No upcoming event returned'],
+    ['Latest EPS surprise', latest ? surpriseLabel(latest) : 'Not reported', latest?.date || 'No completed event returned']
+  ];
+  const history = rows.slice(0, 8);
+  holder.innerHTML = `<div class="earnings-summary-grid">${summary.map(([label, value, note]) => `<article><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b><small>${escapeHtml(note)}</small></article>`).join('')}</div><div class="table-wrap earnings-history-wrap"><table class="earnings-history-table"><thead><tr><th>Reported date</th><th>Period</th><th>EPS actual</th><th>EPS estimate</th><th>Surprise</th><th>Revenue actual</th><th>Revenue estimate</th></tr></thead><tbody>${history.map(row => { const surpriseValue = surprise(row); return `<tr><td><b>${escapeHtml(row.date)}</b></td><td>${escapeHtml(String(row.period).slice(0, 10) || '—')}</td><td>${epsValue(row.epsActual)}</td><td>${epsValue(row.epsEstimate)}</td><td class="${surpriseValue === null ? '' : surpriseValue >= 0 ? 'positive' : 'down'}">${surpriseLabel(row)}</td><td>${moneyValue(row.revenueActual)}</td><td>${moneyValue(row.revenueEstimate)}</td></tr>`; }).join('')}</tbody></table></div><p class="earnings-source-note">Actuals, estimates and dates are shown exactly as returned by the connected provider. Missing values remain explicitly labelled.</p>`;
+}
+
+function renderCompanyEventTimeline(holder, intel, filingData, ticker) {
+  if (!holder) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const filings = (Array.isArray(filingData?.filings) ? filingData.filings : []).slice(0, 24).map(item => ({
+    type:'filing', date:reportedDate(item.filedAt, item.reportDate), title:`${item.form || 'SEC filing'} · ${item.description || item.category || 'Company disclosure'}`, detail:'Official issuer filing', url:item.url || ''
+  }));
+  const earnings = (Array.isArray(intel?.earnings) ? intel.earnings : []).slice(0, 10).map(item => {
+    const actual = reportedNumber(item.eps, item.epsActual, item.epsReported);
+    const estimate = reportedNumber(item.epsEstimated, item.epsEstimate, item.estimatedEps);
+    const detail = actual !== null ? `EPS actual $${actual.toFixed(2)}${estimate !== null ? ` · estimate $${estimate.toFixed(2)}` : ''}` : estimate !== null ? `EPS estimate $${estimate.toFixed(2)}` : 'Provider-reported earnings event';
+    return { type:'earnings', date:reportedDate(item.date, item.fiscalDateEnding), title:`${ticker} earnings`, detail };
+  });
+  const dividends = (Array.isArray(intel?.dividends) ? intel.dividends : []).slice(0, 10).map(item => {
+    const dividend = reportedNumber(item.dividend, item.adjDividend);
+    return { type:'dividend', date:reportedDate(item.paymentDate, item.recordDate, item.date), title:'Dividend event', detail:dividend === null ? 'Provider-reported dividend date' : `$${dividend.toFixed(4)} per share` };
+  });
+  const calls = (Array.isArray(intel?.transcriptDates) ? intel.transcriptDates : []).slice(0, 10).map(item => ({
+    type:'call', date:reportedDate(item.date), title:`Q${item.quarter || '—'} ${item.year || ''} earnings call`, detail:'Company management discussion and analyst Q&A', year:item.year, quarter:item.quarter
+  }));
+  const events = [...earnings, ...dividends, ...calls, ...filings].filter(item => item.date).sort((a, b) => {
+    const aFuture = a.date >= today; const bFuture = b.date >= today;
+    if (aFuture !== bFuture) return aFuture ? -1 : 1;
+    return aFuture ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date);
+  });
+  if (!events.length) {
+    holder.innerHTML = '<div class="earnings-empty"><b>No dated company events were returned</b><span>DollarDisha will show the timeline when the provider or SEC reports a dated event.</span></div>';
+    return;
+  }
+  const labels = { all:'All events', earnings:'Earnings', filing:'SEC filings', dividend:'Dividends', call:'Calls' };
+  let active = 'all';
+  const draw = () => {
+    const visible = events.filter(item => active === 'all' || item.type === active).slice(0, 18);
+    holder.innerHTML = `<div class="event-filter-bar">${Object.entries(labels).map(([key, label]) => `<button type="button" class="${active === key ? 'active' : ''}" data-event-filter="${key}">${label}<span>${key === 'all' ? events.length : events.filter(item => item.type === key).length}</span></button>`).join('')}</div><div class="company-event-list">${visible.map(item => { const upcoming = item.date >= today; const callAction = item.type === 'call' && item.year && item.quarter ? `<button type="button" data-call-mode="summary" data-call-year="${item.year}" data-call-quarter="${item.quarter}">Open summary</button>` : ''; const filingAction = item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">Open filing ↗</a>` : ''; return `<article class="company-event-item event-${item.type}"><time datetime="${escapeHtml(item.date)}"><b>${escapeHtml(item.date)}</b><small>${upcoming ? 'Upcoming' : 'Reported'}</small></time><span class="event-marker" aria-hidden="true"></span><div><span class="event-kind">${escapeHtml(labels[item.type] || item.type)}</span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.detail)}</p></div><aside>${callAction || filingAction}</aside></article>`; }).join('')}</div><p class="earnings-source-note">Exact dates only. SEC filings are confirmed issuer disclosures; earnings, dividends and calls are labelled from provider-reported data.</p>`;
+    holder.querySelectorAll('[data-event-filter]').forEach(button => button.onclick = () => { active = button.dataset.eventFilter; draw(); });
+    holder.querySelectorAll('[data-call-mode]').forEach(button => button.onclick = () => openEarningsDocument(ticker, button.dataset.callYear, button.dataset.callQuarter, button.dataset.callMode));
+  };
+  draw();
+}
+
+async function hydrateCompanyEarningsAndEvents(ticker) {
+  const earningsHolder = $('#company-earnings-dashboard');
+  const timelineHolder = $('#company-event-timeline');
+  if (!earningsHolder && !timelineHolder) return;
+  try {
+    const [intel, filings] = await Promise.all([
+      getJson(`/data/company-intel?symbol=${encodeURIComponent(ticker)}`, 45000),
+      getJson(`/data/filings?symbol=${encodeURIComponent(ticker)}`, 45000)
+    ]);
+    renderEarningsDashboard(earningsHolder, intel);
+    renderCompanyEventTimeline(timelineHolder, intel, filings, ticker);
+    const updated = $('#events-updated');
+    if (updated) updated.textContent = `Updated ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}`;
+  } catch {
+    if (earningsHolder) earningsHolder.innerHTML = '<p class="data-empty">Earnings data is temporarily unavailable.</p>';
+    if (timelineHolder) timelineHolder.innerHTML = '<p class="data-empty">The company event timeline is temporarily unavailable.</p>';
+    const updated = $('#events-updated'); if (updated) updated.textContent = 'Provider unavailable';
+  }
+}
+
 function renderOwnership(holder, data) {
   if (!holder) return;
   const state = { period: 'quarterly', view: 'snapshots' };
@@ -1374,6 +1483,7 @@ function renderOwnership(holder, data) {
 
 hydrateCompanyExtras = function(ticker) {
   originalHydrateCompanyExtras(ticker);
+  hydrateCompanyEarningsAndEvents(ticker);
   const holder = $('#company-ratios');
   const quarterlyHolder = $('#company-quarterly');
   const signalsHolder = $('#company-signals');

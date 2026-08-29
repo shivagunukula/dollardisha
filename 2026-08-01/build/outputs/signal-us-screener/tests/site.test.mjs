@@ -93,11 +93,19 @@ test('navigation exposes one route per product and company research has no dupli
     .split('// Company overview: keep the headline facts and the complete ratio explorer')[1]
     .split('function renderFilteredRatioExplorer')[0];
   assert.ok(activeCompanyView, 'active company view should be present');
-  assert.match(activeCompanyView, /href="#intelligence">Intelligence<\/a>/);
+  assert.match(activeCompanyView, /href="#earnings">Earnings<\/a>/);
+  assert.match(activeCompanyView, /href="#intelligence">Outlook<\/a>/);
+  assert.match(activeCompanyView, /href="#events">Events<\/a>/);
   assert.match(activeCompanyView, /href="#documents">Documents<\/a>/);
+  assert.match(activeCompanyView, /id="company-earnings-dashboard"/);
+  assert.match(activeCompanyView, /id="company-event-timeline"/);
   assert.doesNotMatch(activeCompanyView, /href="#updates"/);
   assert.doesNotMatch(activeCompanyView, /id="updates"/);
-  assert.match(source, /const routeSections = new Set\(\['overview', 'chart', 'strengths', 'quarterly', 'financials', 'peers', 'intelligence', 'documents'\]\)/);
+  assert.doesNotMatch(activeCompanyView, /News & company events/);
+  assert.match(source, /const routeSections = new Set\(\['overview', 'chart', 'earnings', 'strengths', 'quarterly', 'financials', 'peers', 'intelligence', 'events', 'documents'\]\)/);
+  assert.match(source, /function renderEarningsDashboard\(holder, intel\)/);
+  assert.match(source, /function renderCompanyEventTimeline\(holder, intel, filingData, ticker\)/);
+  assert.match(source, /Not reported/);
 });
 
 test('app-level hash navigation wins over the current company path', async () => {
