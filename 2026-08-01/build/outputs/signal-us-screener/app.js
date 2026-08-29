@@ -2620,7 +2620,7 @@ function latestResultsView() {
     <div class="latest-results-filters">
       <label class="results-search"><span>Company</span><input id="latest-results-search" type="search" placeholder="Search ticker or company" autocomplete="off"></label>
       <label><span>Report date</span><select id="latest-results-period"><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="all" selected>All available</option></select></label>
-      <label><span>Market cap</span><select id="latest-results-cap"><option value="all">All sizes</option><option value="mega">Mega cap · $200B+</option><option value="large">Large cap · $10B–$200B</option><option value="mid">Mid cap · $2B–$10B</option><option value="small">Small cap · $300M–$2B</option><option value="micro">Micro cap · below $300M</option><option value="unknown">Not reported</option></select></label>
+      <label class="results-cap-field"><span>Market cap <small>(multi-select)</small></span><div class="results-multi" id="latest-results-cap" role="group" aria-label="Market cap filters"><button type="button" class="selected" data-cap-option="all">All</button><button type="button" data-cap-option="mega">Mega</button><button type="button" data-cap-option="large">Large</button><button type="button" data-cap-option="mid">Mid</button><button type="button" data-cap-option="small">Small</button><button type="button" data-cap-option="micro">Micro</button><button type="button" data-cap-option="unknown">Unknown</button></div></label>
       <label><span>Sort results</span><select id="latest-results-sort"><option value="latest">Latest reported</option><option value="sales">Highest sales growth</option><option value="profit">Highest profit growth</option><option value="eps-surprise">Largest EPS surprise</option><option value="market-cap">Largest companies</option><option value="turnaround">Turnarounds first</option></select></label>
     </div>
     <div class="results-quick-filters" role="tablist" aria-label="Result performance filter">
@@ -2641,7 +2641,8 @@ async function setupLatestResults() {
   const body = $('#latest-results-body');
   if (!body) return;
   let rows = [];
-  let resultView = 'all';
+  const resultViews = new Set();
+  const selectedCaps = new Set(['all']);
   let resultPage = 1;
   const pageSize = 25;
   const numeric = value => scanNumber(value);
@@ -2665,24 +2666,26 @@ async function setupLatestResults() {
     return cap < 300_000_000;
   };
   const viewMatches = row => {
-    if (resultView === 'sales') return numeric(row.revenueGrowth) !== null && Number(row.revenueGrowth) >= 15;
-    if (resultView === 'profit') return numeric(row.profitGrowth) !== null && Number(row.profitGrowth) >= 15;
-    if (resultView === 'turnaround') return row.turnaround === true;
-    if (resultView === 'decline') return (numeric(row.profitGrowth) !== null && Number(row.profitGrowth) < 0) || (numeric(row.epsGrowth) !== null && Number(row.epsGrowth) < 0);
-    return true;
+    if (!resultViews.size) return true;
+    return [...resultViews].some(view => view === 'sales'
+      ? numeric(row.revenueGrowth) !== null && Number(row.revenueGrowth) >= 15
+      : view === 'profit'
+        ? numeric(row.profitGrowth) !== null && Number(row.profitGrowth) >= 15
+        : view === 'turnaround' ? row.turnaround === true
+          : (numeric(row.profitGrowth) !== null && Number(row.profitGrowth) < 0) || (numeric(row.epsGrowth) !== null && Number(row.epsGrowth) < 0));
   };
   const draw = () => {
     const search = $('#latest-results-search').value.trim().toUpperCase();
     const days = $('#latest-results-period').value === 'all' ? Infinity : Number($('#latest-results-period').value);
-    const cap = $('#latest-results-cap').value;
+    const cap = selectedCaps;
     const sort = $('#latest-results-sort').value;
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const filtered = rows.filter(row => {
       const date = new Date(`${row.reportDate}T00:00:00`);
       const age = (today - date) / 86400000;
       const identity = `${row.symbol || ''} ${row.companyName || ''}`.toUpperCase();
-      return age >= -1 && age <= days && (!search || identity.includes(search)) && capMatches(row, cap) && viewMatches(row);
-    }).sort((left, right) => {
+      return age >= -1 && age <= days && (!search || identity.includes(search)) && viewMatches(row);
+    }).filter(row => cap.has('all') || [...cap].some(selected => capMatches(row, selected))).sort((left, right) => {
       const descending = field => (numeric(right[field]) ?? -Infinity) - (numeric(left[field]) ?? -Infinity);
       if (sort === 'sales') return descending('revenueGrowth');
       if (sort === 'profit') return descending('profitGrowth');
@@ -2722,23 +2725,36 @@ async function setupLatestResults() {
     $('#latest-results-reset')?.addEventListener('click', () => {
       $('#latest-results-search').value = '';
       $('#latest-results-period').value = 'all';
-      $('#latest-results-cap').value = 'all';
       $('#latest-results-sort').value = 'latest';
-      resultView = 'all'; resultPage = 1;
-      document.querySelectorAll('[data-results-view]').forEach(button => button.classList.toggle('selected', button.dataset.resultsView === 'all'));
+      resultViews.clear(); selectedCaps.clear(); selectedCaps.add('all'); resultPage = 1;
+      document.querySelectorAll('[data-results-view]').forEach(button => button.classList.remove('selected'));
+      document.querySelector('[data-results-view="all"]')?.classList.add('selected');
+      document.querySelectorAll('[data-cap-option]').forEach(button => button.classList.toggle('selected', button.dataset.capOption === 'all'));
       draw();
     });
   };
   const resetAndDraw = () => { resultPage = 1; draw(); };
-  ['latest-results-search','latest-results-period','latest-results-cap','latest-results-sort'].forEach(id => {
+  ['latest-results-search','latest-results-period','latest-results-sort'].forEach(id => {
     const element = $(`#${id}`);
     if (element) element[element.tagName === 'INPUT' ? 'oninput' : 'onchange'] = resetAndDraw;
   });
   document.querySelectorAll('[data-results-view]').forEach(button => button.onclick = () => {
-    resultView = button.dataset.resultsView;
+    const view = button.dataset.resultsView;
+    if (view === 'all') resultViews.clear();
+    else {
+      resultViews.delete('all');
+      resultViews.has(view) ? resultViews.delete(view) : resultViews.add(view);
+    }
     resultPage = 1;
-    document.querySelectorAll('[data-results-view]').forEach(item => item.classList.toggle('selected', item === button));
+    document.querySelectorAll('[data-results-view]').forEach(item => item.classList.toggle('selected', item.dataset.resultsView === 'all' ? !resultViews.size : resultViews.has(item.dataset.resultsView)));
     draw();
+  });
+  document.querySelectorAll('[data-cap-option]').forEach(button => button.onclick = () => {
+    const option = button.dataset.capOption;
+    if (option === 'all') { selectedCaps.clear(); selectedCaps.add('all'); }
+    else { selectedCaps.delete('all'); selectedCaps.has(option) ? selectedCaps.delete(option) : selectedCaps.add(option); if (!selectedCaps.size) selectedCaps.add('all'); }
+    document.querySelectorAll('[data-cap-option]').forEach(item => item.classList.toggle('selected', selectedCaps.has(item.dataset.capOption)));
+    resultPage = 1; draw();
   });
   $('#latest-results-prev').onclick = () => { resultPage -= 1; draw(); document.querySelector('.latest-results-workspace')?.scrollIntoView({ behavior:'smooth', block:'start' }); };
   $('#latest-results-next').onclick = () => { resultPage += 1; draw(); document.querySelector('.latest-results-workspace')?.scrollIntoView({ behavior:'smooth', block:'start' }); };
