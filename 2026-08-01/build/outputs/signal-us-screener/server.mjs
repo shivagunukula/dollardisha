@@ -857,6 +857,147 @@ async function cacheScreenerRows(rows) {
     database('company_quotes?on_conflict=symbol', { method: 'POST', prefer: 'resolution=merge-duplicates', body: quotes })
   ]).catch(error => console.warn(`Could not cache screener rows: ${error.message}`));
 }
+
+// Latest quarterly results change only a few times a day. Build the research
+// table once per hour so a busy public page does not spend the paid FMP quota
+// again for every visitor. Nasdaq's directory supplies current listing,
+// exchange, price and market-cap context; FMP supplies reported statements.
+let latestResultsCache = { value:null, expiresAt:0, refreshing:null };
+const resultGrowth = (current, previous) => {
+  const latest = Number(current);
+  const earlier = Number(previous);
+  return Number.isFinite(latest) && Number.isFinite(earlier) && earlier !== 0
+    ? ((latest - earlier) / Math.abs(earlier)) * 100
+    : null;
+};
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const output = new Array(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length:Math.min(concurrency, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++;
+      output[index] = await mapper(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return output;
+}
+function latestStatementAround(statements, reportDate) {
+  const rows = (Array.isArray(statements) ? statements : [])
+    .filter(row => row?.date || row?.fillingDate || row?.filingDate)
+    .sort((a, b) => String(b.date || b.fillingDate || b.filingDate).localeCompare(String(a.date || a.fillingDate || a.filingDate)));
+  const cutoff = new Date(`${reportDate}T00:00:00Z`);
+  cutoff.setUTCDate(cutoff.getUTCDate() + 45);
+  const currentIndex = rows.findIndex(row => new Date(`${String(row.date || row.fillingDate || row.filingDate).slice(0, 10)}T00:00:00Z`) <= cutoff);
+  const current = rows[currentIndex < 0 ? 0 : currentIndex] || {};
+  const currentDate = new Date(`${String(current.date || current.fillingDate || current.filingDate || reportDate).slice(0, 10)}T00:00:00Z`);
+  const targetYear = currentDate.getUTCFullYear() - 1;
+  const targetQuarter = Math.floor(currentDate.getUTCMonth() / 3);
+  const prior = rows.find((row, index) => {
+    if (index === currentIndex) return false;
+    const date = new Date(`${String(row.date || row.fillingDate || row.filingDate).slice(0, 10)}T00:00:00Z`);
+    return date.getUTCFullYear() === targetYear && Math.floor(date.getUTCMonth() / 3) === targetQuarter;
+  }) || rows[(currentIndex < 0 ? 0 : currentIndex) + 4] || {};
+  return { current, prior, rows };
+}
+async function latestReportedResults() {
+  const now = Date.now();
+  if (latestResultsCache.value && now < latestResultsCache.expiresAt) return latestResultsCache.value;
+  if (latestResultsCache.refreshing) return latestResultsCache.refreshing;
+
+  latestResultsCache.refreshing = (async () => {
+    const to = new Date();
+    const from = new Date();
+    from.setUTCDate(from.getUTCDate() - 120);
+    const range = { from:from.toISOString().slice(0, 10), to:to.toISOString().slice(0, 10), limit:1000 };
+    const [calendar, directory] = await Promise.all([
+      fmp('earnings-calendar', range),
+      nasdaqDirectory().catch(() => [])
+    ]);
+    const directoryBySymbol = new Map((Array.isArray(directory) ? directory : [])
+      .map(row => [symbol(row.symbol), row]).filter(([ticker]) => ticker));
+    const seen = new Set();
+    const events = (Array.isArray(calendar) ? calendar : [])
+      .map(row => ({ ...row, symbol:symbol(row.symbol || row.ticker), reportDate:String(row.date || row.reportDate || '').slice(0, 10) }))
+      .filter(row => row.symbol && row.reportDate && row.reportDate <= range.to && directoryBySymbol.has(row.symbol))
+      .sort((a, b) => b.reportDate.localeCompare(a.reportDate))
+      .filter(row => {
+        if (seen.has(row.symbol)) return false;
+        seen.add(row.symbol);
+        return true;
+      })
+      .slice(0, 36);
+
+    const rows = await mapWithConcurrency(events, 6, async event => {
+      const directoryRow = directoryBySymbol.get(event.symbol) || {};
+      const quote = nasdaqDirectoryItem(directoryRow);
+      const statements = await fmp('income-statement', { symbol:event.symbol, period:'quarter', limit:8 }).catch(() => []);
+      const { current, prior, rows:statementRows } = latestStatementAround(statements, event.reportDate);
+      const revenue = finiteValue(event.revenue, current.revenue);
+      const priorRevenue = finiteValue(prior.revenue);
+      const netIncome = finiteValue(current.netIncome);
+      const priorNetIncome = finiteValue(prior.netIncome);
+      const eps = finiteValue(event.eps, current.epsdiluted, current.epsDiluted, current.eps);
+      const priorEps = finiteValue(prior.epsdiluted, prior.epsDiluted, prior.eps);
+      const epsEstimate = finiteValue(event.epsEstimated, event.epsEstimate, event.estimatedEps);
+      const revenueEstimate = finiteValue(event.revenueEstimated, event.revenueEstimate, event.estimatedRevenue);
+      const trailingEpsValues = statementRows.slice(0, 4).map(row => {
+        const value = finiteValue(row.epsdiluted, row.epsDiluted, row.eps);
+        return value === null ? null : Number(value);
+      });
+      const trailingEps = trailingEpsValues.length === 4 && trailingEpsValues.every(Number.isFinite)
+        ? trailingEpsValues.reduce((sum, value) => sum + value, 0)
+        : null;
+      const pe = trailingEps > 0 && Number.isFinite(Number(quote.price)) ? Number(quote.price) / trailingEps : null;
+      return {
+        symbol:event.symbol,
+        companyName:quote.companyName || quote.name || event.name || event.symbol,
+        exchange:'NASDAQ',
+        sector:directoryRow.sector || null,
+        industry:directoryRow.industry || null,
+        reportDate:event.reportDate,
+        fiscalDate:String(current.date || event.fiscalDateEnding || '').slice(0, 10) || null,
+        session:event.time || event.session || null,
+        price:finiteValue(quote.price),
+        change:finiteValue(quote.changesPercentage),
+        marketCap:finiteValue(quote.marketCap),
+        pe,
+        revenue,
+        priorRevenue,
+        revenueGrowth:resultGrowth(revenue, priorRevenue),
+        revenueEstimate,
+        revenueSurprise:resultGrowth(revenue, revenueEstimate),
+        netIncome,
+        priorNetIncome,
+        profitGrowth:resultGrowth(netIncome, priorNetIncome),
+        eps,
+        priorEps,
+        epsGrowth:resultGrowth(eps, priorEps),
+        epsEstimate,
+        epsSurprise:resultGrowth(eps, epsEstimate),
+        turnaround:Number.isFinite(Number(netIncome)) && Number(netIncome) > 0 && Number.isFinite(Number(priorNetIncome)) && Number(priorNetIncome) <= 0,
+        provider:'Financial Modeling Prep + Nasdaq'
+      };
+    });
+    const value = {
+      rows,
+      from:range.from,
+      to:range.to,
+      updatedAt:new Date().toISOString(),
+      source:'Financial Modeling Prep reported statements and Nasdaq-listed market data',
+      note:'Figures are provider reported. Missing values are left blank; no estimates are invented.'
+    };
+    latestResultsCache = { value, expiresAt:Date.now() + 60 * 60 * 1000, refreshing:null };
+    return value;
+  })();
+
+  try { return await latestResultsCache.refreshing; }
+  catch (error) {
+    latestResultsCache.refreshing = null;
+    if (latestResultsCache.value) return { ...latestResultsCache.value, stale:true };
+    throw error;
+  }
+}
 function send(res, status, data, type = 'application/json; charset=utf-8', extraHeaders = {}) {
   res.writeHead(status, { ...securityHeaders, 'Content-Type':type, 'Cache-Control':'no-store', ...extraHeaders });
   res.end(typeof data === 'string' ? data : JSON.stringify(data));
@@ -1288,6 +1429,9 @@ createServer(async (req, res) => {
         optional('ipos-calendar', range)
       ]);
       return send(res, 200, { earnings, dividends, ipos, from:range.from, to:range.to, updatedAt:new Date().toISOString() });
+    }
+    if (url.pathname === '/data/results/latest') {
+      return send(res, 200, await latestReportedResults());
     }
     if (url.pathname === '/data/watchlist') {
       const tickers = [...new Set(String(url.searchParams.get('symbols') || '').split(',').map(symbol).filter(Boolean))].slice(0, 30);

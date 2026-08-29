@@ -153,7 +153,7 @@ test('homepage keeps the interactive global market performance panel', async () 
   assert.match(client, /id="market-region-filter"/);
   assert.match(client, /\/data\/market-performance\?period=/);
   assert.match(client, /function dashboardQuickAccess\(\)/);
-  assert.match(client, /data-section="earnings-calendar"/);
+  assert.match(client, /data-page="latest-results"/);
   assert.match(client, /data-section="ipo-calendar"/);
   assert.match(client, /id="dashboard-results-count"/);
   assert.match(client, /id="dashboard-ipo-count"/);
@@ -169,6 +169,23 @@ test('homepage calendar shortcuts open real earnings and IPO data views', async 
   assert.match(client, /Array\.isArray\(data\.ipos\)/);
   assert.match(server, /optional\('ipos-calendar', range\)/);
   assert.match(styles, /\.dashboard-quick-access/);
+});
+
+test('latest results view exposes Screener-style reported-results workflow', async () => {
+  const [client, server, styles] = await Promise.all([read('app.js'), read('server.mjs'), read('ui-refresh.css')]);
+  assert.match(client, /function latestResultsView\(\)/);
+  assert.match(client, /async function setupLatestResults\(\)/);
+  assert.match(client, /id="latest-results-search"/);
+  assert.match(client, /data-results-view="turnaround"/);
+  assert.match(client, /id="latest-results-body"/);
+  assert.match(client, /\/data\/results\/latest/);
+  assert.match(server, /async function latestReportedResults\(\)/);
+  assert.match(server, /fmp\('earnings-calendar'/);
+  assert.match(server, /fmp\('income-statement'/);
+  assert.match(server, /exchange:'NASDAQ'/);
+  assert.match(server, /trailingEpsValues\.length === 4/);
+  assert.match(styles, /\.latest-results-page/);
+  assert.match(styles, /html\[data-theme="light"\].*latest-results/);
 });
 
 test('global market rankings never treat missing returns as zero', async () => {

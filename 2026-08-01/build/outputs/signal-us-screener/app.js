@@ -486,7 +486,7 @@ function setupQuarterlyDetails(holder) {
   });
 }
 function render() {
-  const view = page === 'dashboard' ? dashboardView() : page === 'markets' ? marketsView() : page === 'screener' ? screenerView() : page === 'indexlab' ? indexView() : page === 'research' ? researchView() : page === 'compare' ? compareView() : page === 'watchlist' ? watchlistView() : page === 'toolkit' ? toolkitView() : page === 'tools' ? toolsView() : page === 'portfolio' ? portfolioView() : page === 'status' ? statusView() : page === 'pricing' ? pricingView() : companyView(page);
+  const view = page === 'dashboard' ? dashboardView() : page === 'markets' ? marketsView() : page === 'screener' ? screenerView() : page === 'indexlab' ? indexView() : page === 'research' ? researchView() : page === 'compare' ? compareView() : page === 'watchlist' ? watchlistView() : page === 'toolkit' ? toolkitView() : page === 'latest-results' ? latestResultsView() : page === 'tools' ? toolsView() : page === 'portfolio' ? portfolioView() : page === 'status' ? statusView() : page === 'pricing' ? pricingView() : companyView(page);
   const content = $('#content');
   content.classList.remove('route-ready');
   content.innerHTML = view;
@@ -502,11 +502,12 @@ function render() {
   if (page === 'watchlist') hydrateWatchlist();
   else { clearTimeout(watchlistRefreshTimer); watchlistRefreshTimer = null; }
   if (page === 'toolkit') setupToolkit();
+  if (page === 'latest-results') setupLatestResults();
   if (page === 'tools') setupTools();
   if (page === 'portfolio') setupPortfolio();
   if (page === 'status') setupSystemStatus();
   if (page === 'pricing') setupPricing();
-  if (!['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'tools', 'portfolio', 'status', 'pricing'].includes(page)) {
+  if (!['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'latest-results', 'tools', 'portfolio', 'status', 'pricing'].includes(page)) {
     const companyPage = content.querySelector('.company-page');
     if (companyPage) { companyPage.classList.add('company-loading'); companyPage.setAttribute('aria-busy', 'true'); }
     hydrateCompany(page);
@@ -522,7 +523,7 @@ function render() {
 const LIVE_REFRESH_MS = 60 * 1000;
 let liveRefreshTimer = null;
 let liveRefreshBusy = false;
-const isCompanyRoute = route => !['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'tools', 'portfolio', 'status', 'pricing'].includes(route);
+const isCompanyRoute = route => !['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'latest-results', 'tools', 'portfolio', 'status', 'pricing'].includes(route);
 async function refreshLiveData() {
   if (document.hidden || liveRefreshBusy) return;
   liveRefreshBusy = true;
@@ -535,6 +536,7 @@ async function refreshLiveData() {
     else if (isCompanyRoute(page)) await Promise.allSettled([hydrateCompany(page), hydrateCompanyExtras(page), hydrateCompanyResearchSummary(page)]);
     else if (page === 'markets') await setupMarkets();
     else if (page === 'screener') $('#screen-run')?.click();
+    else if (page === 'latest-results') await setupLatestResults();
     else if (page === 'compare') $('#compare-run')?.click();
     else if (page === 'research') await Promise.allSettled([hydrateWorkspaceFilings(), evaluateResearchAlerts()]);
   } finally {
@@ -1561,7 +1563,7 @@ function dashboardQuickAccess() {
     <div class="dashboard-quick-head"><p class="crumb">TODAY ON DOLLARDISHA</p><h2>Market updates</h2><p>Jump directly to the live research view you need.</p></div>
     <div class="dashboard-quick-list">
       <button type="button" data-page="markets"><span class="dashboard-quick-icon" aria-hidden="true">⌁</span><span><b>Market pulse</b><small>Leaders, laggards and global benchmarks</small></span><em>Live</em><i aria-hidden="true">›</i></button>
-      <button type="button" data-page="toolkit" data-section="earnings-calendar"><span class="dashboard-quick-icon" aria-hidden="true">▥</span><span><b>Quarterly results</b><small>Upcoming US earnings and estimates</small></span><em id="dashboard-results-count">Loading</em><i aria-hidden="true">›</i></button>
+      <button type="button" data-page="latest-results"><span class="dashboard-quick-icon" aria-hidden="true">▥</span><span><b>Quarterly results</b><small>Latest reported sales, profit and EPS</small></span><em id="dashboard-results-count">Latest</em><i aria-hidden="true">›</i></button>
       <button type="button" data-page="toolkit" data-section="ipo-calendar"><span class="dashboard-quick-icon" aria-hidden="true">↗</span><span><b>Upcoming IPOs</b><small>Provider-reported US listing calendar</small></span><em id="dashboard-ipo-count">Loading</em><i aria-hidden="true">›</i></button>
     </div>
     <small class="dashboard-quick-note" id="dashboard-calendar-note">Calendar dates are provider reported and may change.</small>
@@ -1699,14 +1701,11 @@ async function hydrateDashboard() {
     };
     const earnings = (Array.isArray(data.earnings) ? data.earnings : []).filter(inNextThirtyDays);
     const ipos = (Array.isArray(data.ipos) ? data.ipos : []).filter(inNextThirtyDays);
-    const resultsBadge = $('#dashboard-results-count');
     const ipoBadge = $('#dashboard-ipo-count');
-    if (resultsBadge) resultsBadge.textContent = earnings.length ? `${earnings.length} upcoming` : 'View calendar';
     if (ipoBadge) ipoBadge.textContent = ipos.length ? `${ipos.length} upcoming` : 'View calendar';
     const note = $('#dashboard-calendar-note');
     if (note && data.updatedAt) note.textContent = `Provider-reported calendar · updated ${new Date(data.updatedAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}`;
   }).catch(() => {
-    if ($('#dashboard-results-count')) $('#dashboard-results-count').textContent = 'Open calendar';
     if ($('#dashboard-ipo-count')) $('#dashboard-ipo-count').textContent = 'Open calendar';
     if ($('#dashboard-calendar-note')) $('#dashboard-calendar-note').textContent = 'Calendar is temporarily unavailable; open the toolkit to retry.';
   });
@@ -2607,6 +2606,157 @@ hydrateCompany = async function(ticker) {
     pulseCompanyFacts();
   }
 };
+
+function latestResultsView() {
+  return `<div class="page latest-results-page">${pageHeader('REPORTED EARNINGS', 'Latest US quarterly results', 'Track newly reported Nasdaq company results in one research table. Filter by date, size and performance, then open any company for a complete review.')}
+  <section class="latest-results-summary" aria-label="Results summary">
+    <article><span>Reported companies</span><strong id="results-total">—</strong><small>Latest result per company</small></article>
+    <article><span>Sales growth leaders</span><strong id="results-sales-leaders">—</strong><small>Positive year-over-year growth</small></article>
+    <article><span>Profit growth leaders</span><strong id="results-profit-leaders">—</strong><small>Positive year-over-year growth</small></article>
+    <article><span>Turnarounds</span><strong id="results-turnarounds">—</strong><small>Loss to reported profit</small></article>
+  </section>
+  <section class="panel latest-results-workspace">
+    <div class="latest-results-heading"><div><p class="crumb">LATEST RESULTS</p><h2>Nasdaq earnings monitor</h2><p>Actual reported financials, live listing context and year-over-year comparisons. Missing provider values remain blank.</p></div><div class="results-live-status"><span class="live-dot" aria-hidden="true"></span><b id="latest-results-updated">Loading provider data…</b><small id="latest-results-source">FMP reported statements · Nasdaq listings</small></div></div>
+    <div class="latest-results-filters">
+      <label class="results-search"><span>Company</span><input id="latest-results-search" type="search" placeholder="Search ticker or company" autocomplete="off"></label>
+      <label><span>Report date</span><select id="latest-results-period"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="all">All available</option></select></label>
+      <label><span>Market cap</span><select id="latest-results-cap"><option value="all">All sizes</option><option value="large">Large cap · $10B+</option><option value="mid">Mid cap · $2B–$10B</option><option value="small">Small cap · below $2B</option></select></label>
+      <label><span>Sort results</span><select id="latest-results-sort"><option value="latest">Latest reported</option><option value="sales">Highest sales growth</option><option value="profit">Highest profit growth</option><option value="eps-surprise">Largest EPS surprise</option><option value="market-cap">Largest companies</option><option value="turnaround">Turnarounds first</option></select></label>
+    </div>
+    <div class="results-quick-filters" role="tablist" aria-label="Result performance filter">
+      <button class="selected" type="button" data-results-view="all">All results</button>
+      <button type="button" data-results-view="sales">Sales growth 15%+</button>
+      <button type="button" data-results-view="profit">Profit growth 15%+</button>
+      <button type="button" data-results-view="turnaround">Turnarounds</button>
+      <button type="button" data-results-view="decline">Earnings declines</button>
+    </div>
+    <div class="latest-results-meta"><span id="latest-results-visible">Loading results…</span><div><button type="button" class="link-button" data-page="toolkit" data-section="earnings-calendar">Upcoming earnings →</button><button type="button" class="link-button" data-page="screener">Screen companies →</button></div></div>
+    <div class="table-wrap latest-results-table-wrap"><table class="latest-results-table"><thead><tr><th>Reported</th><th>Company</th><th>Price</th><th>P/E</th><th>Market cap</th><th>Quarterly revenue</th><th>Sales YoY</th><th>Net income</th><th>Profit YoY</th><th>EPS</th><th>EPS surprise</th><th></th></tr></thead><tbody id="latest-results-body"><tr><td colspan="12"><div class="results-loading"><span></span><b>Loading the latest reported results…</b><small>Combining FMP statements with Nasdaq listing data</small></div></td></tr></tbody></table></div>
+    <div class="latest-results-pagination"><button id="latest-results-prev" type="button">← Previous</button><span id="latest-results-page-label">Page 1</span><button id="latest-results-next" type="button">Next →</button></div>
+    <footer class="latest-results-note"><b>Research data, not a recommendation.</b><span id="latest-results-note">Figures are provider reported. DollarDisha does not fill unavailable values with estimates.</span></footer>
+  </section></div>`;
+}
+
+async function setupLatestResults() {
+  const body = $('#latest-results-body');
+  if (!body) return;
+  let rows = [];
+  let resultView = 'all';
+  let resultPage = 1;
+  const pageSize = 25;
+  const numeric = value => scanNumber(value);
+  const compactUsd = value => numeric(value) === null ? '—' : new Intl.NumberFormat('en-US', { style:'currency', currency:'USD', notation:'compact', maximumFractionDigits:2 }).format(Number(value));
+  const ratio = value => numeric(value) === null ? '—' : `${Number(value).toFixed(1)}x`;
+  const signedPercent = value => numeric(value) === null ? '—' : `${Number(value) >= 0 ? '+' : ''}${Number(value).toFixed(1)}%`;
+  const resultDate = value => {
+    const date = new Date(`${value}T00:00:00`);
+    return Number.isNaN(date.getTime()) ? 'Not reported' : date.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+  };
+  const tone = value => numeric(value) === null ? '' : Number(value) >= 0 ? 'positive' : 'down';
+  const capMatches = (row, selected) => {
+    const cap = numeric(row.marketCap);
+    if (selected === 'all') return true;
+    if (cap === null) return false;
+    return selected === 'large' ? cap >= 10_000_000_000 : selected === 'mid' ? cap >= 2_000_000_000 && cap < 10_000_000_000 : cap < 2_000_000_000;
+  };
+  const viewMatches = row => {
+    if (resultView === 'sales') return numeric(row.revenueGrowth) !== null && Number(row.revenueGrowth) >= 15;
+    if (resultView === 'profit') return numeric(row.profitGrowth) !== null && Number(row.profitGrowth) >= 15;
+    if (resultView === 'turnaround') return row.turnaround === true;
+    if (resultView === 'decline') return (numeric(row.profitGrowth) !== null && Number(row.profitGrowth) < 0) || (numeric(row.epsGrowth) !== null && Number(row.epsGrowth) < 0);
+    return true;
+  };
+  const draw = () => {
+    const search = $('#latest-results-search').value.trim().toUpperCase();
+    const days = $('#latest-results-period').value === 'all' ? Infinity : Number($('#latest-results-period').value);
+    const cap = $('#latest-results-cap').value;
+    const sort = $('#latest-results-sort').value;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const filtered = rows.filter(row => {
+      const date = new Date(`${row.reportDate}T00:00:00`);
+      const age = (today - date) / 86400000;
+      const identity = `${row.symbol || ''} ${row.companyName || ''}`.toUpperCase();
+      return age >= -1 && age <= days && (!search || identity.includes(search)) && capMatches(row, cap) && viewMatches(row);
+    }).sort((left, right) => {
+      const descending = field => (numeric(right[field]) ?? -Infinity) - (numeric(left[field]) ?? -Infinity);
+      if (sort === 'sales') return descending('revenueGrowth');
+      if (sort === 'profit') return descending('profitGrowth');
+      if (sort === 'eps-surprise') return descending('epsSurprise');
+      if (sort === 'market-cap') return descending('marketCap');
+      if (sort === 'turnaround') return Number(right.turnaround) - Number(left.turnaround) || String(right.reportDate).localeCompare(String(left.reportDate));
+      return String(right.reportDate).localeCompare(String(left.reportDate));
+    });
+    const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    resultPage = Math.min(resultPage, pages);
+    const visible = filtered.slice((resultPage - 1) * pageSize, resultPage * pageSize);
+    $('#latest-results-visible').textContent = `${filtered.length} ${filtered.length === 1 ? 'company' : 'companies'} match this view`;
+    $('#latest-results-page-label').textContent = `Page ${resultPage} of ${pages}`;
+    $('#latest-results-prev').disabled = resultPage <= 1;
+    $('#latest-results-next').disabled = resultPage >= pages;
+    body.innerHTML = visible.length ? visible.map(row => {
+      const salesTone = tone(row.revenueGrowth);
+      const profitTone = tone(row.profitGrowth);
+      const surpriseTone = tone(row.epsSurprise);
+      const tags = `${row.turnaround ? '<span class="result-tag turnaround">Turnaround</span>' : ''}${numeric(row.revenueGrowth) !== null && Number(row.revenueGrowth) >= 15 ? '<span class="result-tag">Sales growth</span>' : ''}`;
+      return `<tr class="company-row" data-stock="${escapeHtml(row.symbol)}">
+        <td data-label="Reported"><b>${resultDate(row.reportDate)}</b><small>${row.fiscalDate ? `Quarter ended ${resultDate(row.fiscalDate)}` : 'Latest reported quarter'}</small></td>
+        <td data-label="Company"><div class="result-company">${companyIdentity(row.symbol, row.companyName, row.sector || 'NASDAQ')}<div class="result-tags">${tags}</div></div></td>
+        <td data-label="Price"><b>${numeric(row.price) === null ? '—' : `$${Number(row.price).toFixed(2)}`}</b><small class="${tone(row.change)}">${signedPercent(row.change)} today</small></td>
+        <td data-label="P/E"><b>${ratio(row.pe)}</b></td>
+        <td data-label="Market cap"><b>${compactUsd(row.marketCap)}</b></td>
+        <td data-label="Quarterly revenue"><b>${compactUsd(row.revenue)}</b><small>${numeric(row.revenueEstimate) === null ? 'Estimate not reported' : `${signedPercent(row.revenueSurprise)} vs estimate`}</small></td>
+        <td data-label="Sales YoY"><b class="${salesTone}">${signedPercent(row.revenueGrowth)}</b></td>
+        <td data-label="Net income"><b>${compactUsd(row.netIncome)}</b></td>
+        <td data-label="Profit YoY"><b class="${profitTone}">${row.turnaround ? 'Turnaround' : signedPercent(row.profitGrowth)}</b></td>
+        <td data-label="EPS"><b>${numeric(row.eps) === null ? '—' : `$${Number(row.eps).toFixed(2)}`}</b><small>${numeric(row.epsEstimate) === null ? 'Estimate not reported' : `$${Number(row.epsEstimate).toFixed(2)} estimate`}</small></td>
+        <td data-label="EPS surprise"><b class="${surpriseTone}">${signedPercent(row.epsSurprise)}</b></td>
+        <td><button type="button" class="result-open" data-page="${escapeHtml(row.symbol)}">Research →</button></td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="12"><div class="results-empty"><b>No reported results match these filters</b><span>Try a wider date range, another market-cap group or the All results view.</span><button type="button" id="latest-results-reset">Reset filters</button></div></td></tr>';
+    wireCommon();
+    $('#latest-results-reset')?.addEventListener('click', () => {
+      $('#latest-results-search').value = '';
+      $('#latest-results-period').value = 'all';
+      $('#latest-results-cap').value = 'all';
+      $('#latest-results-sort').value = 'latest';
+      resultView = 'all'; resultPage = 1;
+      document.querySelectorAll('[data-results-view]').forEach(button => button.classList.toggle('selected', button.dataset.resultsView === 'all'));
+      draw();
+    });
+  };
+  const resetAndDraw = () => { resultPage = 1; draw(); };
+  ['latest-results-search','latest-results-period','latest-results-cap','latest-results-sort'].forEach(id => {
+    const element = $(`#${id}`);
+    if (element) element[element.tagName === 'INPUT' ? 'oninput' : 'onchange'] = resetAndDraw;
+  });
+  document.querySelectorAll('[data-results-view]').forEach(button => button.onclick = () => {
+    resultView = button.dataset.resultsView;
+    resultPage = 1;
+    document.querySelectorAll('[data-results-view]').forEach(item => item.classList.toggle('selected', item === button));
+    draw();
+  });
+  $('#latest-results-prev').onclick = () => { resultPage -= 1; draw(); document.querySelector('.latest-results-workspace')?.scrollIntoView({ behavior:'smooth', block:'start' }); };
+  $('#latest-results-next').onclick = () => { resultPage += 1; draw(); document.querySelector('.latest-results-workspace')?.scrollIntoView({ behavior:'smooth', block:'start' }); };
+  try {
+    const data = await getJson('/data/results/latest', 5 * 60 * 1000);
+    if (!$('#latest-results-body')) return;
+    rows = Array.isArray(data.rows) ? data.rows : [];
+    $('#results-total').textContent = rows.length;
+    $('#results-sales-leaders').textContent = rows.filter(row => numeric(row.revenueGrowth) !== null && Number(row.revenueGrowth) > 0).length;
+    $('#results-profit-leaders').textContent = rows.filter(row => numeric(row.profitGrowth) !== null && Number(row.profitGrowth) > 0).length;
+    $('#results-turnarounds').textContent = rows.filter(row => row.turnaround).length;
+    $('#latest-results-updated').textContent = `${data.stale ? 'Last available snapshot' : 'Updated'} ${new Date(data.updatedAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}`;
+    $('#latest-results-source').textContent = data.source || 'FMP reported statements · Nasdaq listings';
+    $('#latest-results-note').textContent = data.note || 'Figures are provider reported. Missing values are left blank.';
+    draw();
+  } catch {
+    if (!$('#latest-results-body')) return;
+    $('#latest-results-updated').textContent = 'Results temporarily unavailable';
+    $('#latest-results-source').textContent = 'The provider connection can be retried shortly';
+    body.innerHTML = '<tr><td colspan="12"><div class="results-empty"><b>The latest results could not be loaded</b><span>Your other research tools remain available. Please retry this page shortly.</span><button type="button" id="latest-results-retry">Retry</button></div></td></tr>';
+    $('#latest-results-retry').onclick = () => { jsonRequestCache.clear(); setupLatestResults(); };
+  }
+}
 
 function toolkitView() {
   return `<div class="page toolkit-page">${pageHeader('DECISION TOOLS', 'Research Toolkit', 'Turn live company data into a repeatable valuation view, then track the earnings events that can change the thesis.')}
