@@ -1241,12 +1241,9 @@ function renderFilteredRatioExplorer(holder, ratios) {
     return value.toFixed(row.digits);
   };
   const draw = () => {
-    const query = holder.querySelector('#ratio-search')?.value.trim().toLowerCase() || '';
-    const visibleGroups = groups.map(group => ({ ...group, rows:group.rows.filter(row => (!query || row.label.toLowerCase().includes(query)) && (!hideUnavailable || row.available)) })).filter(group => (activeGroup === 'all' || group.id === activeGroup) && group.rows.length);
-    holder.innerHTML = `<div class="ratio-filter-bar"><div class="ratio-category-filter"><button class="${activeGroup === 'all' ? 'active' : ''}" data-ratio-group="all">All</button>${groups.map(group => `<button class="${activeGroup === group.id ? 'active' : ''}" data-ratio-group="${group.id}">${group.name}</button>`).join('')}</div><div class="ratio-filter-actions"><label class="ratio-search"><span>⌕</span><input id="ratio-search" value="${escapeHtml(query)}" placeholder="Find a ratio"></label><label class="ratio-hide"><input id="ratio-hide-unavailable" type="checkbox" ${hideUnavailable ? 'checked' : ''}> Hide unavailable</label></div></div><div class="ratio-explorer">${visibleGroups.map(group => `<section data-ratio-section="${group.id}"><h3>${group.name}</h3>${group.rows.map(row => `<div data-ratio-name="${escapeHtml(row.label.toLowerCase())}"><span>${row.label}</span><b>${formatValue(row)}</b></div>`).join('')}</section>`).join('') || '<p class="data-empty">No ratios match this filter.</p>'}</div>`;
+    const visibleGroups = groups.map(group => ({ ...group, rows:group.rows.filter(row => !hideUnavailable || row.available) })).filter(group => (activeGroup === 'all' || group.id === activeGroup) && group.rows.length);
+    holder.innerHTML = `<div class="ratio-filter-bar"><div class="ratio-category-filter"><button class="${activeGroup === 'all' ? 'active' : ''}" data-ratio-group="all">All</button>${groups.map(group => `<button class="${activeGroup === group.id ? 'active' : ''}" data-ratio-group="${group.id}">${group.name}</button>`).join('')}</div><div class="ratio-filter-actions"><label class="ratio-hide"><input id="ratio-hide-unavailable" type="checkbox" ${hideUnavailable ? 'checked' : ''}> Hide unavailable</label></div></div><div class="ratio-explorer">${visibleGroups.map(group => `<section data-ratio-section="${group.id}"><h3>${group.name}</h3>${group.rows.map(row => `<div data-ratio-name="${escapeHtml(row.label.toLowerCase())}"><span>${row.label}</span><b>${formatValue(row)}</b></div>`).join('')}</section>`).join('') || '<p class="data-empty">No ratios are available for this filter.</p>'}</div>`;
     holder.querySelectorAll('[data-ratio-group]').forEach(button => button.onclick = () => { activeGroup = button.dataset.ratioGroup; draw(); });
-    const search = holder.querySelector('#ratio-search');
-    if (search) { search.oninput = draw; search.focus(); search.setSelectionRange(search.value.length, search.value.length); }
     const hide = holder.querySelector('#ratio-hide-unavailable');
     if (hide) hide.onchange = () => { hideUnavailable = hide.checked; draw(); };
   };
@@ -1404,12 +1401,10 @@ document.head.insertAdjacentHTML('beforeend', `<style>
   .ratio-category-filter button{border:1px solid #334163;border-radius:999px;background:#111a2e;color:#aebad3;padding:7px 10px;font:600 10px Inter;cursor:pointer}
   .ratio-category-filter button.active,.ratio-category-filter button:hover{background:#536cec;border-color:#7186ff;color:#fff}
   .ratio-filter-actions{display:flex;align-items:center;gap:10px}
-  .ratio-search{display:flex;align-items:center;gap:6px;min-width:180px;border:1px solid #334163;border-radius:7px;background:#0d1527;padding:0 9px;color:#94a3c4}
-  .ratio-search input{width:100%;border:0;outline:0;background:transparent;color:#f3f6ff;padding:8px 0;font:500 10px Inter}
   .ratio-hide{display:flex;align-items:center;gap:6px;color:#aebad3;font-size:10px;white-space:nowrap}
   .overview-ratios .ratio-explorer{grid-template-columns:repeat(4,minmax(0,1fr));padding-top:16px}
-  @media(max-width:1100px){.overview-ratios .ratio-explorer{grid-template-columns:repeat(2,minmax(0,1fr))}.ratio-filter-bar{align-items:flex-start;flex-direction:column}.ratio-filter-actions{width:100%}.ratio-search{flex:1}}
-  @media(max-width:650px){.overview-ratios .ratio-explorer{grid-template-columns:1fr}.ratio-filter-actions{align-items:flex-start;flex-direction:column}.ratio-search{box-sizing:border-box;width:100%}}
+  @media(max-width:1100px){.overview-ratios .ratio-explorer{grid-template-columns:repeat(2,minmax(0,1fr))}.ratio-filter-bar{align-items:flex-start;flex-direction:column}.ratio-filter-actions{width:100%}}
+  @media(max-width:650px){.overview-ratios .ratio-explorer{grid-template-columns:1fr}.ratio-filter-actions{align-items:flex-start;flex-direction:column}}
 </style>`);
 
 // Final live-data views. These override the early static prototypes above so

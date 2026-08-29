@@ -695,10 +695,6 @@ html[data-theme="light"] .data-freshness,html[data-theme="light"] .workspace-sum
   color: #e9fff8 !important;
 }
 .ratio-cell:hover { border-color: #356355 !important; background: #11231e !important; }
-.ratio-search:focus-within {
-  border-color: #3bb995 !important;
-  box-shadow: 0 0 0 3px rgba(67, 198, 162, .1);
-}
 .workflow button:hover {
   background: #14251f !important;
   border-color: #356a59 !important;
@@ -1259,7 +1255,6 @@ select:focus-visible {
   .ratio-category-filter { width: 100%; overflow-x: auto; flex-wrap: nowrap !important; padding-bottom: 2px; }
   .ratio-category-filter button { flex: 0 0 auto; }
   .ratio-filter-actions { align-items: stretch !important; flex-direction: column; width: 100%; }
-  .ratio-search { box-sizing: border-box; min-width: 0 !important; width: 100%; }
   .overview-ratios .ratio-explorer,
   .ratio-explorer { grid-template-columns: 1fr !important; padding: 13px !important; }
 
@@ -1493,7 +1488,6 @@ html[data-theme="light"] .ratio-explorer b,
 html[data-theme="light"] .ratio-explorer h3 { color: #17231f !important; }
 
 html[data-theme="light"] .ratio-category-filter button,
-html[data-theme="light"] .ratio-search,
 html[data-theme="light"] .chart-controls button {
   background: #f4f8f7 !important;
   border-color: #cfdcd8 !important;
@@ -1508,7 +1502,6 @@ html[data-theme="light"] .chart-controls button.selected {
   color: #116a55 !important;
 }
 
-html[data-theme="light"] .ratio-search input { color: #17231f !important; }
 html[data-theme="light"] .chart-grid { stroke: #e2e8e6 !important; }
 html[data-theme="light"] .chart-area text { fill: #71817c !important; }
 html[data-theme="light"] .chart-volume rect { fill: #9db7ae !important; }
