@@ -2610,16 +2610,16 @@ hydrateCompany = async function(ticker) {
 function latestResultsView() {
   return `<div class="page latest-results-page">${pageHeader('REPORTED EARNINGS', 'Latest US quarterly results', 'Track newly reported Nasdaq company results in one research table. Filter by date, size and performance, then open any company for a complete review.')}
   <section class="latest-results-summary" aria-label="Results summary">
-    <article><span>Reported companies</span><strong id="results-total">—</strong><small>Latest result per company</small></article>
+    <article><span>Reported companies</span><strong id="results-total">—</strong><small>Every unique result in this feed</small></article>
     <article><span>Sales growth leaders</span><strong id="results-sales-leaders">—</strong><small>Positive year-over-year growth</small></article>
     <article><span>Profit growth leaders</span><strong id="results-profit-leaders">—</strong><small>Positive year-over-year growth</small></article>
     <article><span>Turnarounds</span><strong id="results-turnarounds">—</strong><small>Loss to reported profit</small></article>
   </section>
   <section class="panel latest-results-workspace">
-    <div class="latest-results-heading"><div><p class="crumb">LATEST RESULTS</p><h2>Nasdaq earnings monitor</h2><p>Actual reported financials, live listing context and year-over-year comparisons. Missing provider values remain blank.</p></div><div class="results-live-status"><span class="live-dot" aria-hidden="true"></span><b id="latest-results-updated">Loading provider data…</b><small id="latest-results-source">FMP reported statements · Nasdaq listings</small></div></div>
+    <div class="latest-results-heading"><div><p class="crumb">LATEST RESULTS</p><h2>Latest quarterly results</h2><p>Browse every unique Nasdaq company result returned by the provider. Filter by date, size and performance, then open any company for a complete review.</p></div><div class="results-live-status"><span class="live-dot" aria-hidden="true"></span><b id="latest-results-updated">Loading provider data…</b><small id="latest-results-source">FMP reported statements · Nasdaq listings</small></div></div>
     <div class="latest-results-filters">
       <label class="results-search"><span>Company</span><input id="latest-results-search" type="search" placeholder="Search ticker or company" autocomplete="off"></label>
-      <label><span>Report date</span><select id="latest-results-period"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="all">All available</option></select></label>
+      <label><span>Report date</span><select id="latest-results-period"><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="all" selected>All available</option></select></label>
       <label><span>Market cap</span><select id="latest-results-cap"><option value="all">All sizes</option><option value="large">Large cap · $10B+</option><option value="mid">Mid cap · $2B–$10B</option><option value="small">Small cap · below $2B</option></select></label>
       <label><span>Sort results</span><select id="latest-results-sort"><option value="latest">Latest reported</option><option value="sales">Highest sales growth</option><option value="profit">Highest profit growth</option><option value="eps-surprise">Largest EPS surprise</option><option value="market-cap">Largest companies</option><option value="turnaround">Turnarounds first</option></select></label>
     </div>

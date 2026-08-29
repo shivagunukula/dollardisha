@@ -925,8 +925,7 @@ async function latestReportedResults() {
         if (seen.has(row.symbol)) return false;
         seen.add(row.symbol);
         return true;
-      })
-      .slice(0, 36);
+      });
 
     const rows = await mapWithConcurrency(events, 6, async event => {
       const directoryRow = directoryBySymbol.get(event.symbol) || {};
@@ -985,7 +984,7 @@ async function latestReportedResults() {
       to:range.to,
       updatedAt:new Date().toISOString(),
       source:'Financial Modeling Prep reported statements and Nasdaq-listed market data',
-      note:'Figures are provider reported. Missing values are left blank; no estimates are invented.'
+      note:'Showing every unique Nasdaq result returned for the selected lookback window. Figures are provider reported; unavailable values are left blank.'
     };
     latestResultsCache = { value, expiresAt:Date.now() + 60 * 60 * 1000, refreshing:null };
     return value;
