@@ -2620,7 +2620,7 @@ function latestResultsView() {
     <div class="latest-results-filters">
       <label class="results-search"><span>Company</span><input id="latest-results-search" type="search" placeholder="Search ticker or company" autocomplete="off"></label>
       <label><span>Report date</span><select id="latest-results-period"><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="all" selected>All available</option></select></label>
-      <label><span>Market cap</span><select id="latest-results-cap"><option value="all">All sizes</option><option value="large">Large cap · $10B+</option><option value="mid">Mid cap · $2B–$10B</option><option value="small">Small cap · below $2B</option></select></label>
+      <label><span>Market cap</span><select id="latest-results-cap"><option value="all">All sizes</option><option value="mega">Mega cap · $200B+</option><option value="large">Large cap · $10B–$200B</option><option value="mid">Mid cap · $2B–$10B</option><option value="small">Small cap · $300M–$2B</option><option value="micro">Micro cap · below $300M</option><option value="unknown">Not reported</option></select></label>
       <label><span>Sort results</span><select id="latest-results-sort"><option value="latest">Latest reported</option><option value="sales">Highest sales growth</option><option value="profit">Highest profit growth</option><option value="eps-surprise">Largest EPS surprise</option><option value="market-cap">Largest companies</option><option value="turnaround">Turnarounds first</option></select></label>
     </div>
     <div class="results-quick-filters" role="tablist" aria-label="Result performance filter">
@@ -2656,8 +2656,13 @@ async function setupLatestResults() {
   const capMatches = (row, selected) => {
     const cap = numeric(row.marketCap);
     if (selected === 'all') return true;
+    if (selected === 'unknown') return cap === null;
     if (cap === null) return false;
-    return selected === 'large' ? cap >= 10_000_000_000 : selected === 'mid' ? cap >= 2_000_000_000 && cap < 10_000_000_000 : cap < 2_000_000_000;
+    if (selected === 'mega') return cap >= 200_000_000_000;
+    if (selected === 'large') return cap >= 10_000_000_000 && cap < 200_000_000_000;
+    if (selected === 'mid') return cap >= 2_000_000_000 && cap < 10_000_000_000;
+    if (selected === 'small') return cap >= 300_000_000 && cap < 2_000_000_000;
+    return cap < 300_000_000;
   };
   const viewMatches = row => {
     if (resultView === 'sales') return numeric(row.revenueGrowth) !== null && Number(row.revenueGrowth) >= 15;
