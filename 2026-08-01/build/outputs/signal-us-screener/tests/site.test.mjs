@@ -113,6 +113,12 @@ test('app-level hash navigation wins over the current company path', async () =>
   assert.match(source, /const routeFromLocation = \(\) => routeFromHash\(\) \|\| routeFromPath\(\);/);
 });
 
+test('toolkit calendar anchors remain in-page navigation', async () => {
+  const source = await read('app.js');
+  assert.match(source, /const toolkitSections = new Set\(\['valuation-lab', 'india-return-tool', 'earnings-calendar', 'ipo-calendar', 'saved-cases'\]\)/);
+  assert.match(source, /routeSections\.has\(decoded\) \|\| toolkitSections\.has\(decoded\)/);
+});
+
 test('durable stock URLs load client assets from the site root', async () => {
   const html = await read('index.html');
   assert.match(html, /href="\/styles\.css/);
@@ -146,6 +152,23 @@ test('homepage keeps the interactive global market performance panel', async () 
   assert.match(client, /data-market-period="10y"/);
   assert.match(client, /id="market-region-filter"/);
   assert.match(client, /\/data\/market-performance\?period=/);
+  assert.match(client, /function dashboardQuickAccess\(\)/);
+  assert.match(client, /data-section="earnings-calendar"/);
+  assert.match(client, /data-section="ipo-calendar"/);
+  assert.match(client, /id="dashboard-results-count"/);
+  assert.match(client, /id="dashboard-ipo-count"/);
+  assert.doesNotMatch(client, /<em[^>]*>9 new<\/em>/);
+});
+
+test('homepage calendar shortcuts open real earnings and IPO data views', async () => {
+  const [client, server, styles] = await Promise.all([read('app.js'), read('server.mjs'), read('ui-refresh.css')]);
+  assert.match(client, /function revealRouteSection\(sectionId\)/);
+  assert.match(client, /id="earnings-calendar"/);
+  assert.match(client, /id="ipo-calendar"/);
+  assert.match(client, /const drawIpoCalendar = \(\) =>/);
+  assert.match(client, /Array\.isArray\(data\.ipos\)/);
+  assert.match(server, /optional\('ipos-calendar', range\)/);
+  assert.match(styles, /\.dashboard-quick-access/);
 });
 
 test('global market rankings never treat missing returns as zero', async () => {

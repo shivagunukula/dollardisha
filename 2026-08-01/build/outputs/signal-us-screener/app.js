@@ -550,11 +550,12 @@ document.addEventListener('visibilitychange', () => {
 });
 
 const routeSections = new Set(['overview', 'chart', 'earnings', 'strengths', 'quarterly', 'financials', 'peers', 'intelligence', 'events', 'documents']);
+const toolkitSections = new Set(['valuation-lab', 'india-return-tool', 'earnings-calendar', 'ipo-calendar', 'saved-cases']);
 const routeFromHash = () => {
   const raw = window.location.hash.replace(/^#/, '');
   if (!raw || raw.includes('=') || raw.startsWith('access_token') || raw.startsWith('error')) return null;
   const decoded = decodeURIComponent(raw);
-  return routeSections.has(decoded) ? null : decoded;
+  return routeSections.has(decoded) || toolkitSections.has(decoded) ? null : decoded;
 };
 const routeFromPath = () => {
   const match = window.location.pathname.match(/^\/stocks\/([A-Z0-9][A-Z0-9._-]{0,14})\/?$/i);
@@ -579,6 +580,13 @@ function navigateTo(target, { replace = false } = {}) {
   page = next;
   render();
 }
+function revealRouteSection(sectionId) {
+  if (!sectionId) { window.scrollTo(0, 0); return; }
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const section = document.getElementById(sectionId);
+    if (section) section.scrollIntoView({ behavior:'smooth', block:'start' });
+  }));
+}
 function openRouteInNewTab(target) {
   const opened = window.open(routeHref(target), '_blank', 'noopener,noreferrer');
   if (opened) opened.opener = null;
@@ -594,13 +602,14 @@ function wireCommon() {
         if (event.key !== 'Enter' && event.key !== ' ') return;
         event.preventDefault();
         navigateTo(target);
-        window.scrollTo(0, 0);
+        revealRouteSection(button.dataset.section);
       };
     }
     button.setAttribute('title', 'Open with Ctrl/Cmd-click or middle-click in a new tab');
     button.onclick = event => {
       if (event.ctrlKey || event.metaKey) { event.preventDefault(); openRouteInNewTab(target); return; }
       navigateTo(target);
+      revealRouteSection(button.dataset.section);
     };
     button.onauxclick = event => {
       if (event.button === 1) { event.preventDefault(); openRouteInNewTab(target); }
@@ -1547,6 +1556,18 @@ function dashboardInsightCards() {
   </section>`;
 }
 
+function dashboardQuickAccess() {
+  return `<aside class="dashboard-quick-access" aria-label="Market updates">
+    <div class="dashboard-quick-head"><p class="crumb">TODAY ON DOLLARDISHA</p><h2>Market updates</h2><p>Jump directly to the live research view you need.</p></div>
+    <div class="dashboard-quick-list">
+      <button type="button" data-page="markets"><span class="dashboard-quick-icon" aria-hidden="true">⌁</span><span><b>Market pulse</b><small>Leaders, laggards and global benchmarks</small></span><em>Live</em><i aria-hidden="true">›</i></button>
+      <button type="button" data-page="toolkit" data-section="earnings-calendar"><span class="dashboard-quick-icon" aria-hidden="true">▥</span><span><b>Quarterly results</b><small>Upcoming US earnings and estimates</small></span><em id="dashboard-results-count">Loading</em><i aria-hidden="true">›</i></button>
+      <button type="button" data-page="toolkit" data-section="ipo-calendar"><span class="dashboard-quick-icon" aria-hidden="true">↗</span><span><b>Upcoming IPOs</b><small>Provider-reported US listing calendar</small></span><em id="dashboard-ipo-count">Loading</em><i aria-hidden="true">›</i></button>
+    </div>
+    <small class="dashboard-quick-note" id="dashboard-calendar-note">Calendar dates are provider reported and may change.</small>
+  </aside>`;
+}
+
 // Preserve the original dashboard renderer for the enhanced hero below.
 const baseDashboardView = dashboardView;
 
@@ -1572,7 +1593,7 @@ dashboardView = function() {
   const match = polishedHtml.match(/<section class="panel dashboard-hero">([\s\S]*?)<\/section><div class="section-header">/);
   if (!match) return polishedHtml;
   const insights = dashboardInsightCards();
-  const hero = `<section class="panel dashboard-hero"><div class="dashboard-hero-layout"><div class="dashboard-hero-copy">${match[1]}</div>${panel}</div></section><div class="section-header">`;
+  const hero = `<section class="panel dashboard-hero"><div class="dashboard-hero-layout">${dashboardQuickAccess()}${panel}</div></section><div class="section-header">`;
   return polishedHtml.replace(match[0], hero).replace('<section class="dashboard-grid">', `${insights}<section class="dashboard-grid">`);
 };
 
@@ -1669,6 +1690,26 @@ function setupMarketLeaders() {
 async function hydrateDashboard() {
   setupMarketLeaders();
   hydrateProviderStatus();
+  const calendarTask = getJson('/data/calendar', 45000).then(data => {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() + 30);
+    const inNextThirtyDays = row => {
+      const date = new Date(`${String(row?.date || row?.reportDate || row?.filingDate || '').slice(0, 10)}T00:00:00`);
+      return !Number.isNaN(date.getTime()) && date >= today && date <= cutoff;
+    };
+    const earnings = (Array.isArray(data.earnings) ? data.earnings : []).filter(inNextThirtyDays);
+    const ipos = (Array.isArray(data.ipos) ? data.ipos : []).filter(inNextThirtyDays);
+    const resultsBadge = $('#dashboard-results-count');
+    const ipoBadge = $('#dashboard-ipo-count');
+    if (resultsBadge) resultsBadge.textContent = earnings.length ? `${earnings.length} upcoming` : 'View calendar';
+    if (ipoBadge) ipoBadge.textContent = ipos.length ? `${ipos.length} upcoming` : 'View calendar';
+    const note = $('#dashboard-calendar-note');
+    if (note && data.updatedAt) note.textContent = `Provider-reported calendar · updated ${new Date(data.updatedAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}`;
+  }).catch(() => {
+    if ($('#dashboard-results-count')) $('#dashboard-results-count').textContent = 'Open calendar';
+    if ($('#dashboard-ipo-count')) $('#dashboard-ipo-count').textContent = 'Open calendar';
+    if ($('#dashboard-calendar-note')) $('#dashboard-calendar-note').textContent = 'Calendar is temporarily unavailable; open the toolkit to retry.';
+  });
   const insightTask = getJson('/data/market-scan?mode=gainers', 45000).then(rows => {
     const leader = Array.isArray(rows) ? rows.find(item => scanNumber(item.changesPercentage, item.changePercentage, item.change) !== null) : null;
     const symbol = $('#dashboard-scan-symbol');
@@ -1717,7 +1758,7 @@ async function hydrateDashboard() {
       value.className = change === null ? '' : Number(change) >= 0 ? 'positive' : 'down';
     });
   }).catch(() => document.querySelectorAll('[data-dashboard-watch] strong').forEach(value => { value.textContent = 'Retry'; })) : Promise.resolve();
-  await Promise.allSettled([insightTask, quoteTask, watchTask]);
+  await Promise.allSettled([calendarTask, insightTask, quoteTask, watchTask]);
 }
 
 function legacyIndexView() {
@@ -2569,7 +2610,7 @@ hydrateCompany = async function(ticker) {
 
 function toolkitView() {
   return `<div class="page toolkit-page">${pageHeader('DECISION TOOLS', 'Research Toolkit', 'Turn live company data into a repeatable valuation view, then track the earnings events that can change the thesis.')}
-  <nav class="toolkit-jump" aria-label="Research toolkit sections"><a href="#valuation-lab">Valuation Lab</a><a href="#india-return-tool">INR Return</a><a href="#earnings-calendar">Earnings Calendar</a><a href="#saved-cases">Saved Cases</a><button type="button" data-page="screener">Open saved screens</button></nav>
+  <nav class="toolkit-jump" aria-label="Research toolkit sections"><a href="#valuation-lab">Valuation Lab</a><a href="#india-return-tool">INR Return</a><a href="#earnings-calendar">Earnings Calendar</a><a href="#ipo-calendar">IPO Calendar</a><a href="#saved-cases">Saved Cases</a><button type="button" data-page="screener">Open saved screens</button></nav>
   <section id="valuation-lab" class="panel toolkit-valuation"><div class="toolkit-section-head"><div><p class="crumb">VALUATION LAB</p><h2>Build an earnings-multiple scenario</h2><p>Start from the latest reported EPS and live price, then test your own growth, exit multiple and required return.</p></div><span class="toolkit-badge">Scenario, not a price target</span></div>
     <div class="valuation-search"><label class="toolkit-symbol-search"><span>Search a US company</span><input id="valuation-symbol" maxlength="50" value="AAPL" placeholder="Ticker or company, e.g. AAPL or Apple" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="valuation-symbol-results" aria-expanded="false"><div id="valuation-symbol-results" class="compare-results valuation-symbol-results" hidden></div></label><button id="valuation-load" class="solid-btn" type="button">Load company</button><span id="valuation-status" role="status" aria-live="polite">Ready to load live data</span></div>
     <div id="valuation-company-card" class="toolkit-company-card" aria-live="polite"><div class="toolkit-company-placeholder"><span>LIVE INPUTS</span><b>Choose a company to populate the valuation model</b><small>DollarDisha will load the latest quote, reported TTM EPS and current P/E where available.</small></div></div>
@@ -2583,12 +2624,16 @@ function toolkitView() {
     <div class="calendar-summary"><span id="earnings-visible">Loading reported events</span><small>Dates and estimates are provider reported and may change.</small></div>
     <div class="table-wrap"><table class="earnings-calendar-table"><thead><tr><th>Date</th><th>Company</th><th>Session</th><th>EPS estimate</th><th>Revenue estimate</th><th>Alert</th><th></th></tr></thead><tbody id="earnings-calendar-body"><tr><td colspan="7">Loading the earnings calendar...</td></tr></tbody></table></div>
   </section>
+  <section id="ipo-calendar" class="panel toolkit-calendar ipo-calendar"><div class="toolkit-section-head"><div><p class="crumb">IPO CALENDAR</p><h2>Upcoming US listings</h2><p>Provider-reported listing dates and offer details. Dates and terms can change before an offering is completed.</p></div><span id="ipo-updated" class="toolkit-badge">Loading calendar</span></div>
+    <div class="table-wrap"><table class="earnings-calendar-table"><thead><tr><th>Date</th><th>Company</th><th>Exchange</th><th>Shares</th><th>Offer range</th></tr></thead><tbody id="ipo-calendar-body"><tr><td colspan="5">Loading the IPO calendar...</td></tr></tbody></table></div>
+  </section>
   <section id="saved-cases" class="panel saved-cases-panel"><div class="toolkit-section-head"><div><p class="crumb">YOUR WORK</p><h2>Saved valuation cases</h2><p>Cases are saved locally and merge into your signed-in research account.</p></div><span id="saved-cases-count" class="toolkit-badge">0 saved cases</span></div><div id="valuation-cases" class="valuation-case-grid"></div></section></div>`;
 }
 
 function setupToolkit() {
   let companyData = null;
   let calendarRows = [];
+  let ipoRows = [];
   let calendarPeriod = '7';
   let valuationSearchTimer;
   let valuationSearchRequest = 0;
@@ -2791,6 +2836,29 @@ function setupToolkit() {
     eps:numberFrom(row.epsEstimated, row.epsEstimate, row.estimatedEps),
     revenue:numberFrom(row.revenueEstimated, row.revenueEstimate, row.estimatedRevenue)
   });
+  const normaliseIpo = row => ({
+    date:String(row.date || row.filingDate || row.acceptedDate || '').slice(0, 10),
+    symbol:String(row.symbol || row.ticker || '').toUpperCase(),
+    name:row.company || row.companyName || row.name || row.symbol || row.ticker || 'Company',
+    exchange:row.exchange || row.exchangeShortName || 'Not reported',
+    shares:numberFrom(row.shares, row.numberOfShares),
+    priceLow:numberFrom(row.priceRangeLow, row.priceLow, row.minPrice),
+    priceHigh:numberFrom(row.priceRangeHigh, row.priceHigh, row.maxPrice)
+  });
+  const drawIpoCalendar = () => {
+    const body = $('#ipo-calendar-body');
+    if (!body) return;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const future = ipoRows.filter(row => {
+      const date = new Date(`${row.date}T00:00:00`);
+      return !Number.isNaN(date.getTime()) && date >= today;
+    }).slice(0, 80);
+    body.innerHTML = future.length ? future.map(row => {
+      const range = row.priceLow === null && row.priceHigh === null ? 'Not reported' : `${row.priceLow === null ? '—' : formatMoney(row.priceLow)} – ${row.priceHigh === null ? '—' : formatMoney(row.priceHigh)}`;
+      return `<tr><td><b>${escapeHtml(row.date)}</b></td><td>${row.symbol ? companyIdentity(row.symbol, row.name) : `<b>${escapeHtml(row.name)}</b>`}</td><td>${escapeHtml(row.exchange)}</td><td>${row.shares === null ? 'Not reported' : Number(row.shares).toLocaleString('en-US')}</td><td>${range}</td></tr>`;
+    }).join('') : '<tr><td colspan="5">No upcoming US IPO dates were reported by the connected provider.</td></tr>';
+    $('#ipo-updated').textContent = future.length ? `${future.length} upcoming listings` : 'No upcoming listings reported';
+  };
   const drawCalendar = () => {
     const search = $('#earnings-search').value.trim().toUpperCase();
     const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -2827,6 +2895,7 @@ function setupToolkit() {
     try {
       const data = await getJson('/data/calendar', 45000);
       calendarRows = (Array.isArray(data.earnings) ? data.earnings : []).map(normaliseEarnings).filter(row => row.symbol && row.date).sort((a, b) => a.date.localeCompare(b.date));
+      ipoRows = (Array.isArray(data.ipos) ? data.ipos : []).map(normaliseIpo).filter(row => row.date && (row.symbol || row.name)).sort((a, b) => a.date.localeCompare(b.date));
       const today = new Date(); today.setHours(0, 0, 0, 0);
       const hasNearTermEvents = calendarRows.some(row => {
         const distance = (new Date(`${row.date}T00:00:00`) - today) / 86400000;
@@ -2838,10 +2907,13 @@ function setupToolkit() {
       }
       $('#earnings-updated').textContent = `${calendarRows.length} reported events · updated ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}`;
       drawCalendar();
+      drawIpoCalendar();
     } catch {
       $('#earnings-updated').textContent = 'Calendar temporarily unavailable';
       $('#earnings-visible').textContent = 'Live calendar unavailable';
       $('#earnings-calendar-body').innerHTML = '<tr><td colspan="7">The provider calendar could not be loaded. Try again shortly.</td></tr>';
+      if ($('#ipo-updated')) $('#ipo-updated').textContent = 'Calendar temporarily unavailable';
+      if ($('#ipo-calendar-body')) $('#ipo-calendar-body').innerHTML = '<tr><td colspan="5">The provider IPO calendar could not be loaded. Try again shortly.</td></tr>';
     }
   };
   let liveUsdInr = 0;
