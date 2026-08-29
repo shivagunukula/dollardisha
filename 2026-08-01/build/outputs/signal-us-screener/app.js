@@ -2621,7 +2621,7 @@ function latestResultsView() {
       <label class="results-search"><span>Company</span><input id="latest-results-search" type="search" placeholder="Search ticker or company" autocomplete="off"></label>
       <label><span>Report date</span><select id="latest-results-period"><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="all" selected>All available</option></select></label>
       <label class="results-cap-field"><span>Market cap <small>(multi-select)</small></span><div class="results-multi" id="latest-results-cap" role="group" aria-label="Market cap filters"><button type="button" class="selected" data-cap-option="all">All</button><button type="button" data-cap-option="mega">Mega</button><button type="button" data-cap-option="large">Large</button><button type="button" data-cap-option="mid">Mid</button><button type="button" data-cap-option="small">Small</button><button type="button" data-cap-option="micro">Micro</button><button type="button" data-cap-option="unknown">Unknown</button></div></label>
-      <label><span>Sort results</span><select id="latest-results-sort"><option value="latest">Latest reported</option><option value="sales">Highest sales growth</option><option value="profit">Highest profit growth</option><option value="eps-surprise">Largest EPS surprise</option><option value="market-cap">Largest companies</option><option value="turnaround">Turnarounds first</option></select></label>
+      <label class="results-sort-field"><span>Sort results <small>(multi-priority)</small></span><div class="results-multi" id="latest-results-sort" role="group" aria-label="Sort priorities"><button type="button" class="selected" data-sort-option="latest">Latest</button><button type="button" data-sort-option="sales">Sales growth</button><button type="button" data-sort-option="profit">Profit growth</button><button type="button" data-sort-option="eps-surprise">EPS surprise</button><button type="button" data-sort-option="market-cap">Market cap</button><button type="button" data-sort-option="turnaround">Turnarounds</button></div></label>
     </div>
     <div class="results-quick-filters" role="tablist" aria-label="Result performance filter">
       <button class="selected" type="button" data-results-view="all">All results</button>
@@ -2643,6 +2643,7 @@ async function setupLatestResults() {
   let rows = [];
   const resultViews = new Set();
   const selectedCaps = new Set(['all']);
+  const selectedSorts = ['latest'];
   let resultPage = 1;
   const pageSize = 25;
   const numeric = value => scanNumber(value);
@@ -2678,7 +2679,6 @@ async function setupLatestResults() {
     const search = $('#latest-results-search').value.trim().toUpperCase();
     const days = $('#latest-results-period').value === 'all' ? Infinity : Number($('#latest-results-period').value);
     const cap = selectedCaps;
-    const sort = $('#latest-results-sort').value;
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const filtered = rows.filter(row => {
       const date = new Date(`${row.reportDate}T00:00:00`);
@@ -2687,12 +2687,16 @@ async function setupLatestResults() {
       return age >= -1 && age <= days && (!search || identity.includes(search)) && viewMatches(row);
     }).filter(row => cap.has('all') || [...cap].some(selected => capMatches(row, selected))).sort((left, right) => {
       const descending = field => (numeric(right[field]) ?? -Infinity) - (numeric(left[field]) ?? -Infinity);
-      if (sort === 'sales') return descending('revenueGrowth');
-      if (sort === 'profit') return descending('profitGrowth');
-      if (sort === 'eps-surprise') return descending('epsSurprise');
-      if (sort === 'market-cap') return descending('marketCap');
-      if (sort === 'turnaround') return Number(right.turnaround) - Number(left.turnaround) || String(right.reportDate).localeCompare(String(left.reportDate));
-      return String(right.reportDate).localeCompare(String(left.reportDate));
+      for (const sort of selectedSorts) {
+        const result = sort === 'sales' ? descending('revenueGrowth')
+          : sort === 'profit' ? descending('profitGrowth')
+            : sort === 'eps-surprise' ? descending('epsSurprise')
+              : sort === 'market-cap' ? descending('marketCap')
+                : sort === 'turnaround' ? Number(right.turnaround) - Number(left.turnaround)
+                  : String(right.reportDate).localeCompare(String(left.reportDate));
+        if (result) return result;
+      }
+      return 0;
     });
     const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
     resultPage = Math.min(resultPage, pages);
@@ -2725,7 +2729,7 @@ async function setupLatestResults() {
     $('#latest-results-reset')?.addEventListener('click', () => {
       $('#latest-results-search').value = '';
       $('#latest-results-period').value = 'all';
-      $('#latest-results-sort').value = 'latest';
+      selectedSorts.splice(0, selectedSorts.length, 'latest');
       resultViews.clear(); selectedCaps.clear(); selectedCaps.add('all'); resultPage = 1;
       document.querySelectorAll('[data-results-view]').forEach(button => button.classList.remove('selected'));
       document.querySelector('[data-results-view="all"]')?.classList.add('selected');
@@ -2734,7 +2738,7 @@ async function setupLatestResults() {
     });
   };
   const resetAndDraw = () => { resultPage = 1; draw(); };
-  ['latest-results-search','latest-results-period','latest-results-sort'].forEach(id => {
+  ['latest-results-search','latest-results-period'].forEach(id => {
     const element = $(`#${id}`);
     if (element) element[element.tagName === 'INPUT' ? 'oninput' : 'onchange'] = resetAndDraw;
   });
@@ -2754,6 +2758,18 @@ async function setupLatestResults() {
     if (option === 'all') { selectedCaps.clear(); selectedCaps.add('all'); }
     else { selectedCaps.delete('all'); selectedCaps.has(option) ? selectedCaps.delete(option) : selectedCaps.add(option); if (!selectedCaps.size) selectedCaps.add('all'); }
     document.querySelectorAll('[data-cap-option]').forEach(item => item.classList.toggle('selected', selectedCaps.has(item.dataset.capOption)));
+    resultPage = 1; draw();
+  });
+  document.querySelectorAll('[data-sort-option]').forEach(button => button.onclick = () => {
+    const option = button.dataset.sortOption;
+    if (option === 'latest') selectedSorts.splice(0, selectedSorts.length, 'latest');
+    else {
+      const index = selectedSorts.indexOf(option);
+      if (index >= 0) selectedSorts.splice(index, 1);
+      else { const latestIndex = selectedSorts.indexOf('latest'); if (latestIndex >= 0) selectedSorts.splice(latestIndex, 1); selectedSorts.push(option); }
+      if (!selectedSorts.length) selectedSorts.push('latest');
+    }
+    document.querySelectorAll('[data-sort-option]').forEach(item => item.classList.toggle('selected', selectedSorts.includes(item.dataset.sortOption)));
     resultPage = 1; draw();
   });
   $('#latest-results-prev').onclick = () => { resultPage -= 1; draw(); document.querySelector('.latest-results-workspace')?.scrollIntoView({ behavior:'smooth', block:'start' }); };
