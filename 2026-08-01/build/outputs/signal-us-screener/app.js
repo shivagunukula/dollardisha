@@ -281,6 +281,7 @@ function marketsView() {
 function screenerView() {
   return `<div class="page">${pageHeader('DISCOVER', 'US stock screener', 'Filter a broad US-equity universe, customise your query and export a research list.')}
   <div class="query-card"><div><b>Build a US equity screen</b><small>Search once, then combine size, liquidity, valuation and quality filters.</small></div><input id="screen-search" placeholder="Search a company or ticker"><button class="solid-btn" id="screen-run">Refresh data</button><button class="link-button" id="export-screen">Export CSV</button></div>
+  <section class="screen-query-builder" aria-label="Search query"><div><b>Search query</b><small>Write your own numeric rules. Join rules with AND.</small></div><div class="screen-query-entry"><input id="screen-query" placeholder="e.g. P/E < 25 AND ROE >= 15 AND Market cap > 10B" autocomplete="off" aria-describedby="screen-query-status"><button class="link-button" id="screen-query-clear" type="button">Clear query</button></div><div class="screen-query-examples" aria-label="Search query examples"><span>Try:</span><button type="button" data-screen-query="P/E < 25">P/E &lt; 25</button><button type="button" data-screen-query="ROE >= 15 AND Revenue growth > 10%">Quality growth</button><button type="button" data-screen-query="Market cap > 10B AND Dividend yield > 2%">Large dividend payers</button></div><p id="screen-query-status" class="screen-query-status">Available: P/E, ROE, EPS, revenue growth, market cap, price, volume, debt to equity and dividend yield.</p></section>
   <section class="advanced-screen-builder" aria-label="Advanced formula filter"><div><b>Advanced filter</b><small>Add one extra rule to any screen without writing code.</small></div><select id="screen-formula-metric" aria-label="Formula metric"><option value="none">No extra rule</option><option value="pe">P/E</option><option value="roe">ROE %</option><option value="eps">EPS</option><option value="growth">Revenue growth %</option><option value="debt">Debt to equity</option><option value="dividend">Dividend yield %</option><option value="cap">Market cap ($B)</option><option value="volume">Daily volume</option></select><select id="screen-formula-op" aria-label="Formula operator"><option value="gte">at least</option><option value="lte">at most</option><option value="gt">greater than</option><option value="lt">less than</option></select><input id="screen-formula-value" type="number" step="any" placeholder="Value" aria-label="Formula value"><button class="link-button" id="screen-formula-clear" type="button">Clear rule</button></section>
   <div class="screen-presets" aria-label="Quick screening presets"><span>Popular screens</span><button data-screen-preset="mega">Mega-cap leaders</button><button data-screen-preset="value">Profitable value</button><button data-screen-preset="quality">High ROE</button><button data-screen-preset="liquid">Highly liquid</button><button data-screen-preset="dividend">Dividend payers</button><button data-screen-preset="reset">Clear all</button></div>
   <section class="saved-screen-workspace" aria-label="Saved screens"><div class="saved-screen-create"><div><b>Saved screens</b><small>Keep a reusable filter set and detect result changes whenever you run it.</small></div><label><span>Screen name</span><input id="saved-screen-name" maxlength="50" placeholder="e.g. Profitable technology"></label><label class="saved-alert-toggle"><input id="saved-screen-alert" type="checkbox" checked><span>Track result changes</span></label><button class="solid-btn" id="save-current-screen" type="button">Save current screen</button></div><div id="saved-screen-list" class="saved-screen-list"></div></section>
@@ -804,6 +805,71 @@ function setupScreener() {
   const value = id => $(`#${id}`).value;
   const inCapBand = (cap, band) => band === 'all' || (band === 'mega' && cap >= 2e11) || (band === 'large' && cap >= 1e10 && cap < 2e11) || (band === 'mid' && cap >= 2e9 && cap < 1e10) || (band === 'small' && cap >= 3e8 && cap < 2e9) || (band === 'micro' && cap < 3e8);
   const inPriceBand = (price, band) => band === 'all' || (band === 'under10' && price < 10) || (band === '10to50' && price >= 10 && price < 50) || (band === '50to200' && price >= 50 && price <= 200) || (band === 'over200' && price > 200);
+  const queryMetrics = new Map([
+    ['p/e', 'pe'], ['pe', 'pe'], ['price to earnings', 'pe'],
+    ['roe', 'roe'], ['return on equity', 'roe'], ['eps', 'eps'],
+    ['revenue growth', 'growth'], ['sales growth', 'growth'], ['growth', 'growth'],
+    ['market cap', 'cap'], ['market capitalization', 'cap'], ['mcap', 'cap'],
+    ['price', 'price'], ['share price', 'price'], ['current price', 'price'],
+    ['volume', 'volume'], ['daily volume', 'volume'],
+    ['debt to equity', 'debt'], ['debt/equity', 'debt'], ['d/e', 'debt'],
+    ['dividend yield', 'dividend'], ['dividend', 'dividend']
+  ]);
+  const normaliseQueryMetric = input => queryMetrics.get(String(input || '').trim().toLowerCase().replace(/\s+/g, ' '));
+  const queryMetricValue = (stock, metric) => {
+    if (metric === 'pe') return scanNumber(stock.pe, stock.peRatioTTM, stock.priceToEarningsRatioTTM);
+    if (metric === 'roe') return scanPercent(scanNumber(stock.returnOnEquityTTM, stock.roeTTM, stock.roe));
+    if (metric === 'eps') return scanNumber(stock.epsTTM, stock.netIncomePerShareTTM);
+    if (metric === 'growth') {
+      const growth = scanNumber(stock.revenueGrowthTTM);
+      return growth === null ? null : Math.abs(Number(growth)) <= 1 ? Number(growth) * 100 : Number(growth);
+    }
+    if (metric === 'cap') return scanNumber(stock.marketCap, stock.cap ? stock.cap * 1e9 : null);
+    if (metric === 'price') return scanNumber(stock.price);
+    if (metric === 'volume') return scanNumber(stock.volume, stock.avgVolume);
+    if (metric === 'debt') return scanNumber(stock.debtToEquityRatioTTM, stock.debtToEquity);
+    if (metric === 'dividend') {
+      const yieldValue = scanNumber(stock.dividendYieldTTM);
+      return yieldValue === null ? null : Math.abs(Number(yieldValue)) <= 1 ? Number(yieldValue) * 100 : Number(yieldValue);
+    }
+    return null;
+  };
+  const parseQueryNumber = (raw, suffix, metric) => {
+    const number = Number(String(raw).replace(/,/g, ''));
+    if (!Number.isFinite(number)) return null;
+    const unit = String(suffix || '').toLowerCase();
+    if (metric === 'cap') return number * (unit === 'm' ? 1e6 : unit === 'k' ? 1e3 : 1e9);
+    if (metric === 'volume') return number * (unit === 'b' ? 1e9 : unit === 'm' ? 1e6 : unit === 'k' ? 1e3 : 1);
+    return number;
+  };
+  const parseScreenQuery = input => String(input || '').trim().split(/\s+and\s+|,/i).map(part => part.trim()).filter(Boolean).reduce((parsed, part) => {
+    const match = part.match(/^(.+?)\s*(<=|>=|!=|=|<|>)\s*\$?\s*(-?\d[\d,]*(?:\.\d+)?)\s*([%BbMmKk]?)$/);
+    if (!match) { parsed.invalid.push(part); return parsed; }
+    const metric = normaliseQueryMetric(match[1]);
+    const target = metric ? parseQueryNumber(match[3], match[4], metric) : null;
+    if (!metric || target === null) { parsed.invalid.push(part); return parsed; }
+    parsed.rules.push({ metric, operator: match[2], target });
+    return parsed;
+  }, { rules: [], invalid: [] });
+  const queryPass = (stock, rules) => rules.every(rule => {
+    const current = queryMetricValue(stock, rule.metric);
+    if (current === null || !Number.isFinite(Number(current))) return false;
+    if (rule.operator === '<') return current < rule.target;
+    if (rule.operator === '<=') return current <= rule.target;
+    if (rule.operator === '>') return current > rule.target;
+    if (rule.operator === '>=') return current >= rule.target;
+    if (rule.operator === '!=') return current !== rule.target;
+    return current === rule.target;
+  });
+  const updateQueryStatus = parsed => {
+    const status = $('#screen-query-status');
+    if (!status) return;
+    status.classList.toggle('has-error', Boolean(parsed.invalid.length));
+    status.classList.toggle('is-active', Boolean(parsed.rules.length) && !parsed.invalid.length);
+    if (parsed.invalid.length) status.textContent = `Could not use: ${parsed.invalid.join(' · ')}. Use fields such as P/E, ROE, EPS, revenue growth, market cap or dividend yield, with <, >, <= or >=.`;
+    else if (parsed.rules.length) status.textContent = `${parsed.rules.length} custom ${parsed.rules.length === 1 ? 'rule' : 'rules'} active. Every rule must match.`;
+    else status.textContent = 'Available: P/E, ROE, EPS, revenue growth, market cap, price, volume, debt to equity and dividend yield.';
+  };
   const enrichVisible = async list => {
     const tickers = list.slice(0, 60).map(stock => stock.symbol || stock.ticker).filter(ticker => ticker && !metricSymbols.has(ticker));
     if (!tickers.length) return;
@@ -822,6 +888,8 @@ function setupScreener() {
   const draw = (skipEnrichment = false) => {
     if (page !== 'screener' || !$('#screen-table')) return;
     const search = value('screen-search').trim().toUpperCase();
+    const parsedQuery = parseScreenQuery(value('screen-query'));
+    updateQueryStatus(parsedQuery);
     const sector = value('screen-sector');
     const exchange = value('screen-exchange');
     const capBand = value('screen-cap');
@@ -866,7 +934,7 @@ function setupScreener() {
         (minRoe === 0 || (roe !== null && roe >= minRoe)) &&
         (minEps <= -999998 || (eps !== null && eps >= minEps)) &&
         (minGrowth <= -999998 || (growth !== null && growth >= minGrowth)) && volume >= minVolume &&
-        (dividend === 'all' || paysDividend) && formulaPass(stock);
+        (dividend === 'all' || paysDividend) && formulaPass(stock) && queryPass(stock, parsedQuery.rules);
     });
     const sorter = {
       cap: (a, b) => Number(b.marketCap || 0) - Number(a.marketCap || 0),
@@ -922,9 +990,9 @@ function setupScreener() {
     quality: { cap:'large', roe:'20', sort:'roe' },
     liquid: { cap:'large', volume:'10000000', sort:'volume' },
     dividend: { dividend:'payer', sort:'cap' },
-    reset: { sector:'all', exchange:'all', cap:'all', price:'all', pe:'999', roe:'0', eps:'-999999', growth:'-999999', volume:'0', dividend:'all', sort:'cap', 'formula-metric':'none', 'formula-op':'gte', 'formula-value':'' }
+    reset: { sector:'all', exchange:'all', cap:'all', price:'all', pe:'999', roe:'0', eps:'-999999', growth:'-999999', volume:'0', dividend:'all', sort:'cap', query:'', 'formula-metric':'none', 'formula-op':'gte', 'formula-value':'' }
   };
-  const screenFilterNames = ['sector', 'exchange', 'cap', 'price', 'pe', 'roe', 'eps', 'growth', 'volume', 'dividend', 'sort', 'formula-metric', 'formula-op', 'formula-value'];
+  const screenFilterNames = ['sector', 'exchange', 'cap', 'price', 'pe', 'roe', 'eps', 'growth', 'volume', 'dividend', 'sort', 'query', 'formula-metric', 'formula-op', 'formula-value'];
   const currentScreenFilters = () => Object.fromEntries(screenFilterNames.map(name => [name, $(`#screen-${name}`)?.value || presets.reset[name]]));
   const saveScreens = () => {
     try { localStorage.setItem('dd-saved-screens', JSON.stringify(savedScreens)); } catch {}
@@ -981,7 +1049,9 @@ function setupScreener() {
     document.querySelectorAll('[data-screen-preset]').forEach(item => item.classList.toggle('selected', item === button && button.dataset.screenPreset !== 'reset'));
     draw();
   });
-  ['screen-search', 'screen-sector', 'screen-exchange', 'screen-cap', 'screen-price', 'screen-pe', 'screen-roe', 'screen-eps', 'screen-growth', 'screen-volume', 'screen-dividend', 'screen-sort', 'screen-formula-metric', 'screen-formula-op', 'screen-formula-value'].forEach(id => $(`#${id}`).oninput = draw);
+  ['screen-search', 'screen-query', 'screen-sector', 'screen-exchange', 'screen-cap', 'screen-price', 'screen-pe', 'screen-roe', 'screen-eps', 'screen-growth', 'screen-volume', 'screen-dividend', 'screen-sort', 'screen-formula-metric', 'screen-formula-op', 'screen-formula-value'].forEach(id => $(`#${id}`).oninput = draw);
+  $('#screen-query-clear').onclick = () => { $('#screen-query').value = ''; draw(); };
+  document.querySelectorAll('[data-screen-query]').forEach(button => button.onclick = () => { $('#screen-query').value = button.dataset.screenQuery || ''; draw(); });
   $('#screen-formula-clear').onclick = () => { $('#screen-formula-metric').value = 'none'; $('#screen-formula-value').value = ''; draw(); };
   $('#screen-run').onclick = () => load(true);
   $('#export-screen').onclick = () => {
