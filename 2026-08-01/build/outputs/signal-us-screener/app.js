@@ -295,7 +295,7 @@ function marketsView() {
 
 function screenerView() {
   return `<div class="page">${pageHeader('DISCOVER', 'US stock screener', 'Filter a broad US-equity universe, customise your query and export a research list.')}
-  <section class="screen-query-builder" aria-label="Create a search query"><label class="screen-query-label" for="screen-query">Query</label><div class="screen-query-composer"><textarea id="screen-query" rows="5" placeholder="P/E < 25 AND ROE >= 15" autocomplete="off" aria-describedby="screen-query-status"></textarea><aside class="screen-query-help" aria-live="polite"><b id="screen-query-help-name">Custom query example</b><span id="screen-query-help-description">Market cap &gt; 10B AND<br>P/E &lt; 25 AND<br>ROE &gt;= 15</span><button type="button" id="screen-query-help-action" data-screen-query="Market cap > 10B AND P/E < 25 AND ROE >= 15">Use this example</button></aside></div><p id="screen-query-status" class="screen-query-status">Build a rule from a ratio, an operator and a number.</p><div class="screen-query-actions"><button class="solid-btn" id="screen-run-query" type="button">▶&nbsp; Run this query</button><div><button class="link-button" id="screen-gallery-open" type="button">Show all Ratios</button><button class="link-button" id="screen-query-clear" type="button">Clear</button></div></div></section>
+  <section class="screen-query-builder" aria-label="Create a search query"><label class="screen-query-label" for="screen-query">Query</label><div class="screen-query-composer"><div class="screen-query-input-wrap"><textarea id="screen-query" rows="5" placeholder="P/E < 25 AND ROE >= 15" autocomplete="off" aria-describedby="screen-query-status" aria-controls="screen-query-suggestions" aria-expanded="false"></textarea><div id="screen-query-suggestions" class="screen-query-suggestions" role="listbox" aria-label="Query suggestions" hidden></div></div><aside class="screen-query-help" aria-live="polite"><b id="screen-query-help-name">Custom query example</b><span id="screen-query-help-description">Market cap &gt; 10B AND<br>P/E &lt; 25 AND<br>ROE &gt;= 15</span><button type="button" id="screen-query-help-action" data-screen-query="Market cap > 10B AND P/E < 25 AND ROE >= 15">Use this example</button></aside></div><p id="screen-query-status" class="screen-query-status">Start typing a metric, for example “price”, “return” or “sales”.</p><div class="screen-query-actions"><button class="solid-btn" id="screen-run-query" type="button">▶&nbsp; Run this query</button><div><button class="link-button" id="screen-gallery-open" type="button">Show all Ratios</button><button class="link-button" id="screen-query-clear" type="button">Clear</button></div></div></section>
   <section id="screen-ratio-gallery" class="screen-ratio-gallery" aria-label="Ratio Gallery" hidden><div class="ratio-gallery-head"><b>Ratio Gallery</b><button type="button" id="screen-gallery-close" class="link-button">Close gallery</button></div><div class="ratio-gallery-operators" aria-label="Query operators"><button type="button" disabled title="Formula expressions are coming soon">+</button><button type="button" disabled title="Formula expressions are coming soon">−</button><button type="button" disabled title="Formula expressions are coming soon">÷</button><button type="button" disabled title="Formula expressions are coming soon">×</button><button type="button" data-query-operator=">">&gt;</button><button type="button" data-query-operator="<">&lt;</button><button type="button" data-query-operator="AND">AND</button><button type="button" disabled title="OR logic is coming soon">OR</button></div><div class="ratio-gallery-tabs" role="tablist"><button type="button" class="selected" data-ratio-gallery-tab="most-used">Most Used</button><button type="button" data-ratio-gallery-tab="annual">Annual P&amp;L</button><button type="button" data-ratio-gallery-tab="quarterly">Quarterly P&amp;L</button><button type="button" data-ratio-gallery-tab="balance">Balance Sheet</button><button type="button" data-ratio-gallery-tab="cash-flow">Cash Flow</button><button type="button" data-ratio-gallery-tab="ratios">Ratios</button><button type="button" data-ratio-gallery-tab="price">Price</button></div><label class="ratio-gallery-search">Search ratio<input id="screen-ratio-search" type="search" placeholder="e.g. sales"></label><div id="screen-ratio-list" class="ratio-gallery-list"></div><p class="ratio-gallery-note">Available fields run against current live US-market and TTM fundamental data. Historical fields appear as company financial history is synced.</p></section>
   <div class="screen-utility-row"><input id="screen-search" placeholder="Search a company or ticker"><button class="solid-btn" id="screen-run">Refresh live data</button><button class="link-button" id="export-screen">Export CSV</button></div>
   <section class="advanced-screen-builder" aria-label="Advanced formula filter"><div><b>Advanced filter</b><small>Add one extra rule to any screen without writing code.</small></div><select id="screen-formula-metric" aria-label="Formula metric"><option value="none">No extra rule</option><option value="pe">P/E</option><option value="roe">ROE %</option><option value="eps">EPS</option><option value="growth">Revenue growth %</option><option value="debt">Debt to equity</option><option value="dividend">Dividend yield %</option><option value="cap">Market cap ($B)</option><option value="volume">Daily volume</option></select><select id="screen-formula-op" aria-label="Formula operator"><option value="gte">at least</option><option value="lte">at most</option><option value="gt">greater than</option><option value="lt">less than</option></select><input id="screen-formula-value" type="number" step="any" placeholder="Value" aria-label="Formula value"><button class="link-button" id="screen-formula-clear" type="button">Clear rule</button></section>
@@ -1160,6 +1160,90 @@ function setupScreener() {
     'Free cash flow / share':['Free cash flow per share', 'Trailing free cash flow divided by shares outstanding.'],
     'Free cash flow yield':['Free cash flow yield', 'Trailing free cash flow relative to market value, expressed as a percentage.']
   };
+  const querySuggestionCatalog = [
+    ['P/E', 'Price to earnings'], ['Price to book', 'Price to book'], ['Price to sales', 'Price to sales'], ['EV / EBITDA', 'Enterprise value / EBITDA'], ['Price to free cash flow', 'Price to free cash flow'],
+    ['Market cap', 'Use B for billions'], ['Current price', 'Latest market price'], ['Volume', 'Latest trading volume'], ['Dividend yield', 'Trailing dividend yield'],
+    ['Return on equity', 'ROE %'], ['Return on assets', 'ROA %'], ['Return on invested capital', 'ROIC %'], ['Current ratio', 'Liquidity ratio'], ['Quick ratio', 'Liquidity ratio'], ['Debt to equity', 'Leverage ratio'],
+    ['Sales growth', 'Trailing sales growth %'], ['Gross margin', 'Gross margin %'], ['Operating margin', 'Operating margin %'], ['Net profit margin', 'Net margin %'], ['EPS', 'Trailing EPS'],
+    ['Return over 1 day', 'Price return %'], ['Return over 1 month', 'Price return %'], ['Return over 3 months', 'Price return %'], ['Return over 1 year', 'Price return %'],
+    ['52-week high', 'Highest close in 52 weeks'], ['52-week low', 'Lowest close in 52 weeks'], ['50-day moving average', '50-session average'], ['200-day moving average', '200-session average'], ['RSI', '14-session RSI'], ['MACD', 'MACD value'],
+    ['Sales latest quarter', 'Reported revenue'], ['YOY quarterly sales growth', 'Reported growth %'], ['Profit after tax latest quarter', 'Reported net income'], ['Debt', 'Reported total debt'], ['Free cash flow preceding year', 'Reported cash flow']
+  ].filter(([token]) => Boolean(normaliseQueryMetric(token)));
+  const queryInput = $('#screen-query');
+  const querySuggestionHolder = $('#screen-query-suggestions');
+  let activeQuerySuggestion = -1;
+  let activeQuerySuggestionItems = [];
+  const hideQuerySuggestions = () => {
+    if (!querySuggestionHolder || !queryInput) return;
+    querySuggestionHolder.hidden = true;
+    querySuggestionHolder.innerHTML = '';
+    queryInput.setAttribute('aria-expanded', 'false');
+    activeQuerySuggestion = -1;
+    activeQuerySuggestionItems = [];
+  };
+  const queryClauseAtCursor = () => {
+    if (!queryInput) return { start:0, end:0, text:'' };
+    const cursor = Number.isFinite(queryInput.selectionStart) ? queryInput.selectionStart : queryInput.value.length;
+    const before = queryInput.value.slice(0, cursor);
+    const boundaries = [before.lastIndexOf('\n'), before.lastIndexOf(',')];
+    const andMatch = [...before.matchAll(/\bAND\b/gi)].at(-1);
+    if (andMatch) boundaries.push(andMatch.index + andMatch[0].length - 1);
+    const boundary = Math.max(...boundaries);
+    const rawStart = boundary + 1;
+    const leading = before.slice(rawStart).match(/^\s*/)?.[0].length || 0;
+    const start = rawStart + leading;
+    return { start, end:cursor, text:before.slice(start) };
+  };
+  const applyQuerySuggestion = item => {
+    if (!queryInput || !item) return;
+    const clause = queryClauseAtCursor();
+    const insert = item.type === 'operator' ? `${clause.text.trim() ? ' ' : ''}${item.token} ` : `${item.token} `;
+    const start = item.type === 'operator' ? clause.end : clause.start;
+    queryInput.value = `${queryInput.value.slice(0, start)}${insert}${queryInput.value.slice(clause.end)}`;
+    const nextCursor = start + insert.length;
+    queryInput.focus();
+    queryInput.setSelectionRange(nextCursor, nextCursor);
+    if (item.type === 'metric') showFieldHelp(item.token);
+    hideQuerySuggestions();
+    queryInput.dispatchEvent(new Event('input', { bubbles:true }));
+  };
+  const renderQuerySuggestions = () => {
+    if (!queryInput || !querySuggestionHolder) return;
+    const clause = queryClauseAtCursor();
+    const trimmed = clause.text.trim();
+    if (/(?:<=|>=|!=|=|<|>)/.test(trimmed)) { hideQuerySuggestions(); return; }
+    const exactMetric = normaliseQueryMetric(trimmed);
+    const items = exactMetric
+      ? [['>', 'Greater than'], ['>=', 'At least'], ['<', 'Less than'], ['<=', 'At most'], ['=', 'Exactly']].map(([token, detail]) => ({ token, detail, type:'operator' }))
+      : querySuggestionCatalog.filter(([token, detail]) => !trimmed || `${token} ${detail}`.toLowerCase().includes(trimmed.toLowerCase())).slice(0, 8).map(([token, detail]) => ({ token, detail, type:'metric' }));
+    if (!items.length) { hideQuerySuggestions(); return; }
+    activeQuerySuggestionItems = items;
+    activeQuerySuggestion = Math.min(Math.max(activeQuerySuggestion, 0), items.length - 1);
+    querySuggestionHolder.innerHTML = items.map((item, index) => `<button type="button" class="screen-query-suggestion${index === activeQuerySuggestion ? ' selected' : ''}" role="option" aria-selected="${index === activeQuerySuggestion}" data-query-suggestion="${escapeHtml(item.token)}"><b>${escapeHtml(item.token)}</b><small>${escapeHtml(item.detail)}</small></button>`).join('');
+    querySuggestionHolder.hidden = false;
+    queryInput.setAttribute('aria-expanded', 'true');
+    querySuggestionHolder.querySelectorAll('[data-query-suggestion]').forEach((button, index) => button.onclick = () => applyQuerySuggestion(items[index]));
+  };
+  queryInput?.addEventListener('focus', renderQuerySuggestions);
+  queryInput?.addEventListener('input', () => { activeQuerySuggestion = -1; renderQuerySuggestions(); });
+  queryInput?.addEventListener('keydown', event => {
+    if (!querySuggestionHolder || querySuggestionHolder.hidden) return;
+    if (event.key === 'Escape') { event.preventDefault(); hideQuerySuggestions(); return; }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      activeQuerySuggestion = (activeQuerySuggestion + step + activeQuerySuggestionItems.length) % activeQuerySuggestionItems.length;
+      renderQuerySuggestions();
+      return;
+    }
+    if (event.key === 'Enter' && activeQuerySuggestionItems[activeQuerySuggestion]) {
+      event.preventDefault();
+      applyQuerySuggestion(activeQuerySuggestionItems[activeQuerySuggestion]);
+    }
+  });
+  document.addEventListener('pointerdown', event => {
+    if (!querySuggestionHolder?.hidden && !event.target.closest('.screen-query-input-wrap')) hideQuerySuggestions();
+  });
   const showFieldHelp = label => {
     const [title, description] = fieldHelp[label] || [label, 'Choose a comparison and a value to add this field to your screen.'];
     $('#screen-query-help-name').textContent = title;

@@ -333,3 +333,14 @@ test('financial-history screen metrics use reported annual and quarterly stateme
   assert.match(server, /annualCagr/);
   assert.match(server, /financialsLoaded/);
 });
+
+test('custom-query editor offers keyboard-accessible metric and operator suggestions', async () => {
+  const [client, styles] = await Promise.all([read('app.js'), read('ui-refresh.css')]);
+  assert.match(client, /screen-query-suggestions/);
+  assert.match(client, /querySuggestionCatalog/);
+  assert.match(client, /applyQuerySuggestion/);
+  assert.match(client, /ArrowDown/);
+  assert.match(client, /aria-expanded/);
+  assert.match(styles, /\.screen-query-suggestions/);
+  assert.match(styles, /\.screen-query-suggestion/);
+});
