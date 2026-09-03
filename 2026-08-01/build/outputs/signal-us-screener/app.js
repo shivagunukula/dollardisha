@@ -247,7 +247,7 @@ const scanPercent = value => {
   if (!Number.isFinite(number)) return null;
   return Math.abs(number) <= 2 ? number * 100 : number;
 };
-function screenerRow(stock) {
+function screenerRow(stock, extraColumns = []) {
   const ticker = stock.symbol || stock.ticker;
   const name = stock.companyName || stock.name || ticker;
   const cap = scanNumber(stock.marketCap, stock.cap ? stock.cap * 1e9 : null);
@@ -255,7 +255,22 @@ function screenerRow(stock) {
   const roe = scanPercent(scanNumber(stock.returnOnEquityTTM, stock.roeTTM, stock.roe));
   const volume = scanNumber(stock.volume, stock.avgVolume);
   const sector = stock.sector || 'Not classified';
-  return `<tr class="company-row" data-stock="${ticker}"><td class="company">${companyIdentity(ticker, name)}</td><td>${scanNumber(stock.price) !== null ? `$${Number(stock.price).toFixed(2)}` : 'Not available'}</td><td>${cap !== null ? money(cap) : 'Not available'}</td><td title="N/M means not meaningful or not reported">${pe !== null && pe > 0 ? `${Number(pe).toFixed(1)}x` : 'N/M'}</td><td>${roe !== null ? `${roe.toFixed(1)}%` : 'Not reported'}</td><td>${volume !== null ? whole(volume) : 'Not available'}</td><td>${escapeHtml(sector)}</td><td>${watchButton(ticker)}</td></tr>`;
+  const metricValue = key => {
+    const value = key === 'eps' ? scanNumber(stock.epsTTM, stock.netIncomePerShareTTM)
+      : key === 'growth' ? scanPercent(scanNumber(stock.revenueGrowthTTM))
+        : key === 'dividend' ? scanPercent(scanNumber(stock.dividendYieldTTM))
+          : key === 'debt' ? scanNumber(stock.debtToEquityRatioTTM, stock.debtToEquity)
+            : key === 'pb' ? scanNumber(stock.priceToBookRatioTTM)
+              : key === 'ps' ? scanNumber(stock.priceToSalesRatioTTM)
+                : key === 'evEbitda' ? scanNumber(stock.enterpriseValueMultipleTTM)
+                  : key === 'margin' ? scanPercent(scanNumber(stock.netProfitMarginTTM))
+                    : null;
+    if (value === null) return '—';
+    if (['growth', 'dividend', 'margin'].includes(key)) return `${Number(value).toFixed(1)}%`;
+    if (['pb', 'ps', 'evEbitda', 'debt'].includes(key)) return `${Number(value).toFixed(1)}x`;
+    return `$${Number(value).toFixed(2)}`;
+  };
+  return `<tr class="company-row" data-stock="${ticker}"><td class="company">${companyIdentity(ticker, name)}</td><td>${scanNumber(stock.price) !== null ? `$${Number(stock.price).toFixed(2)}` : 'Not available'}</td><td>${cap !== null ? money(cap) : 'Not available'}</td><td title="N/M means not meaningful or not reported">${pe !== null && pe > 0 ? `${Number(pe).toFixed(1)}x` : 'N/M'}</td><td>${roe !== null ? `${roe.toFixed(1)}%` : 'Not reported'}</td><td>${volume !== null ? whole(volume) : 'Not available'}</td>${extraColumns.map(column => `<td>${metricValue(column)}</td>`).join('')}<td>${escapeHtml(sector)}</td><td>${watchButton(ticker)}</td></tr>`;
 }
 function pageHeader(kicker, title, text) { return `<div class="section-header"><div><p class="crumb">${kicker}</p><h1 class="page-title">${title}</h1><p class="sub">${text}</p></div></div>`; }
 
@@ -284,6 +299,7 @@ function screenerView() {
   <section class="screen-query-builder" aria-label="Search query"><div><b>Search query</b><small>Write your own numeric rules. Join rules with AND.</small></div><div class="screen-query-entry"><input id="screen-query" placeholder="e.g. P/E < 25 AND ROE >= 15 AND Market cap > 10B" autocomplete="off" aria-describedby="screen-query-status"><button class="link-button" id="screen-query-clear" type="button">Clear query</button></div><div class="screen-query-examples" aria-label="Search query examples"><span>Try:</span><button type="button" data-screen-query="P/E < 25">P/E &lt; 25</button><button type="button" data-screen-query="ROE >= 15 AND Revenue growth > 10%">Quality growth</button><button type="button" data-screen-query="Market cap > 10B AND Dividend yield > 2%">Large dividend payers</button></div><p id="screen-query-status" class="screen-query-status">Available: P/E, ROE, EPS, revenue growth, market cap, price, volume, debt to equity and dividend yield.</p></section>
   <section class="advanced-screen-builder" aria-label="Advanced formula filter"><div><b>Advanced filter</b><small>Add one extra rule to any screen without writing code.</small></div><select id="screen-formula-metric" aria-label="Formula metric"><option value="none">No extra rule</option><option value="pe">P/E</option><option value="roe">ROE %</option><option value="eps">EPS</option><option value="growth">Revenue growth %</option><option value="debt">Debt to equity</option><option value="dividend">Dividend yield %</option><option value="cap">Market cap ($B)</option><option value="volume">Daily volume</option></select><select id="screen-formula-op" aria-label="Formula operator"><option value="gte">at least</option><option value="lte">at most</option><option value="gt">greater than</option><option value="lt">less than</option></select><input id="screen-formula-value" type="number" step="any" placeholder="Value" aria-label="Formula value"><button class="link-button" id="screen-formula-clear" type="button">Clear rule</button></section>
   <div class="screen-presets" aria-label="Quick screening presets"><span>Popular screens</span><button data-screen-preset="mega">Mega-cap leaders</button><button data-screen-preset="value">Profitable value</button><button data-screen-preset="quality">High ROE</button><button data-screen-preset="liquid">Highly liquid</button><button data-screen-preset="dividend">Dividend payers</button><button data-screen-preset="reset">Clear all</button></div>
+  <section class="screen-columns" aria-label="Screener result columns"><div><b>Result columns</b><small>Choose the fundamentals shown in every row. Your choices are saved on this device.</small></div><div id="screen-column-controls" class="screen-column-controls" role="group" aria-label="Choose result columns"></div></section>
   <section class="saved-screen-workspace" aria-label="Saved screens"><div class="saved-screen-create"><div><b>Saved screens</b><small>Keep a reusable filter set and detect result changes whenever you run it.</small></div><label><span>Screen name</span><input id="saved-screen-name" maxlength="50" placeholder="e.g. Profitable technology"></label><label class="saved-alert-toggle"><input id="saved-screen-alert" type="checkbox" checked><span>Track result changes</span></label><button class="solid-btn" id="save-current-screen" type="button">Save current screen</button></div><div id="saved-screen-list" class="saved-screen-list"></div></section>
   <div class="filter-layout"><aside class="filters"><div class="filter-title"><span>Filter stocks</span><b>Active US listings</b></div>
     <div class="filter-fields">
@@ -300,7 +316,7 @@ function screenerView() {
       <label>Sort results<select id="screen-sort"><option value="cap">Market cap · high to low</option><option value="volume">Volume · high to low</option><option value="roe">ROE · high to low</option><option value="pe">P/E · low to high</option><option value="price">Price · high to low</option><option value="name">Company name · A–Z</option></select></label>
     </div>
     <p class="filter-help"><b>N/M</b> means a valuation is not meaningful or has not been reported. P/E and ROE use the latest available TTM filing data.</p>
-  </aside><section class="table-panel"><div class="result-meta"><span id="screen-count">Loading active US stocks…</span><span>Click a company to research it</span></div><div class="screen-data-note" id="screen-data-note">Funds and ETFs are excluded. Financial ratios appear when reported by the company.</div><div class="table-wrap"><table class="screener-table"><thead><tr><th>Company</th><th>Price</th><th>Market cap</th><th>P/E</th><th>ROE</th><th>Volume</th><th>Sector</th><th></th></tr></thead><tbody id="screen-table"><tr><td colspan="8">Loading the US stock directory…</td></tr></tbody></table></div></section></div></div>`;
+  </aside><section class="table-panel"><div class="result-meta"><span id="screen-count">Loading active US stocks…</span><span>Click a company to research it</span></div><div class="screen-data-note" id="screen-data-note">Funds and ETFs are excluded. Financial ratios appear when reported by the company.</div><div class="table-wrap"><table class="screener-table"><thead id="screen-table-head"><tr><th>Company</th><th>Price</th><th>Market cap</th><th>P/E</th><th>ROE</th><th>Volume</th><th>Sector</th><th></th></tr></thead><tbody id="screen-table"><tr><td colspan="8">Loading the US stock directory…</td></tr></tbody></table></div></section></div></div>`;
 }
 
 function indexView() {
@@ -798,6 +814,49 @@ async function setupMarkets() {
 function setupScreener() {
   let universe = [];
   let results = [];
+  const columnOptions = [
+    ['eps', 'EPS'], ['growth', 'Sales growth'], ['dividend', 'Dividend yield'], ['debt', 'Debt / equity'],
+    ['pb', 'P / B'], ['ps', 'P / S'], ['evEbitda', 'EV / EBITDA'], ['margin', 'Net margin']
+  ];
+  let selectedColumns = (() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('dd-screener-columns') || '[]');
+      return Array.isArray(saved) ? saved.filter(key => columnOptions.some(([id]) => id === key)).slice(0, 5) : [];
+    } catch { return []; }
+  })();
+  const saveColumns = () => {
+    try { localStorage.setItem('dd-screener-columns', JSON.stringify(selectedColumns)); } catch {}
+  };
+  const renderColumns = () => {
+    const controls = $('#screen-column-controls');
+    if (!controls) return;
+    controls.innerHTML = columnOptions.map(([key, label]) => `<button type="button" class="${selectedColumns.includes(key) ? 'selected' : ''}" data-screen-column="${key}" aria-pressed="${selectedColumns.includes(key)}">${escapeHtml(label)}</button>`).join('');
+    controls.querySelectorAll('[data-screen-column]').forEach(button => button.onclick = () => {
+      const key = button.dataset.screenColumn;
+      if (selectedColumns.includes(key)) selectedColumns = selectedColumns.filter(value => value !== key);
+      else if (selectedColumns.length < 5) selectedColumns = [...selectedColumns, key];
+      else return;
+      saveColumns(); renderColumns(); draw();
+    });
+  };
+  const renderTableHead = () => {
+    const head = $('#screen-table-head');
+    if (!head) return;
+    const labels = new Map(columnOptions);
+    head.innerHTML = `<tr><th>Company</th><th>Price</th><th>Market cap</th><th>P/E</th><th>ROE</th><th>Volume</th>${selectedColumns.map(key => `<th>${escapeHtml(labels.get(key) || key)}</th>`).join('')}<th>Sector</th><th></th></tr>`;
+  };
+  const exportColumnValue = (stock, key) => {
+    if (key === 'eps') return scanNumber(stock.epsTTM, stock.netIncomePerShareTTM) ?? '';
+    if (key === 'growth') return scanPercent(scanNumber(stock.revenueGrowthTTM)) ?? '';
+    if (key === 'dividend') return scanPercent(scanNumber(stock.dividendYieldTTM)) ?? '';
+    if (key === 'debt') return scanNumber(stock.debtToEquityRatioTTM, stock.debtToEquity) ?? '';
+    if (key === 'pb') return scanNumber(stock.priceToBookRatioTTM) ?? '';
+    if (key === 'ps') return scanNumber(stock.priceToSalesRatioTTM) ?? '';
+    if (key === 'evEbitda') return scanNumber(stock.enterpriseValueMultipleTTM) ?? '';
+    if (key === 'margin') return scanPercent(scanNumber(stock.netProfitMarginTTM)) ?? '';
+    return '';
+  };
+  renderColumns();
   const resultMeta = document.querySelector('.result-meta');
   if (resultMeta && !document.querySelector('#screen-freshness')) resultMeta.insertAdjacentHTML('beforeend', '<span id="screen-freshness">Waiting for live directory data</span>');
   const metricSymbols = new Set();
@@ -945,8 +1004,9 @@ function setupScreener() {
       name: (a, b) => String(a.companyName || a.name || '').localeCompare(String(b.companyName || b.name || ''))
     };
     results.sort(sorter[sort] || sorter.cap);
+    renderTableHead();
     $('#screen-count').textContent = `${results.length.toLocaleString()} matches · showing up to 60 detailed rows from ${universe.length.toLocaleString()} active US stocks`;
-    $('#screen-table').innerHTML = results.slice(0, 60).map(screenerRow).join('') || '<tr><td colspan="8">No active US stocks match these filters. Try clearing one or two filters.</td></tr>';
+    $('#screen-table').innerHTML = results.slice(0, 60).map(stock => screenerRow(stock, selectedColumns)).join('') || `<tr><td colspan="${8 + selectedColumns.length}">No active US stocks match these filters. Try clearing one or two filters.</td></tr>`;
     wireCommon();
     if (!skipEnrichment) enrichVisible(results);
   };
@@ -1055,8 +1115,9 @@ function setupScreener() {
   $('#screen-formula-clear').onclick = () => { $('#screen-formula-metric').value = 'none'; $('#screen-formula-value').value = ''; draw(); };
   $('#screen-run').onclick = () => load(true);
   $('#export-screen').onclick = () => {
-    const csv = ['Symbol,Company,Price,Market Cap,P/E,ROE,Volume,Sector', ...results.map(stock => {
-      const fields = [stock.symbol || stock.ticker, stock.companyName || stock.name || '', stock.price || '', stock.marketCap || '', scanNumber(stock.pe, stock.peRatioTTM) ?? '', scanPercent(scanNumber(stock.returnOnEquityTTM, stock.roeTTM, stock.roe)) ?? '', stock.volume || '', stock.sector || ''];
+    const selectedLabels = new Map(columnOptions);
+    const csv = [['Symbol','Company','Price','Market Cap','P/E','ROE','Volume', ...selectedColumns.map(key => selectedLabels.get(key)), 'Sector'].join(','), ...results.map(stock => {
+      const fields = [stock.symbol || stock.ticker, stock.companyName || stock.name || '', stock.price || '', stock.marketCap || '', scanNumber(stock.pe, stock.peRatioTTM) ?? '', scanPercent(scanNumber(stock.returnOnEquityTTM, stock.roeTTM, stock.roe)) ?? '', stock.volume || '', ...selectedColumns.map(key => exportColumnValue(stock, key)), stock.sector || ''];
       return fields.map(item => `"${String(item).replace(/"/g, '""')}"`).join(',');
     })].join('\n');
     const link = document.createElement('a');
