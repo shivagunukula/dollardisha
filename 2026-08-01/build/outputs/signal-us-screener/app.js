@@ -296,7 +296,8 @@ function marketsView() {
 function screenerView() {
   return `<div class="page">${pageHeader('DISCOVER', 'US stock screener', 'Filter a broad US-equity universe, customise your query and export a research list.')}
   <div class="query-card"><div><b>Build a US equity screen</b><small>Search once, then combine size, liquidity, valuation and quality filters.</small></div><input id="screen-search" placeholder="Search a company or ticker"><button class="solid-btn" id="screen-run">Refresh data</button><button class="link-button" id="export-screen">Export CSV</button></div>
-  <section class="screen-query-builder" aria-label="Search query"><div><b>Search query</b><small>Write your own numeric rules. Join rules with AND.</small></div><div class="screen-query-entry"><input id="screen-query" placeholder="e.g. P/E < 25 AND ROE >= 15 AND Market cap > 10B" autocomplete="off" aria-describedby="screen-query-status"><button class="link-button" id="screen-query-clear" type="button">Clear query</button></div><div class="screen-query-examples" aria-label="Search query examples"><span>Try:</span><button type="button" data-screen-query="P/E < 25">P/E &lt; 25</button><button type="button" data-screen-query="ROE >= 15 AND Revenue growth > 10%">Quality growth</button><button type="button" data-screen-query="Market cap > 10B AND Dividend yield > 2%">Large dividend payers</button></div><p id="screen-query-status" class="screen-query-status">Available: P/E, ROE, EPS, revenue growth, market cap, price, volume, debt to equity and dividend yield.</p></section>
+  <section class="screen-query-builder" aria-label="Search query"><div class="screen-query-heading"><b>Create a search query</b><small>Build a screen from live market data and reported fundamentals. Join complete rules with AND.</small><button class="link-button" id="screen-gallery-open" type="button">Open Ratio Gallery</button></div><div class="screen-query-entry"><textarea id="screen-query" rows="3" placeholder="e.g. P/E < 25 AND ROE >= 15 AND Market cap > 10B" autocomplete="off" aria-describedby="screen-query-status"></textarea><button class="link-button" id="screen-query-clear" type="button">Clear query</button></div><div class="screen-query-examples" aria-label="Search query examples"><span>Try:</span><button type="button" data-screen-query="P/E < 25">P/E &lt; 25</button><button type="button" data-screen-query="ROE >= 15 AND Revenue growth > 10%">Quality growth</button><button type="button" data-screen-query="Market cap > 10B AND Dividend yield > 2%">Large dividend payers</button></div><p id="screen-query-status" class="screen-query-status">Choose a metric from the Ratio Gallery, then add an operator and a number.</p></section>
+  <section class="screen-ratio-gallery" aria-label="Ratio Gallery"><div class="ratio-gallery-head"><div><p class="crumb">RATIO GALLERY</p><h2>Build your query</h2><small>Click a field to add it to the query. Reported fields refresh with the screener data.</small></div><button type="button" id="screen-gallery-close" class="link-button">Hide gallery</button></div><div class="ratio-gallery-operators" aria-label="Query operators"><span>Operators</span><button type="button" data-query-operator=">">&gt;</button><button type="button" data-query-operator="<">&lt;</button><button type="button" data-query-operator=">=">≥</button><button type="button" data-query-operator="<=">≤</button><button type="button" data-query-operator="AND">AND</button></div><div class="ratio-gallery-tabs" role="tablist"><button type="button" class="selected" data-ratio-gallery-tab="most-used">Most used</button><button type="button" data-ratio-gallery-tab="valuation">Valuation</button><button type="button" data-ratio-gallery-tab="quality">Quality</button><button type="button" data-ratio-gallery-tab="income">Income</button><button type="button" data-ratio-gallery-tab="balance">Balance sheet</button><button type="button" data-ratio-gallery-tab="price">Price</button></div><label class="ratio-gallery-search">Find a metric<input id="screen-ratio-search" type="search" placeholder="e.g. margin, price, sales"></label><div id="screen-ratio-list" class="ratio-gallery-list"></div><p class="ratio-gallery-note">Quarter-by-quarter and multi-year comparison fields will appear here as the reported-results history sync is expanded.</p></section>
   <section class="advanced-screen-builder" aria-label="Advanced formula filter"><div><b>Advanced filter</b><small>Add one extra rule to any screen without writing code.</small></div><select id="screen-formula-metric" aria-label="Formula metric"><option value="none">No extra rule</option><option value="pe">P/E</option><option value="roe">ROE %</option><option value="eps">EPS</option><option value="growth">Revenue growth %</option><option value="debt">Debt to equity</option><option value="dividend">Dividend yield %</option><option value="cap">Market cap ($B)</option><option value="volume">Daily volume</option></select><select id="screen-formula-op" aria-label="Formula operator"><option value="gte">at least</option><option value="lte">at most</option><option value="gt">greater than</option><option value="lt">less than</option></select><input id="screen-formula-value" type="number" step="any" placeholder="Value" aria-label="Formula value"><button class="link-button" id="screen-formula-clear" type="button">Clear rule</button></section>
   <div class="screen-presets" aria-label="Quick screening presets"><span>Popular screens</span><button data-screen-preset="mega">Mega-cap leaders</button><button data-screen-preset="value">Profitable value</button><button data-screen-preset="quality">High ROE</button><button data-screen-preset="liquid">Highly liquid</button><button data-screen-preset="dividend">Dividend payers</button><button data-screen-preset="reset">Clear all</button></div>
   <section class="screen-columns" aria-label="Screener result columns"><div><b>Result columns</b><small>Choose the fundamentals shown in every row. Your choices are saved on this device.</small></div><div id="screen-column-controls" class="screen-column-controls" role="group" aria-label="Choose result columns"></div></section>
@@ -866,26 +867,36 @@ function setupScreener() {
   const inPriceBand = (price, band) => band === 'all' || (band === 'under10' && price < 10) || (band === '10to50' && price >= 10 && price < 50) || (band === '50to200' && price >= 50 && price <= 200) || (band === 'over200' && price > 200);
   const queryMetrics = new Map([
     ['p/e', 'pe'], ['pe', 'pe'], ['price to earnings', 'pe'],
+    ['p/b', 'pb'], ['pb', 'pb'], ['price to book', 'pb'],
+    ['p/s', 'ps'], ['ps', 'ps'], ['price to sales', 'ps'],
+    ['ev/ebitda', 'evEbitda'], ['ev / ebitda', 'evEbitda'], ['ev ebitda', 'evEbitda'],
     ['roe', 'roe'], ['return on equity', 'roe'], ['eps', 'eps'],
     ['revenue growth', 'growth'], ['sales growth', 'growth'], ['growth', 'growth'],
+    ['net margin', 'margin'], ['net profit margin', 'margin'],
     ['market cap', 'cap'], ['market capitalization', 'cap'], ['mcap', 'cap'],
     ['price', 'price'], ['share price', 'price'], ['current price', 'price'],
     ['volume', 'volume'], ['daily volume', 'volume'],
+    ['current ratio', 'currentRatio'],
     ['debt to equity', 'debt'], ['debt/equity', 'debt'], ['d/e', 'debt'],
     ['dividend yield', 'dividend'], ['dividend', 'dividend']
   ]);
   const normaliseQueryMetric = input => queryMetrics.get(String(input || '').trim().toLowerCase().replace(/\s+/g, ' '));
   const queryMetricValue = (stock, metric) => {
     if (metric === 'pe') return scanNumber(stock.pe, stock.peRatioTTM, stock.priceToEarningsRatioTTM);
+    if (metric === 'pb') return scanNumber(stock.priceToBookRatioTTM);
+    if (metric === 'ps') return scanNumber(stock.priceToSalesRatioTTM);
+    if (metric === 'evEbitda') return scanNumber(stock.enterpriseValueMultipleTTM);
     if (metric === 'roe') return scanPercent(scanNumber(stock.returnOnEquityTTM, stock.roeTTM, stock.roe));
     if (metric === 'eps') return scanNumber(stock.epsTTM, stock.netIncomePerShareTTM);
     if (metric === 'growth') {
       const growth = scanNumber(stock.revenueGrowthTTM);
       return growth === null ? null : Math.abs(Number(growth)) <= 1 ? Number(growth) * 100 : Number(growth);
     }
+    if (metric === 'margin') return scanPercent(scanNumber(stock.netProfitMarginTTM));
     if (metric === 'cap') return scanNumber(stock.marketCap, stock.cap ? stock.cap * 1e9 : null);
     if (metric === 'price') return scanNumber(stock.price);
     if (metric === 'volume') return scanNumber(stock.volume, stock.avgVolume);
+    if (metric === 'currentRatio') return scanNumber(stock.currentRatioTTM);
     if (metric === 'debt') return scanNumber(stock.debtToEquityRatioTTM, stock.debtToEquity);
     if (metric === 'dividend') {
       const yieldValue = scanNumber(stock.dividendYieldTTM);
@@ -925,10 +936,62 @@ function setupScreener() {
     if (!status) return;
     status.classList.toggle('has-error', Boolean(parsed.invalid.length));
     status.classList.toggle('is-active', Boolean(parsed.rules.length) && !parsed.invalid.length);
-    if (parsed.invalid.length) status.textContent = `Could not use: ${parsed.invalid.join(' · ')}. Use fields such as P/E, ROE, EPS, revenue growth, market cap or dividend yield, with <, >, <= or >=.`;
+    const incompleteField = parsed.invalid.length === 1 && Boolean(normaliseQueryMetric(parsed.invalid[0]));
+    if (incompleteField) { status.classList.remove('has-error'); status.textContent = `“${parsed.invalid[0]}” added. Choose an operator and number to complete this rule.`; }
+    else if (parsed.invalid.length) status.textContent = `Could not use: ${parsed.invalid.join(' · ')}. Choose a field from the Ratio Gallery, then use <, >, <= or >= with a number.`;
     else if (parsed.rules.length) status.textContent = `${parsed.rules.length} custom ${parsed.rules.length === 1 ? 'rule' : 'rules'} active. Every rule must match.`;
-    else status.textContent = 'Available: P/E, ROE, EPS, revenue growth, market cap, price, volume, debt to equity and dividend yield.';
+    else status.textContent = 'Choose a metric from the Ratio Gallery, then add an operator and a number.';
   };
+  const galleryFields = {
+    'most-used': [
+      ['P/E', 'P/E'], ['Return on equity', 'ROE'], ['Market cap', 'Market cap'], ['Current price', 'Current price'],
+      ['Revenue growth', 'Sales growth'], ['EPS', 'EPS'], ['Dividend yield', 'Dividend yield'], ['Volume', 'Volume']
+    ],
+    valuation: [
+      ['P/E', 'P/E'], ['Price to book', 'P / B'], ['Price to sales', 'P / S'], ['EV / EBITDA', 'EV / EBITDA'], ['Dividend yield', 'Dividend yield']
+    ],
+    quality: [
+      ['Return on equity', 'Return on equity'], ['Net margin', 'Net profit margin'], ['Revenue growth', 'Revenue growth'], ['EPS', 'EPS']
+    ],
+    income: [
+      ['Revenue growth', 'Revenue growth'], ['EPS', 'EPS'], ['Net margin', 'Net margin'], ['Dividend yield', 'Dividend yield']
+    ],
+    balance: [
+      ['Debt to equity', 'Debt / equity'], ['Current ratio', 'Current ratio'], ['Market cap', 'Market cap']
+    ],
+    price: [
+      ['Current price', 'Current price'], ['Market cap', 'Market cap'], ['Volume', 'Daily volume'], ['P/E', 'P/E']
+    ]
+  };
+  let activeGalleryTab = 'most-used';
+  const insertQueryText = text => {
+    const input = $('#screen-query');
+    if (!input) return;
+    const existing = input.value.trimEnd();
+    input.value = `${existing}${existing ? ' ' : ''}${text} `;
+    input.focus();
+    input.dispatchEvent(new Event('input', { bubbles:true }));
+  };
+  const renderRatioGallery = () => {
+    const holder = $('#screen-ratio-list');
+    if (!holder) return;
+    const needle = ($('#screen-ratio-search')?.value || '').trim().toLowerCase();
+    const fields = (galleryFields[activeGalleryTab] || []).filter(([token, label]) => !needle || `${token} ${label}`.toLowerCase().includes(needle));
+    holder.innerHTML = fields.length
+      ? fields.map(([token, label]) => `<button type="button" data-query-token="${escapeHtml(token)}" title="Add ${escapeHtml(label)} to query">${escapeHtml(label)}</button>`).join('')
+      : '<span class="ratio-gallery-empty">No supported metrics match this search.</span>';
+    holder.querySelectorAll('[data-query-token]').forEach(button => button.onclick = () => insertQueryText(button.dataset.queryToken));
+  };
+  document.querySelectorAll('[data-ratio-gallery-tab]').forEach(button => button.onclick = () => {
+    activeGalleryTab = button.dataset.ratioGalleryTab || 'most-used';
+    document.querySelectorAll('[data-ratio-gallery-tab]').forEach(item => item.classList.toggle('selected', item === button));
+    renderRatioGallery();
+  });
+  document.querySelectorAll('[data-query-operator]').forEach(button => button.onclick = () => insertQueryText(button.dataset.queryOperator));
+  $('#screen-ratio-search').oninput = renderRatioGallery;
+  $('#screen-gallery-close').onclick = () => { $('#screen-ratio-gallery').hidden = true; $('#screen-gallery-open').focus(); };
+  $('#screen-gallery-open').onclick = () => { $('#screen-ratio-gallery').hidden = false; renderRatioGallery(); $('#screen-ratio-search').focus(); };
+  renderRatioGallery();
   const enrichVisible = async list => {
     const tickers = list.slice(0, 60).map(stock => stock.symbol || stock.ticker).filter(ticker => ticker && !metricSymbols.has(ticker));
     if (!tickers.length) return;
