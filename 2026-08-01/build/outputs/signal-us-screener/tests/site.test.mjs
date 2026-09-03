@@ -313,3 +313,23 @@ test('ratio gallery separates live US metrics from history still being synced', 
   assert.match(client, /ratio-gallery-pending/);
   assert.match(styles, /\.ratio-gallery-pending/);
 });
+
+test('price-screen metrics are calculated from provider price history', async () => {
+  const [client, server] = await Promise.all([read('app.js'), read('server.mjs')]);
+  assert.match(client, /screener-price-metrics/);
+  assert.match(client, /50-day moving average/);
+  assert.match(client, /Return over 3 months/);
+  assert.match(server, /function priceMetricsFromHistory/);
+  assert.match(server, /screener-price-metrics/);
+  assert.match(server, /rsi14/);
+  assert.match(server, /macdSignal/);
+});
+
+test('financial-history screen metrics use reported annual and quarterly statements', async () => {
+  const [client, server] = await Promise.all([read('app.js'), read('server.mjs')]);
+  assert.match(client, /screener-financial-metrics/);
+  assert.match(client, /financialHistoryLoaded/);
+  assert.match(server, /function screenerFinancialValues/);
+  assert.match(server, /annualCagr/);
+  assert.match(server, /financialsLoaded/);
+});

@@ -140,6 +140,8 @@ async function secSubmissions(cik) {
 }
 
 const screenerRatioCache = new Map();
+const screenerPriceMetricCache = new Map();
+const screenerFinancialMetricCache = new Map();
 const companyLogoCache = new Map();
 const saveCompanyLogo = (ticker, value) => {
   companyLogoCache.delete(ticker);
@@ -360,6 +362,128 @@ async function priceHistory(ticker, points = 260) {
   const quote = data?.indicators?.quote?.[0];
   if (!data?.timestamp || !quote?.close) throw new Error('Historical price data is unavailable');
   return decorate(data.timestamp.map((timestamp, index) => ({ date:new Date(timestamp * 1000).toISOString().slice(0, 10), close:Number(quote.close[index]), volume:Number(quote.volume[index] || 0) })).filter(item => Number.isFinite(item.close)));
+}
+function priceReturn(latest, earlier) {
+  return safeDivide(Number(latest) - Number(earlier), Number(earlier)) === null ? null : safeDivide(Number(latest) - Number(earlier), Number(earlier)) * 100;
+}
+function exponentialMovingAverage(values, length) {
+  if (!Array.isArray(values) || values.length < length) return null;
+  const multiplier = 2 / (length + 1);
+  let value = values.slice(0, length).reduce((sum, item) => sum + item, 0) / length;
+  for (const item of values.slice(length)) value = (item - value) * multiplier + value;
+  return value;
+}
+function exponentialMovingAverageSeries(values, length) {
+  const series = new Array(values.length).fill(null);
+  if (!Array.isArray(values) || values.length < length) return series;
+  const multiplier = 2 / (length + 1);
+  let value = values.slice(0, length).reduce((sum, item) => sum + item, 0) / length;
+  series[length - 1] = value;
+  for (let index = length; index < values.length; index += 1) {
+    value = (values[index] - value) * multiplier + value;
+    series[index] = value;
+  }
+  return series;
+}
+function simpleMovingAverage(values, length) {
+  if (!Array.isArray(values) || values.length < length) return null;
+  const window = values.slice(-length);
+  return window.reduce((sum, value) => sum + value, 0) / window.length;
+}
+function priceMetricsFromHistory(ticker, history) {
+  const rows = (Array.isArray(history) ? history : []).filter(row => Number.isFinite(Number(row.close)));
+  const closes = rows.map(row => Number(row.close));
+  const volumes = rows.map(row => Number(row.volume || 0));
+  const closeAt = days => closes.length > days ? closes.at(-(days + 1)) : null;
+  const latest = closes.at(-1);
+  const lookback252 = closes.slice(-252);
+  const changes = closes.slice(-15).slice(1).map((close, index) => close - closes.slice(-15)[index]);
+  const averageGain = changes.filter(change => change > 0).reduce((sum, value) => sum + value, 0) / 14;
+  const averageLoss = Math.abs(changes.filter(change => change < 0).reduce((sum, value) => sum + value, 0) / 14);
+  const rsi = changes.length < 14 ? null : averageLoss === 0 ? 100 : 100 - (100 / (1 + averageGain / averageLoss));
+  const ema12 = exponentialMovingAverageSeries(closes, 12);
+  const ema26 = exponentialMovingAverageSeries(closes, 26);
+  const macdSeries = closes.map((_, index) => ema12[index] === null || ema26[index] === null ? null : ema12[index] - ema26[index]).filter(value => value !== null);
+  const macd = macdSeries.at(-1) ?? null;
+  const macdSignal = exponentialMovingAverage(macdSeries, 9);
+  return {
+    symbol:ticker,
+    priceHistoryStart:rows[0]?.date || null,
+    priceHistoryEnd:rows.at(-1)?.date || null,
+    return1d:priceReturn(latest, closeAt(1)), return1w:priceReturn(latest, closeAt(5)), return1m:priceReturn(latest, closeAt(21)),
+    return3m:priceReturn(latest, closeAt(63)), return6m:priceReturn(latest, closeAt(126)), return1y:priceReturn(latest, closeAt(252)),
+    return3y:priceReturn(latest, closeAt(756)), return5y:priceReturn(latest, closeAt(1260)),
+    high52w:lookback252.length ? Math.max(...lookback252) : null, low52w:lookback252.length ? Math.min(...lookback252) : null,
+    allTimeHigh:closes.length ? Math.max(...closes) : null, allTimeLow:closes.length ? Math.min(...closes) : null,
+    ma50:simpleMovingAverage(closes, 50), ma200:simpleMovingAverage(closes, 200),
+    rsi14:rsi, macd, macdSignal,
+    volume1w:volumes.slice(-5).reduce((sum, value) => sum + value, 0) / Math.min(volumes.length, 5),
+    volume1m:volumes.slice(-21).reduce((sum, value) => sum + value, 0) / Math.min(volumes.length, 21),
+    volume1y:volumes.slice(-252).reduce((sum, value) => sum + value, 0) / Math.min(volumes.length, 252),
+    metricsLoaded:true
+  };
+}
+async function screenerPriceMetrics(ticker) {
+  const cached = screenerPriceMetricCache.get(ticker);
+  if (cached && Date.now() < cached.expiresAt) return cached.value;
+  // FMP returns the full available EOD history. The fallback receives enough
+  // sessions for every supported 5-year price metric and technical indicator.
+  const value = priceMetricsFromHistory(ticker, await priceHistory(ticker, 1300));
+  screenerPriceMetricCache.set(ticker, { value, expiresAt:Date.now() + 6 * 60 * 60 * 1000 });
+  return value;
+}
+function statementMetric(row, ...names) {
+  return finiteValue(...names.map(name => row?.[name]));
+}
+function statementGrowth(current, prior) {
+  return safeDivide(Number(current) - Number(prior), Math.abs(Number(prior))) === null ? null : safeDivide(Number(current) - Number(prior), Math.abs(Number(prior))) * 100;
+}
+function annualCagr(rows, field, years) {
+  const current = statementMetric(rows[0], field);
+  const earlier = statementMetric(rows[years], field);
+  if (current === null || earlier === null || Number(current) <= 0 || Number(earlier) <= 0) return null;
+  return (Math.pow(Number(current) / Number(earlier), 1 / years) - 1) * 100;
+}
+function screenerFinancialValues(ticker, income, quarterlyIncome, balance, cashflow) {
+  const year = Array.isArray(income) ? income : [];
+  const quarter = Array.isArray(quarterlyIncome) ? quarterlyIncome : [];
+  const balanceRows = Array.isArray(balance) ? balance : [];
+  const cash = Array.isArray(cashflow) ? cashflow : [];
+  const latest = year[0] || {}, preceding = year[1] || {}, latestQuarter = quarter[0] || {}, priorQuarter = quarter[1] || {}, priorYearQuarter = quarter[4] || {};
+  const latestBalance = balanceRows[0] || {}, precedingBalance = balanceRows[1] || {}, latestCash = cash[0] || {}, precedingCash = cash[1] || {};
+  const revenue = statementMetric(latest, 'revenue');
+  const netIncome = statementMetric(latest, 'netIncome');
+  const salesQuarter = statementMetric(latestQuarter, 'revenue');
+  const netIncomeQuarter = statementMetric(latestQuarter, 'netIncome');
+  return {
+    symbol:ticker,
+    sales:revenue, salesPrev:statementMetric(preceding, 'revenue'), salesGrowth3y:annualCagr(year, 'revenue', 3), salesGrowth5y:annualCagr(year, 'revenue', 5),
+    profitAfterTax:netIncome, profitPrev:statementMetric(preceding, 'netIncome'), profitGrowth3y:annualCagr(year, 'netIncome', 3), profitGrowth5y:annualCagr(year, 'netIncome', 5),
+    operatingProfit:statementMetric(latest, 'operatingIncome'), operatingProfitPrev:statementMetric(preceding, 'operatingIncome'), ebitda:statementMetric(latest, 'ebitda'), ebitdaPrev:statementMetric(preceding, 'ebitda'),
+    ebit:statementMetric(latest, 'ebit'), ebitPrev:statementMetric(preceding, 'ebit'), interestExpense:statementMetric(latest, 'interestExpense'), interestExpensePrev:statementMetric(preceding, 'interestExpense'),
+    incomeBeforeTax:statementMetric(latest, 'incomeBeforeTax'), incomeTax:statementMetric(latest, 'incomeTaxExpense'), epsAnnual:statementMetric(latest, 'epsdiluted', 'epsDiluted', 'eps'), epsPrev:statementMetric(preceding, 'epsdiluted', 'epsDiluted', 'eps'),
+    salesLatestQuarter:salesQuarter, profitLatestQuarter:netIncomeQuarter, epsLatestQuarter:statementMetric(latestQuarter, 'epsdiluted', 'epsDiluted', 'eps'),
+    salesPrecedingQuarter:statementMetric(priorQuarter, 'revenue'), profitPrecedingQuarter:statementMetric(priorQuarter, 'netIncome'), epsPrecedingQuarter:statementMetric(priorQuarter, 'epsdiluted', 'epsDiluted', 'eps'),
+    salesPriorYearQuarter:statementMetric(priorYearQuarter, 'revenue'), profitPriorYearQuarter:statementMetric(priorYearQuarter, 'netIncome'), epsPriorYearQuarter:statementMetric(priorYearQuarter, 'epsdiluted', 'epsDiluted', 'eps'),
+    salesGrowthQuarter:statementGrowth(salesQuarter, statementMetric(priorYearQuarter, 'revenue')), profitGrowthQuarter:statementGrowth(netIncomeQuarter, statementMetric(priorYearQuarter, 'netIncome')),
+    debt:statementMetric(latestBalance, 'totalDebt'), debtPrev:statementMetric(precedingBalance, 'totalDebt'), equity:statementMetric(latestBalance, 'totalStockholdersEquity', 'totalEquity'), retainedEarnings:statementMetric(latestBalance, 'retainedEarnings'),
+    totalAssets:statementMetric(latestBalance, 'totalAssets'), currentAssets:statementMetric(latestBalance, 'totalCurrentAssets'), currentLiabilities:statementMetric(latestBalance, 'totalCurrentLiabilities'),
+    cashAndEquivalents:statementMetric(latestBalance, 'cashAndCashEquivalents', 'cashAndShortTermInvestments'), inventory:statementMetric(latestBalance, 'inventory'), receivables:statementMetric(latestBalance, 'netReceivables', 'accountsReceivables'), payables:statementMetric(latestBalance, 'accountPayables', 'accountsPayable'),
+    operatingCashFlow:statementMetric(latestCash, 'operatingCashFlow', 'netCashProvidedByOperatingActivities'), operatingCashFlowPrev:statementMetric(precedingCash, 'operatingCashFlow', 'netCashProvidedByOperatingActivities'),
+    freeCashFlow:statementMetric(latestCash, 'freeCashFlow'), freeCashFlowPrev:statementMetric(precedingCash, 'freeCashFlow'), investingCashFlow:statementMetric(latestCash, 'netCashUsedForInvestingActivites', 'netCashUsedForInvestingActivities'), financingCashFlow:statementMetric(latestCash, 'netCashUsedProvidedByFinancingActivities'), netCashFlow:statementMetric(latestCash, 'netChangeInCash', 'netCashFlow'),
+    financialsLoaded:true
+  };
+}
+async function screenerFinancialMetrics(ticker) {
+  const cached = screenerFinancialMetricCache.get(ticker);
+  if (cached && Date.now() < cached.expiresAt) return cached.value;
+  const [income, quarterlyIncome, balance, cashflow] = await Promise.all([
+    fmp('income-statement', { symbol:ticker, limit:10 }).catch(() => []), fmp('income-statement', { symbol:ticker, period:'quarter', limit:12 }).catch(() => []),
+    fmp('balance-sheet-statement', { symbol:ticker, limit:10 }).catch(() => []), fmp('cash-flow-statement', { symbol:ticker, limit:10 }).catch(() => [])
+  ]);
+  const value = screenerFinancialValues(ticker, income, quarterlyIncome, balance, cashflow);
+  screenerFinancialMetricCache.set(ticker, { value, expiresAt:Date.now() + 6 * 60 * 60 * 1000 });
+  return value;
 }
 async function nasdaqQuote(ticker) {
   const fetchQuote = async assetclass => {
@@ -1559,6 +1683,24 @@ createServer(async (req, res) => {
       const tickers = [...new Set(String(url.searchParams.get('symbols') || '').split(',').map(symbol).filter(Boolean))].slice(0, 60);
       if (!tickers.length) return send(res, 200, []);
       return send(res, 200, await Promise.all(tickers.map(screenerRatio)));
+    }
+    if (url.pathname === '/data/screener-price-metrics') {
+      const tickers = [...new Set(String(url.searchParams.get('symbols') || '').split(',').map(symbol).filter(Boolean))].slice(0, 60);
+      if (!tickers.length) return send(res, 200, []);
+      const rows = await mapWithConcurrency(tickers, 4, ticker => screenerPriceMetrics(ticker).catch(error => {
+        console.warn(`Price history unavailable for ${ticker}: ${error.message}`);
+        return { symbol:ticker, metricsLoaded:false };
+      }));
+      return send(res, 200, rows);
+    }
+    if (url.pathname === '/data/screener-financial-metrics') {
+      const tickers = [...new Set(String(url.searchParams.get('symbols') || '').split(',').map(symbol).filter(Boolean))].slice(0, 60);
+      if (!tickers.length) return send(res, 200, []);
+      const rows = await mapWithConcurrency(tickers, 4, ticker => screenerFinancialMetrics(ticker).catch(error => {
+        console.warn(`Financial statements unavailable for ${ticker}: ${error.message}`);
+        return { symbol:ticker, financialsLoaded:false };
+      }));
+      return send(res, 200, rows);
     }
     if (url.pathname === '/data/screener' || url.pathname === '/api/screener') {
       const parameters = { limit: 3000, isEtf: false, isFund: false, isActivelyTrading: true };

@@ -905,7 +905,11 @@ function setupScreener() {
   const resultMeta = document.querySelector('.result-meta');
   if (resultMeta && !document.querySelector('#screen-freshness')) resultMeta.insertAdjacentHTML('beforeend', '<span id="screen-freshness">Waiting for live directory data</span>');
   const metricSymbols = new Set();
+  const priceMetricSymbols = new Set();
+  const financialMetricSymbols = new Set();
   let metricRequest = 0;
+  let priceMetricRequest = 0;
+  let financialMetricRequest = 0;
   const value = id => $(`#${id}`).value;
   const inCapBand = (cap, band) => band === 'all' || (band === 'mega' && cap >= 2e11) || (band === 'large' && cap >= 1e10 && cap < 2e11) || (band === 'mid' && cap >= 2e9 && cap < 1e10) || (band === 'small' && cap >= 3e8 && cap < 2e9) || (band === 'micro' && cap < 3e8);
   const inPriceBand = (price, band) => band === 'all' || (band === 'under10' && price < 10) || (band === '10to50' && price >= 10 && price < 50) || (band === '50to200' && price >= 50 && price <= 200) || (band === 'over200' && price > 200);
@@ -928,8 +932,25 @@ function setupScreener() {
     ['operating cash flow per share', 'operatingCashFlowPerShare'], ['operating cash flow / share', 'operatingCashFlowPerShare'],
     ['free cash flow per share', 'freeCashFlowPerShare'], ['free cash flow / share', 'freeCashFlowPerShare'],
     ['free cash flow yield', 'freeCashFlowYield'], ['fcf yield', 'freeCashFlowYield']
+    ,['sales', 'sales'], ['sales preceding year', 'salesPrev'], ['sales growth 3 years', 'salesGrowth3y'], ['sales growth 5 years', 'salesGrowth5y'],
+    ['profit after tax', 'profitAfterTax'], ['net profit last year', 'profitAfterTax'], ['net profit preceding year', 'profitPrev'], ['profit growth 3 years', 'profitGrowth3y'], ['profit growth 5 years', 'profitGrowth5y'], ['eps preceding year', 'epsPrev'],
+    ['sales latest quarter', 'salesLatestQuarter'], ['profit after tax latest quarter', 'profitLatestQuarter'], ['net profit latest quarter', 'profitLatestQuarter'], ['eps latest quarter', 'epsLatestQuarter'],
+    ['sales preceding quarter', 'salesPrecedingQuarter'], ['profit after tax preceding quarter', 'profitPrecedingQuarter'], ['net profit preceding quarter', 'profitPrecedingQuarter'], ['eps preceding quarter', 'epsPrecedingQuarter'],
+    ['sales preceding year quarter', 'salesPriorYearQuarter'], ['profit after tax preceding year quarter', 'profitPriorYearQuarter'], ['net profit preceding year quarter', 'profitPriorYearQuarter'], ['eps preceding year quarter', 'epsPriorYearQuarter'],
+    ['yoy quarterly sales growth', 'salesGrowthQuarter'], ['yoy quarterly profit growth', 'profitGrowthQuarter'],
+    ['debt', 'debtBalance'], ['debt preceding year', 'debtPrev'], ['equity capital', 'equity'], ['reserves', 'retainedEarnings'], ['total assets', 'totalAssets'], ['current assets', 'currentAssets'], ['current liabilities', 'currentLiabilities'], ['cash equivalents', 'cashAndEquivalents'], ['inventory', 'inventory'], ['trade receivables', 'receivables'], ['trade payables', 'payables'],
+    ['cash from operations last year', 'operatingCashFlow'], ['cash from operations preceding year', 'operatingCashFlowPrev'], ['free cash flow preceding year', 'freeCashFlowPrev'], ['cash from investing last year', 'investingCashFlow'], ['cash from financing last year', 'financingCashFlow'], ['net cash flow last year', 'netCashFlow']
+    ,['return over 1 day', 'return1d'], ['return over 1 week', 'return1w'], ['return over 1 month', 'return1m'],
+    ['return over 3 months', 'return3m'], ['return over 6 months', 'return6m'], ['return over 1 year', 'return1y'], ['return over 3 years', 'return3y'], ['return over 5 years', 'return5y'],
+    ['52-week high', 'high52w'], ['52 week high', 'high52w'], ['52-week low', 'low52w'], ['52 week low', 'low52w'],
+    ['all-time high', 'allTimeHigh'], ['all time high', 'allTimeHigh'], ['all-time low', 'allTimeLow'], ['all time low', 'allTimeLow'],
+    ['50-day moving average', 'ma50'], ['50 day moving average', 'ma50'], ['dma 50', 'ma50'],
+    ['200-day moving average', 'ma200'], ['200 day moving average', 'ma200'], ['dma 200', 'ma200'],
+    ['rsi', 'rsi14'], ['macd', 'macd'], ['macd signal', 'macdSignal'],
+    ['volume 1 week average', 'volume1w'], ['volume 1 month average', 'volume1m'], ['volume 1 year average', 'volume1y']
   ]);
   const normaliseQueryMetric = input => queryMetrics.get(String(input || '').trim().toLowerCase().replace(/\s+/g, ' '));
+  const priceHistoryQueryMetrics = new Set(['return1d', 'return1w', 'return1m', 'return3m', 'return6m', 'return1y', 'return3y', 'return5y', 'high52w', 'low52w', 'allTimeHigh', 'allTimeLow', 'ma50', 'ma200', 'rsi14', 'macd', 'macdSignal', 'volume1w', 'volume1m', 'volume1y']);
   const queryMetricValue = (stock, metric) => {
     if (metric === 'pe') return scanNumber(stock.pe, stock.peRatioTTM, stock.priceToEarningsRatioTTM);
     if (metric === 'pb') return scanNumber(stock.priceToBookRatioTTM);
@@ -967,6 +988,7 @@ function setupScreener() {
       return yieldValue === null ? null : Math.abs(Number(yieldValue)) <= 1 ? Number(yieldValue) * 100 : Number(yieldValue);
     }
     if (metric === 'payoutRatio') return scanPercent(scanNumber(stock.payoutRatioTTM));
+    if (['return1d', 'return1w', 'return1m', 'return3m', 'return6m', 'return1y', 'return3y', 'return5y', 'high52w', 'low52w', 'allTimeHigh', 'allTimeLow', 'ma50', 'ma200', 'rsi14', 'macd', 'macdSignal', 'volume1w', 'volume1m', 'volume1y', 'sales', 'salesPrev', 'salesGrowth3y', 'salesGrowth5y', 'profitAfterTax', 'profitPrev', 'profitGrowth3y', 'profitGrowth5y', 'epsPrev', 'salesLatestQuarter', 'profitLatestQuarter', 'epsLatestQuarter', 'salesPrecedingQuarter', 'profitPrecedingQuarter', 'epsPrecedingQuarter', 'salesPriorYearQuarter', 'profitPriorYearQuarter', 'epsPriorYearQuarter', 'salesGrowthQuarter', 'profitGrowthQuarter', 'debtBalance', 'debtPrev', 'equity', 'retainedEarnings', 'totalAssets', 'currentAssets', 'currentLiabilities', 'cashAndEquivalents', 'inventory', 'receivables', 'payables', 'operatingCashFlow', 'operatingCashFlowPrev', 'freeCashFlowPrev', 'investingCashFlow', 'financingCashFlow', 'netCashFlow'].includes(metric)) return scanNumber(stock[metric === 'debtBalance' ? 'debt' : metric]);
     return null;
   };
   const parseQueryNumber = (raw, suffix, metric) => {
@@ -1007,10 +1029,17 @@ function setupScreener() {
     else if (parsed.rules.length) status.textContent = `${parsed.rules.length} custom ${parsed.rules.length === 1 ? 'rule' : 'rules'} active. Every rule must match.`;
     else status.textContent = 'Choose a metric from the Ratio Gallery, then add an operator and a number.';
   };
-  // `available` is deliberately explicit.  The gallery may show a metric that
+  const financialHistoryTokens = new Set([
+    'Sales', 'Sales preceding year', 'Sales growth 3 years', 'Sales growth 5 years', 'Profit after tax', 'Net profit last year', 'Net profit preceding year', 'Profit growth 3 years', 'Profit growth 5 years', 'EPS preceding year',
+    'Sales latest quarter', 'Profit after tax latest quarter', 'Net profit latest quarter', 'EPS latest quarter', 'Sales preceding quarter', 'Profit after tax preceding quarter', 'Net profit preceding quarter', 'EPS preceding quarter', 'Sales preceding year quarter', 'Profit after tax preceding year quarter', 'Net profit preceding year quarter', 'EPS preceding year quarter', 'YOY quarterly sales growth', 'YOY quarterly profit growth',
+    'Debt', 'Debt preceding year', 'Equity capital', 'Reserves', 'Total assets', 'Current assets', 'Current liabilities', 'Cash equivalents', 'Inventory', 'Trade receivables', 'Trade payables',
+    'Cash from operations last year', 'Cash from operations preceding year', 'Free cash flow preceding year', 'Cash from investing last year', 'Cash from financing last year', 'Net cash flow last year'
+  ]);
+  let financialHistoryLoaded = false;
+  // `available` is deliberately explicit. The gallery may show a metric that
   // belongs in a US-equity screen, but it is only selectable once it is
   // calculated for the whole live universe—not merely for one company page.
-  const galleryField = (token, label, available = true) => ({ token, label, available });
+  const galleryField = (token, label, available = true) => ({ token, label, available:available === false && financialHistoryTokens.has(token) ? 'financial' : available });
   const galleryFields = {
     'most-used': {
       recent: [
@@ -1097,9 +1126,9 @@ function setupScreener() {
       historical: [galleryField('Average return on equity 3 years', 'Average return on equity 3 years', false), galleryField('Average return on equity 5 years', 'Average return on equity 5 years', false), galleryField('Average return on capital employed 3 years', 'Average return on capital employed 3 years', false), galleryField('Average return on capital employed 5 years', 'Average return on capital employed 5 years', false), galleryField('Historical P/E 3 years', 'Historical P/E 3 years', false), galleryField('Historical P/E 5 years', 'Historical P/E 5 years', false), galleryField('Historical P/B 3 years', 'Historical P/B 3 years', false), galleryField('Market capitalisation 3 years back', 'Market capitalisation 3 years back', false)]
     },
     price: {
-      recent: [galleryField('Current price', 'Current price'), galleryField('Volume', 'Volume'), galleryField('Return over 3 months', 'Return over 3 months', false), galleryField('Return over 6 months', 'Return over 6 months', false), galleryField('High price', '52-week high', false), galleryField('Low price', '52-week low', false), galleryField('High price all time', 'All-time high', false), galleryField('Low price all time', 'All-time low', false), galleryField('Return over 1 day', 'Return over 1 day', false), galleryField('Return over 1 week', 'Return over 1 week', false), galleryField('Return over 1 month', 'Return over 1 month', false), galleryField('DMA 50', '50-day moving average', false), galleryField('DMA 200', '200-day moving average', false), galleryField('RSI', 'RSI', false), galleryField('MACD', 'MACD', false)],
+      recent: [galleryField('Current price', 'Current price'), galleryField('Volume', 'Volume'), galleryField('Return over 3 months', 'Return over 3 months'), galleryField('Return over 6 months', 'Return over 6 months'), galleryField('52-week high', '52-week high'), galleryField('52-week low', '52-week low'), galleryField('All-time high', 'All-time high'), galleryField('All-time low', 'All-time low'), galleryField('Return over 1 day', 'Return over 1 day'), galleryField('Return over 1 week', 'Return over 1 week'), galleryField('Return over 1 month', 'Return over 1 month'), galleryField('50-day moving average', '50-day moving average'), galleryField('200-day moving average', '200-day moving average'), galleryField('RSI', 'RSI'), galleryField('MACD', 'MACD')],
       preceding: [],
-      historical: [galleryField('Return over 1 year', 'Return over 1 year', false), galleryField('Return over 3 years', 'Return over 3 years', false), galleryField('Return over 5 years', 'Return over 5 years', false), galleryField('Volume 1 year average', 'Volume 1-year average', false)]
+      historical: [galleryField('Return over 1 year', 'Return over 1 year'), galleryField('Return over 3 years', 'Return over 3 years'), galleryField('Return over 5 years', 'Return over 5 years'), galleryField('Volume 1 year average', 'Volume 1-year average')]
     }
   };
   const fieldHelp = {
@@ -1156,7 +1185,7 @@ function setupScreener() {
     const renderColumn = (title, fields) => {
       const visible = fields.filter(field => !needle || `${field.token} ${field.label}`.toLowerCase().includes(needle));
       if (!visible.length) return `<section class="ratio-gallery-column"><h3>${title}</h3><span class="ratio-gallery-empty">No matching metrics.</span></section>`;
-      return `<section class="ratio-gallery-column"><h3>${title}</h3>${visible.map(field => field.available
+      return `<section class="ratio-gallery-column"><h3>${title}</h3>${visible.map(field => (field.available === true || (field.available === 'financial' && financialHistoryLoaded))
         ? `<button type="button" data-query-token="${escapeHtml(field.token)}" data-query-label="${escapeHtml(field.label)}" title="Add ${escapeHtml(field.label)} to query">${escapeHtml(field.label)}</button>`
         : `<button type="button" class="ratio-gallery-pending" disabled title="Company financial history is being synced before this can screen the full US universe">${escapeHtml(field.label)}<small>History sync</small></button>`).join('')}</section>`;
     };
@@ -1167,6 +1196,8 @@ function setupScreener() {
     activeGalleryTab = button.dataset.ratioGalleryTab || 'most-used';
     document.querySelectorAll('[data-ratio-gallery-tab]').forEach(item => item.classList.toggle('selected', item === button));
     renderRatioGallery();
+    if (activeGalleryTab === 'price' && universe.length) enrichPriceHistory(universe.slice(0, 60));
+    if (['annual', 'quarterly', 'balance', 'cash-flow', 'ratios'].includes(activeGalleryTab) && universe.length) enrichFinancialHistory(universe.slice(0, 60));
   });
   document.querySelectorAll('[data-query-operator]').forEach(button => button.onclick = () => insertQueryText(button.dataset.queryOperator));
   $('#screen-ratio-search').oninput = renderRatioGallery;
@@ -1186,6 +1217,46 @@ function setupScreener() {
       draw(true);
     } catch {
       tickers.forEach(ticker => metricSymbols.delete(ticker));
+    }
+  };
+  const enrichPriceHistory = async list => {
+    const tickers = list.slice(0, 60).map(stock => stock.symbol || stock.ticker).filter(ticker => ticker && !priceMetricSymbols.has(ticker));
+    if (!tickers.length) return;
+    tickers.forEach(ticker => priceMetricSymbols.add(ticker));
+    const request = ++priceMetricRequest;
+    const note = $('#screen-data-note');
+    if (note) note.textContent = 'Loading price history and technical indicators for the visible companies…';
+    try {
+      const metricRows = await getJson(`/data/screener-price-metrics?symbols=${encodeURIComponent(tickers.join(','))}`, 60000);
+      if (request !== priceMetricRequest || page !== 'screener' || !$('#screen-table') || !Array.isArray(metricRows)) return;
+      const metricsBySymbol = new Map(metricRows.map(item => [String(item.symbol || '').toUpperCase(), item]));
+      universe = universe.map(stock => ({ ...stock, ...(metricsBySymbol.get(String(stock.symbol || stock.ticker || '').toUpperCase()) || {}) }));
+      if (note) note.textContent = 'Price history and technical indicators are loaded from the connected market-data providers.';
+      draw(true);
+    } catch {
+      tickers.forEach(ticker => priceMetricSymbols.delete(ticker));
+      if (note) note.textContent = 'Price-history data is temporarily unavailable. Select Refresh to retry.';
+    }
+  };
+  const enrichFinancialHistory = async list => {
+    const tickers = list.slice(0, 60).map(stock => stock.symbol || stock.ticker).filter(ticker => ticker && !financialMetricSymbols.has(ticker));
+    if (!tickers.length) return;
+    tickers.forEach(ticker => financialMetricSymbols.add(ticker));
+    const request = ++financialMetricRequest;
+    const note = $('#screen-data-note');
+    if (note) note.textContent = 'Loading reported annual and quarterly financial statements for the visible companies…';
+    try {
+      const metricRows = await getJson(`/data/screener-financial-metrics?symbols=${encodeURIComponent(tickers.join(','))}`, 60000);
+      if (request !== financialMetricRequest || page !== 'screener' || !$('#screen-table') || !Array.isArray(metricRows)) return;
+      const metricsBySymbol = new Map(metricRows.map(item => [String(item.symbol || '').toUpperCase(), item]));
+      universe = universe.map(stock => ({ ...stock, ...(metricsBySymbol.get(String(stock.symbol || stock.ticker || '').toUpperCase()) || {}) }));
+      financialHistoryLoaded = metricRows.some(item => item.financialsLoaded);
+      renderRatioGallery();
+      if (note) note.textContent = 'Reported annual and quarterly financial metrics are loaded from the connected financial-statement provider.';
+      draw(true);
+    } catch {
+      tickers.forEach(ticker => financialMetricSymbols.delete(ticker));
+      if (note) note.textContent = 'Financial-statement data is temporarily unavailable. Select Refresh to retry.';
     }
   };
   const draw = (skipEnrichment = false) => {
@@ -1265,6 +1336,7 @@ function setupScreener() {
       pagination.querySelectorAll('[data-screen-page]').forEach(button => button.onclick = () => { resultPage = Number(button.dataset.screenPage) || 1; draw(); });
     }
     wireCommon();
+    if (!skipEnrichment && parsedQuery.rules.some(rule => priceHistoryQueryMetrics.has(rule.metric))) enrichPriceHistory(universe.slice(0, 60));
     if (!skipEnrichment) enrichVisible(pageRows);
   };
   const load = async force => {
@@ -1289,6 +1361,7 @@ function setupScreener() {
       const ratioCount = universe.filter(stock => scanNumber(stock.pe, stock.peRatioTTM, stock.returnOnEquityTTM) !== null).length;
       const dataNote = $('#screen-data-note');
       if (dataNote) dataNote.textContent = `Funds and ETFs are excluded. TTM valuation or quality data is loaded for ${ratioCount.toLocaleString()} companies in this scan; open any company for its complete ratios.`;
+      if (activeGalleryTab === 'price') enrichPriceHistory(universe.slice(0, 60));
       const currentFreshness = $('#screen-freshness');
       if (currentFreshness) currentFreshness.textContent = `Live directory updated ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}`;
     } catch {
