@@ -1007,29 +1007,100 @@ function setupScreener() {
     else if (parsed.rules.length) status.textContent = `${parsed.rules.length} custom ${parsed.rules.length === 1 ? 'rule' : 'rules'} active. Every rule must match.`;
     else status.textContent = 'Choose a metric from the Ratio Gallery, then add an operator and a number.';
   };
+  // `available` is deliberately explicit.  The gallery may show a metric that
+  // belongs in a US-equity screen, but it is only selectable once it is
+  // calculated for the whole live universe—not merely for one company page.
+  const galleryField = (token, label, available = true) => ({ token, label, available });
   const galleryFields = {
-    'most-used': [
-      ['P/E', 'P/E'], ['Return on equity', 'ROE'], ['Market cap', 'Market cap'], ['Current price', 'Current price'],
-      ['Revenue growth', 'Sales growth'], ['EPS', 'EPS'], ['Dividend yield', 'Dividend yield'], ['Volume', 'Volume']
-    ],
-    annual: [
-      ['Revenue growth', 'Sales growth'], ['EPS', 'EPS'], ['Gross margin', 'Gross margin'], ['Operating margin', 'Operating margin'], ['Net margin', 'Net profit margin'], ['Dividend yield', 'Dividend yield'], ['Payout ratio', 'Payout ratio']
-    ],
-    quarterly: [
-      ['Revenue growth', 'Sales growth'], ['EPS', 'EPS'], ['Gross margin', 'Gross margin'], ['Operating margin', 'Operating margin'], ['Net margin', 'Net profit margin']
-    ],
-    balance: [
-      ['Debt to equity', 'Debt / equity'], ['Current ratio', 'Current ratio'], ['Market cap', 'Market cap']
-    ],
-    'cash-flow': [
-      ['Operating cash flow / share', 'Operating cash flow / share'], ['Free cash flow / share', 'Free cash flow / share'], ['Free cash flow yield', 'Free cash flow yield']
-    ],
-    ratios: [
-      ['P/E', 'P/E'], ['Price to book', 'P / B'], ['Price to sales', 'P / S'], ['EV / EBITDA', 'EV / EBITDA'], ['Price to free cash flow', 'P / FCF'], ['Return on equity', 'ROE'], ['Return on assets', 'ROA'], ['Return on invested capital', 'ROIC'], ['Gross margin', 'Gross margin'], ['Operating margin', 'Operating margin'], ['Net margin', 'Net profit margin'], ['Current ratio', 'Current ratio'], ['Quick ratio', 'Quick ratio'], ['Interest coverage', 'Interest coverage'], ['Asset turnover', 'Asset turnover'], ['Inventory turnover', 'Inventory turnover'], ['Debt to equity', 'Debt / equity'], ['Dividend yield', 'Dividend yield'], ['Payout ratio', 'Payout ratio']
-    ],
-    price: [
-      ['Current price', 'Current price'], ['Market cap', 'Market cap'], ['Volume', 'Daily volume'], ['P/E', 'P/E']
-    ]
+    'most-used': {
+      recent: [
+        galleryField('P/E', 'Price to earnings'), galleryField('Return on equity', 'Return on equity'),
+        galleryField('Market cap', 'Market capitalisation'), galleryField('Current price', 'Current price'),
+        galleryField('Sales growth', 'Sales growth'), galleryField('EPS', 'EPS'),
+        galleryField('Dividend yield', 'Dividend yield'), galleryField('Volume', 'Volume')
+      ],
+      preceding: [galleryField('Sales preceding year', 'Sales preceding year', false), galleryField('EPS preceding year', 'EPS preceding year', false)],
+      historical: [galleryField('Sales growth 3 years', 'Sales growth 3 years', false), galleryField('Profit growth 3 years', 'Profit growth 3 years', false), galleryField('Return over 1 year', 'Return over 1 year', false)]
+    },
+    annual: {
+      recent: [
+        galleryField('Sales', 'Sales (TTM)', false), galleryField('Operating margin', 'Operating margin'),
+        galleryField('Profit after tax', 'Net income (TTM)', false), galleryField('Return on invested capital', 'Return on invested capital'),
+        galleryField('EPS', 'EPS'), galleryField('Sales last year', 'Sales last fiscal year', false),
+        galleryField('Operating profit last year', 'Operating income last fiscal year', false), galleryField('Other income last year', 'Other income last fiscal year', false),
+        galleryField('EBITDA last year', 'EBITDA last fiscal year', false), galleryField('Depreciation last year', 'Depreciation last fiscal year', false),
+        galleryField('EBIT last year', 'EBIT last fiscal year', false), galleryField('Interest last year', 'Interest expense last fiscal year', false),
+        galleryField('Profit before tax last year', 'Pre-tax income last fiscal year', false), galleryField('Tax last year', 'Income tax last fiscal year', false),
+        galleryField('Net profit last year', 'Net income last fiscal year', false), galleryField('Dividend last year', 'Dividends last fiscal year', false),
+        galleryField('Gross margin', 'Gross margin'), galleryField('Operating margin', 'Operating margin'), galleryField('Net profit margin', 'Net profit margin')
+      ],
+      preceding: [
+        galleryField('Sales preceding year', 'Sales preceding year', false), galleryField('Operating profit preceding year', 'Operating income preceding year', false),
+        galleryField('Other income preceding year', 'Other income preceding year', false), galleryField('EBITDA preceding year', 'EBITDA preceding year', false),
+        galleryField('Depreciation preceding year', 'Depreciation preceding year', false), galleryField('EBIT preceding year', 'EBIT preceding year', false),
+        galleryField('Interest preceding year', 'Interest expense preceding year', false), galleryField('Profit before tax preceding year', 'Pre-tax income preceding year', false),
+        galleryField('Tax preceding year', 'Income tax preceding year', false), galleryField('Profit after tax preceding year', 'Net income preceding year', false),
+        galleryField('Net profit preceding year', 'Net income preceding year', false), galleryField('EPS preceding year', 'EPS preceding year', false),
+        galleryField('Sales preceding 12 months', 'Sales preceding 12 months', false), galleryField('Net profit preceding 12 months', 'Net income preceding 12 months', false)
+      ],
+      historical: [
+        galleryField('Sales growth 3 years', 'Sales growth 3 years', false), galleryField('Sales growth 5 years', 'Sales growth 5 years', false), galleryField('Sales growth 7 years', 'Sales growth 7 years', false), galleryField('Sales growth 10 years', 'Sales growth 10 years', false),
+        galleryField('Profit growth 3 years', 'Profit growth 3 years', false), galleryField('Profit growth 5 years', 'Profit growth 5 years', false), galleryField('Profit growth 7 years', 'Profit growth 7 years', false), galleryField('Profit growth 10 years', 'Profit growth 10 years', false),
+        galleryField('EPS growth 3 years', 'EPS growth 3 years', false), galleryField('EPS growth 5 years', 'EPS growth 5 years', false), galleryField('EPS growth 7 years', 'EPS growth 7 years', false), galleryField('EPS growth 10 years', 'EPS growth 10 years', false),
+        galleryField('Average earnings 5 years', 'Average earnings 5 years', false), galleryField('Average EBIT 5 years', 'Average EBIT 5 years', false)
+      ]
+    },
+    quarterly: {
+      recent: [
+        galleryField('Sales latest quarter', 'Sales latest quarter', false), galleryField('Profit after tax latest quarter', 'Net income latest quarter', false),
+        galleryField('YOY quarterly sales growth', 'YoY quarterly sales growth', false), galleryField('YOY quarterly profit growth', 'YoY quarterly profit growth', false),
+        galleryField('Sales growth', 'Sales growth'), galleryField('Profit growth', 'Net income growth', false), galleryField('Operating profit latest quarter', 'Operating income latest quarter', false),
+        galleryField('Other income latest quarter', 'Other income latest quarter', false), galleryField('EBITDA latest quarter', 'EBITDA latest quarter', false), galleryField('Depreciation latest quarter', 'Depreciation latest quarter', false),
+        galleryField('EBIT latest quarter', 'EBIT latest quarter', false), galleryField('Interest latest quarter', 'Interest expense latest quarter', false), galleryField('Profit before tax latest quarter', 'Pre-tax income latest quarter', false),
+        galleryField('Tax latest quarter', 'Income tax latest quarter', false), galleryField('Net profit latest quarter', 'Net income latest quarter', false), galleryField('Gross margin latest quarter', 'Gross margin latest quarter', false), galleryField('Operating margin latest quarter', 'Operating margin latest quarter', false),
+        galleryField('Net margin latest quarter', 'Net margin latest quarter', false), galleryField('EPS latest quarter', 'EPS latest quarter', false), galleryField('Last result date', 'Last earnings result date', false)
+      ],
+      preceding: [
+        galleryField('Sales preceding quarter', 'Sales preceding quarter', false), galleryField('Operating profit preceding quarter', 'Operating income preceding quarter', false), galleryField('Other income preceding quarter', 'Other income preceding quarter', false),
+        galleryField('EBITDA preceding quarter', 'EBITDA preceding quarter', false), galleryField('Depreciation preceding quarter', 'Depreciation preceding quarter', false), galleryField('EBIT preceding quarter', 'EBIT preceding quarter', false),
+        galleryField('Interest preceding quarter', 'Interest expense preceding quarter', false), galleryField('Profit before tax preceding quarter', 'Pre-tax income preceding quarter', false), galleryField('Tax preceding quarter', 'Income tax preceding quarter', false),
+        galleryField('Profit after tax preceding quarter', 'Net income preceding quarter', false), galleryField('Net profit preceding quarter', 'Net income preceding quarter', false), galleryField('EPS preceding quarter', 'EPS preceding quarter', false)
+      ],
+      historical: [
+        galleryField('Sales preceding year quarter', 'Sales in prior-year quarter', false), galleryField('Operating profit preceding year quarter', 'Operating income in prior-year quarter', false), galleryField('EBITDA preceding year quarter', 'EBITDA in prior-year quarter', false),
+        galleryField('Profit after tax preceding year quarter', 'Net income in prior-year quarter', false), galleryField('Net profit preceding year quarter', 'Net income in prior-year quarter', false), galleryField('EPS preceding year quarter', 'EPS in prior-year quarter', false)
+      ]
+    },
+    balance: {
+      recent: [
+        galleryField('Debt', 'Total debt', false), galleryField('Equity capital', 'Shareholders’ equity', false), galleryField('Reserves', 'Retained earnings', false), galleryField('Secured loan', 'Secured debt', false), galleryField('Unsecured loan', 'Unsecured debt', false),
+        galleryField('Balance sheet total', 'Balance-sheet total', false), galleryField('Gross block', 'Gross property, plant & equipment', false), galleryField('Accumulated depreciation', 'Accumulated depreciation', false), galleryField('Net block', 'Net property, plant & equipment', false),
+        galleryField('Capital work in progress', 'Construction in progress', false), galleryField('Investments', 'Investments', false), galleryField('Current assets', 'Current assets', false), galleryField('Current liabilities', 'Current liabilities', false),
+        galleryField('Total assets', 'Total assets', false), galleryField('Working capital', 'Working capital', false), galleryField('Lease liabilities', 'Lease liabilities', false), galleryField('Inventory', 'Inventory', false), galleryField('Trade receivables', 'Accounts receivable', false),
+        galleryField('Cash equivalents', 'Cash & equivalents', false), galleryField('Trade payables', 'Accounts payable', false), galleryField('Debt to equity', 'Debt to equity'), galleryField('Current ratio', 'Current ratio'), galleryField('Quick ratio', 'Quick ratio')
+      ],
+      preceding: [galleryField('Debt preceding year', 'Debt preceding year', false), galleryField('Working capital preceding year', 'Working capital preceding year', false), galleryField('Net block preceding year', 'Net property, plant & equipment preceding year', false), galleryField('Gross block preceding year', 'Gross property, plant & equipment preceding year', false)],
+      historical: [galleryField('Working capital 3 years back', 'Working capital 3 years back', false), galleryField('Working capital 5 years back', 'Working capital 5 years back', false), galleryField('Debt 3 years back', 'Debt 3 years back', false), galleryField('Debt 5 years back', 'Debt 5 years back', false), galleryField('Net block 3 years back', 'Net PPE 3 years back', false), galleryField('Net block 5 years back', 'Net PPE 5 years back', false)]
+    },
+    'cash-flow': {
+      recent: [galleryField('Operating cash flow / share', 'Operating cash flow per share'), galleryField('Free cash flow / share', 'Free cash flow per share'), galleryField('Free cash flow yield', 'Free cash flow yield'), galleryField('Cash from operations last year', 'Cash from operations last fiscal year', false), galleryField('Cash from investing last year', 'Cash from investing last fiscal year', false), galleryField('Cash from financing last year', 'Cash from financing last fiscal year', false), galleryField('Net cash flow last year', 'Net cash flow last fiscal year', false), galleryField('Cash beginning last year', 'Cash at start of fiscal year', false), galleryField('Cash end last year', 'Cash at end of fiscal year', false)],
+      preceding: [galleryField('Free cash flow preceding year', 'Free cash flow preceding year', false), galleryField('Cash from operations preceding year', 'Cash from operations preceding year', false), galleryField('Cash from investing preceding year', 'Cash from investing preceding year', false), galleryField('Cash from financing preceding year', 'Cash from financing preceding year', false), galleryField('Net cash flow preceding year', 'Net cash flow preceding year', false)],
+      historical: [galleryField('Free cash flow 3 years', 'Free cash flow 3 years', false), galleryField('Free cash flow 5 years', 'Free cash flow 5 years', false), galleryField('Operating cash flow 3 years', 'Operating cash flow 3 years', false), galleryField('Operating cash flow 5 years', 'Operating cash flow 5 years', false), galleryField('Investing cash flow 3 years', 'Investing cash flow 3 years', false), galleryField('Cash 3 years back', 'Cash 3 years back', false)]
+    },
+    ratios: {
+      recent: [
+        galleryField('Market cap', 'Market capitalisation'), galleryField('P/E', 'Price to earnings'), galleryField('Dividend yield', 'Dividend yield'), galleryField('Price to book', 'Price to book'), galleryField('Return on assets', 'Return on assets'), galleryField('Debt to equity', 'Debt to equity'), galleryField('Return on equity', 'Return on equity'),
+        galleryField('Earnings yield', 'Earnings yield', false), galleryField('Enterprise value', 'Enterprise value', false), galleryField('Price to sales', 'Price to sales'), galleryField('Price to free cash flow', 'Price to free cash flow'), galleryField('EV / EBITDA', 'EV / EBITDA'), galleryField('Return on invested capital', 'Return on invested capital'),
+        galleryField('Gross margin', 'Gross margin'), galleryField('Operating margin', 'Operating margin'), galleryField('Net profit margin', 'Net profit margin'), galleryField('Current ratio', 'Current ratio'), galleryField('Quick ratio', 'Quick ratio'), galleryField('Interest coverage', 'Interest coverage'), galleryField('Asset turnover', 'Asset turnover'), galleryField('Inventory turnover', 'Inventory turnover'), galleryField('Payout ratio', 'Payout ratio')
+      ],
+      preceding: [galleryField('Book value preceding year', 'Book value preceding year', false), galleryField('Return on capital employed preceding year', 'Return on capital employed preceding year', false), galleryField('Return on assets preceding year', 'Return on assets preceding year', false), galleryField('Return on equity preceding year', 'Return on equity preceding year', false)],
+      historical: [galleryField('Average return on equity 3 years', 'Average return on equity 3 years', false), galleryField('Average return on equity 5 years', 'Average return on equity 5 years', false), galleryField('Average return on capital employed 3 years', 'Average return on capital employed 3 years', false), galleryField('Average return on capital employed 5 years', 'Average return on capital employed 5 years', false), galleryField('Historical P/E 3 years', 'Historical P/E 3 years', false), galleryField('Historical P/E 5 years', 'Historical P/E 5 years', false), galleryField('Historical P/B 3 years', 'Historical P/B 3 years', false), galleryField('Market capitalisation 3 years back', 'Market capitalisation 3 years back', false)]
+    },
+    price: {
+      recent: [galleryField('Current price', 'Current price'), galleryField('Volume', 'Volume'), galleryField('Return over 3 months', 'Return over 3 months', false), galleryField('Return over 6 months', 'Return over 6 months', false), galleryField('High price', '52-week high', false), galleryField('Low price', '52-week low', false), galleryField('High price all time', 'All-time high', false), galleryField('Low price all time', 'All-time low', false), galleryField('Return over 1 day', 'Return over 1 day', false), galleryField('Return over 1 week', 'Return over 1 week', false), galleryField('Return over 1 month', 'Return over 1 month', false), galleryField('DMA 50', '50-day moving average', false), galleryField('DMA 200', '200-day moving average', false), galleryField('RSI', 'RSI', false), galleryField('MACD', 'MACD', false)],
+      preceding: [],
+      historical: [galleryField('Return over 1 year', 'Return over 1 year', false), galleryField('Return over 3 years', 'Return over 3 years', false), galleryField('Return over 5 years', 'Return over 5 years', false), galleryField('Volume 1 year average', 'Volume 1-year average', false)]
+    }
   };
   const fieldHelp = {
     'P/E':['Price to earnings', 'Latest price divided by trailing-twelve-month earnings per share. Enter a multiple, for example P/E < 25.'],
@@ -1081,10 +1152,15 @@ function setupScreener() {
     const holder = $('#screen-ratio-list');
     if (!holder) return;
     const needle = ($('#screen-ratio-search')?.value || '').trim().toLowerCase();
-    const fields = (galleryFields[activeGalleryTab] || []).filter(([token, label]) => !needle || `${token} ${label}`.toLowerCase().includes(needle));
-    holder.innerHTML = `<section class="ratio-gallery-column"><h3>Recent</h3>${fields.length
-      ? fields.map(([token, label]) => `<button type="button" data-query-token="${escapeHtml(token)}" data-query-label="${escapeHtml(label)}" title="Add ${escapeHtml(label)} to query">${escapeHtml(label)}</button>`).join('')
-      : '<span class="ratio-gallery-empty">No available metrics match.</span>'}</section><section class="ratio-gallery-column ratio-gallery-column--future"><h3>Preceding</h3><p>Previous-quarter comparisons will appear after the reported-results sync.</p></section><section class="ratio-gallery-column ratio-gallery-column--future"><h3>Historical</h3><p>Multi-year growth fields will appear after historical financials are connected.</p></section>`;
+    const category = galleryFields[activeGalleryTab] || { recent:[], preceding:[], historical:[] };
+    const renderColumn = (title, fields) => {
+      const visible = fields.filter(field => !needle || `${field.token} ${field.label}`.toLowerCase().includes(needle));
+      if (!visible.length) return `<section class="ratio-gallery-column"><h3>${title}</h3><span class="ratio-gallery-empty">No matching metrics.</span></section>`;
+      return `<section class="ratio-gallery-column"><h3>${title}</h3>${visible.map(field => field.available
+        ? `<button type="button" data-query-token="${escapeHtml(field.token)}" data-query-label="${escapeHtml(field.label)}" title="Add ${escapeHtml(field.label)} to query">${escapeHtml(field.label)}</button>`
+        : `<button type="button" class="ratio-gallery-pending" disabled title="Company financial history is being synced before this can screen the full US universe">${escapeHtml(field.label)}<small>History sync</small></button>`).join('')}</section>`;
+    };
+    holder.innerHTML = `${renderColumn('Recent', category.recent)}${renderColumn('Preceding', category.preceding)}${renderColumn('Historical', category.historical)}`;
     holder.querySelectorAll('[data-query-token]').forEach(button => button.onclick = () => { showFieldHelp(button.dataset.queryLabel || button.dataset.queryToken); insertQueryText(button.dataset.queryToken); });
   };
   document.querySelectorAll('[data-ratio-gallery-tab]').forEach(button => button.onclick = () => {

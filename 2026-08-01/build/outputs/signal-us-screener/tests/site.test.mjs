@@ -301,3 +301,15 @@ test('stock screener supports an additional formula-style rule', async () => {
   assert.match(client, /screen-formula-clear/);
   assert.match(styles, /\.advanced-screen-builder/);
 });
+
+test('ratio gallery separates live US metrics from history still being synced', async () => {
+  const [client, styles] = await Promise.all([read('app.js'), read('ui-refresh.css')]);
+  for (const category of [/['"]most-used['"]\s*:/, /annual\s*:/, /quarterly\s*:/, /balance\s*:/, /['"]cash-flow['"]\s*:/, /ratios\s*:/, /price\s*:/]) {
+    assert.match(client, category);
+  }
+  assert.match(client, /renderColumn\('Recent'/);
+  assert.match(client, /renderColumn\('Preceding'/);
+  assert.match(client, /renderColumn\('Historical'/);
+  assert.match(client, /ratio-gallery-pending/);
+  assert.match(styles, /\.ratio-gallery-pending/);
+});
