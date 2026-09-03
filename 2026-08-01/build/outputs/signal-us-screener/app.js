@@ -295,9 +295,9 @@ function marketsView() {
 
 function screenerView() {
   return `<div class="page">${pageHeader('DISCOVER', 'US stock screener', 'Filter a broad US-equity universe, customise your query and export a research list.')}
-  <div class="query-card"><div><b>Build a US equity screen</b><small>Search once, then combine size, liquidity, valuation and quality filters.</small></div><input id="screen-search" placeholder="Search a company or ticker"><button class="solid-btn" id="screen-run">Refresh data</button><button class="link-button" id="export-screen">Export CSV</button></div>
-  <section class="screen-query-builder" aria-label="Create a search query"><div class="screen-query-heading"><b>Create a Search Query</b><small>Choose a field, comparison and value. Join finished rules with AND.</small></div><div class="screen-query-composer"><label>Query<textarea id="screen-query" rows="4" placeholder="P/E < 25 AND ROE >= 15" autocomplete="off" aria-describedby="screen-query-status"></textarea></label><aside class="screen-query-help"><b>Custom query example</b><span>Market cap &gt; 10B AND P/E &lt; 25 AND ROE &gt;= 15</span><button type="button" data-screen-query="Market cap > 10B AND P/E < 25 AND ROE >= 15">Use this example</button></aside></div><div class="screen-query-actions"><button class="solid-btn" id="screen-run-query" type="button">Run this query</button><button class="link-button" id="screen-gallery-open" type="button">Show Ratio Gallery</button><button class="link-button" id="screen-query-clear" type="button">Clear</button></div><p id="screen-query-status" class="screen-query-status">Build a rule from a ratio, an operator and a number.</p></section>
-  <section class="screen-ratio-gallery" aria-label="Ratio Gallery"><div class="ratio-gallery-head"><b>Ratio Gallery</b><button type="button" id="screen-gallery-close" class="link-button">Close gallery</button></div><div class="ratio-gallery-operators" aria-label="Query operators"><button type="button" data-query-operator=">">&gt;</button><button type="button" data-query-operator="<">&lt;</button><button type="button" data-query-operator=">=">≥</button><button type="button" data-query-operator="<=">≤</button><button type="button" data-query-operator="AND">AND</button></div><div class="ratio-gallery-tabs" role="tablist"><button type="button" class="selected" data-ratio-gallery-tab="most-used">Most Used</button><button type="button" data-ratio-gallery-tab="valuation">Valuation</button><button type="button" data-ratio-gallery-tab="quality">Quality</button><button type="button" data-ratio-gallery-tab="income">Income</button><button type="button" data-ratio-gallery-tab="balance">Balance Sheet</button><button type="button" data-ratio-gallery-tab="price">Price</button></div><label class="ratio-gallery-search">Search ratio<input id="screen-ratio-search" type="search" placeholder="e.g. sales"></label><div id="screen-ratio-list" class="ratio-gallery-list"></div><p class="ratio-gallery-note">Only shown metrics are ready to run on current live data. Reported-quarter history will be added when the financial-history sync is available.</p></section>
+  <section class="screen-query-builder" aria-label="Create a search query"><label class="screen-query-label" for="screen-query">Query</label><div class="screen-query-composer"><textarea id="screen-query" rows="5" placeholder="P/E < 25 AND ROE >= 15" autocomplete="off" aria-describedby="screen-query-status"></textarea><aside class="screen-query-help"><b>Custom query example</b><span>Market cap &gt; 10B AND<br>P/E &lt; 25 AND<br>ROE &gt;= 15</span><button type="button" data-screen-query="Market cap > 10B AND P/E < 25 AND ROE >= 15">Use this example</button></aside></div><p id="screen-query-status" class="screen-query-status">Build a rule from a ratio, an operator and a number.</p><div class="screen-query-actions"><button class="solid-btn" id="screen-run-query" type="button">▶&nbsp; Run this query</button><div><button class="link-button" id="screen-gallery-open" type="button">Show all Ratios</button><button class="link-button" id="screen-query-clear" type="button">Clear</button></div></div></section>
+  <section id="screen-ratio-gallery" class="screen-ratio-gallery" aria-label="Ratio Gallery" hidden><div class="ratio-gallery-head"><b>Ratio Gallery</b><button type="button" id="screen-gallery-close" class="link-button">Close gallery</button></div><div class="ratio-gallery-operators" aria-label="Query operators"><button type="button" data-query-operator=">">&gt;</button><button type="button" data-query-operator="<">&lt;</button><button type="button" data-query-operator=">=">≥</button><button type="button" data-query-operator="<=">≤</button><button type="button" data-query-operator="AND">AND</button></div><div class="ratio-gallery-tabs" role="tablist"><button type="button" class="selected" data-ratio-gallery-tab="most-used">Most Used</button><button type="button" data-ratio-gallery-tab="valuation">Valuation</button><button type="button" data-ratio-gallery-tab="quality">Quality</button><button type="button" data-ratio-gallery-tab="income">Income</button><button type="button" data-ratio-gallery-tab="balance">Balance Sheet</button><button type="button" data-ratio-gallery-tab="price">Price</button></div><label class="ratio-gallery-search">Search ratio<input id="screen-ratio-search" type="search" placeholder="e.g. sales"></label><div id="screen-ratio-list" class="ratio-gallery-list"></div><p class="ratio-gallery-note">Only shown metrics are ready to run on current live data. Reported-quarter history will be added when the financial-history sync is available.</p></section>
+  <div class="screen-utility-row"><input id="screen-search" placeholder="Search a company or ticker"><button class="solid-btn" id="screen-run">Refresh live data</button><button class="link-button" id="export-screen">Export CSV</button></div>
   <section class="advanced-screen-builder" aria-label="Advanced formula filter"><div><b>Advanced filter</b><small>Add one extra rule to any screen without writing code.</small></div><select id="screen-formula-metric" aria-label="Formula metric"><option value="none">No extra rule</option><option value="pe">P/E</option><option value="roe">ROE %</option><option value="eps">EPS</option><option value="growth">Revenue growth %</option><option value="debt">Debt to equity</option><option value="dividend">Dividend yield %</option><option value="cap">Market cap ($B)</option><option value="volume">Daily volume</option></select><select id="screen-formula-op" aria-label="Formula operator"><option value="gte">at least</option><option value="lte">at most</option><option value="gt">greater than</option><option value="lt">less than</option></select><input id="screen-formula-value" type="number" step="any" placeholder="Value" aria-label="Formula value"><button class="link-button" id="screen-formula-clear" type="button">Clear rule</button></section>
   <div class="screen-presets" aria-label="Quick screening presets"><span>Popular screens</span><button data-screen-preset="mega">Mega-cap leaders</button><button data-screen-preset="value">Profitable value</button><button data-screen-preset="quality">High ROE</button><button data-screen-preset="liquid">Highly liquid</button><button data-screen-preset="dividend">Dividend payers</button><button data-screen-preset="reset">Clear all</button></div>
   <section class="screen-columns" aria-label="Screener result columns"><div><b>Result columns</b><small>Choose the fundamentals shown in every row. Your choices are saved on this device.</small></div><div id="screen-column-controls" class="screen-column-controls" role="group" aria-label="Choose result columns"></div></section>
@@ -813,8 +813,46 @@ async function setupMarkets() {
   await loadMode('gainers');
 }
 function setupScreener() {
+  // Keep screening results first. The query builder and every extra control remain
+  // available below the table instead of competing with the results themselves.
+  const screenerPage = $('#screen-table')?.closest('.page');
+  const filterLayout = $('.filter-layout');
+  const tablePanel = filterLayout?.querySelector('.table-panel');
+  const filterPanel = filterLayout?.querySelector('.filters');
+  const queryBuilder = $('.screen-query-builder');
+  const ratioGallery = $('#screen-ratio-gallery');
+  const utilityRow = $('.screen-utility-row');
+  const advancedBuilder = $('.advanced-screen-builder');
+  const presetsPanel = $('.screen-presets');
+  const columnsPanel = $('.screen-columns');
+  const savedPanel = $('.saved-screen-workspace');
+  if (screenerPage && tablePanel && filterPanel && queryBuilder && ratioGallery) {
+    const exportButton = $('#export-screen');
+    const searchInput = $('#screen-search');
+    const refreshButton = $('#screen-run');
+    const resultsPanel = document.createElement('section');
+    resultsPanel.className = 'screen-results-panel';
+    resultsPanel.innerHTML = `<div class="screen-results-heading"><div><h2>Query results</h2><p id="screen-result-count">Loading active US stocks…</p></div><div class="screen-results-actions"><button type="button" class="link-button" id="screen-save-focus">Save this query</button><button type="button" class="link-button" id="screen-columns-focus">Edit columns</button></div></div>`;
+    const actionGroup = resultsPanel.querySelector('.screen-results-actions');
+    if (exportButton) actionGroup.append(exportButton);
+    resultsPanel.append(tablePanel);
+    resultsPanel.insertAdjacentHTML('beforeend', '<div class="screen-pagination" id="screen-pagination"></div>');
+    const extraTools = document.createElement('details');
+    extraTools.className = 'screen-more-filters';
+    extraTools.innerHTML = '<summary>More filters, columns and saved screens</summary><div class="screen-more-filters-content"></div>';
+    const extraContent = extraTools.querySelector('.screen-more-filters-content');
+    const dataTools = document.createElement('div');
+    dataTools.className = 'screen-data-tools';
+    if (searchInput) dataTools.append(searchInput);
+    if (refreshButton) dataTools.append(refreshButton);
+    extraContent.append(dataTools, advancedBuilder, presetsPanel, columnsPanel, savedPanel, filterPanel);
+    filterLayout.remove();
+    utilityRow?.remove();
+    screenerPage.append(resultsPanel, queryBuilder, ratioGallery, extraTools);
+  }
   let universe = [];
   let results = [];
+  let resultPage = 1;
   const columnOptions = [
     ['eps', 'EPS'], ['growth', 'Sales growth'], ['dividend', 'Dividend yield'], ['debt', 'Debt / equity'],
     ['pb', 'P / B'], ['ps', 'P / S'], ['evEbitda', 'EV / EBITDA'], ['margin', 'Net margin']
@@ -844,7 +882,13 @@ function setupScreener() {
     const head = $('#screen-table-head');
     if (!head) return;
     const labels = new Map(columnOptions);
-    head.innerHTML = `<tr><th>Company</th><th>Price</th><th>Market cap</th><th>P/E</th><th>ROE</th><th>Volume</th>${selectedColumns.map(key => `<th>${escapeHtml(labels.get(key) || key)}</th>`).join('')}<th>Sector</th><th></th></tr>`;
+    const sortableHead = (label, sort) => `<th><button type="button" data-screen-table-sort="${sort}">${label}</button></th>`;
+    head.innerHTML = `<tr>${sortableHead('Company', 'name')}${sortableHead('Price', 'price')}${sortableHead('Market cap', 'cap')}${sortableHead('P/E', 'pe')}${sortableHead('ROE', 'roe')}${sortableHead('Volume', 'volume')}${selectedColumns.map(key => `<th>${escapeHtml(labels.get(key) || key)}</th>`).join('')}<th>Sector</th><th></th></tr>`;
+    head.querySelectorAll('[data-screen-table-sort]').forEach(button => button.onclick = () => {
+      $('#screen-sort').value = button.dataset.screenTableSort || 'cap';
+      resultPage = 1;
+      draw();
+    });
   };
   const exportColumnValue = (stock, key) => {
     if (key === 'eps') return scanNumber(stock.epsTTM, stock.netIncomePerShareTTM) ?? '';
@@ -1067,11 +1111,24 @@ function setupScreener() {
       name: (a, b) => String(a.companyName || a.name || '').localeCompare(String(b.companyName || b.name || ''))
     };
     results.sort(sorter[sort] || sorter.cap);
+    const pageSize = 50;
+    const pageCount = Math.max(1, Math.ceil(results.length / pageSize));
+    resultPage = Math.min(Math.max(1, resultPage), pageCount);
+    const pageRows = results.slice((resultPage - 1) * pageSize, resultPage * pageSize);
     renderTableHead();
-    $('#screen-count').textContent = `${results.length.toLocaleString()} matches · showing up to 60 detailed rows from ${universe.length.toLocaleString()} active US stocks`;
-    $('#screen-table').innerHTML = results.slice(0, 60).map(stock => screenerRow(stock, selectedColumns)).join('') || `<tr><td colspan="${8 + selectedColumns.length}">No active US stocks match these filters. Try clearing one or two filters.</td></tr>`;
+    const resultSummary = `${results.length.toLocaleString()} result${results.length === 1 ? '' : 's'} found · page ${resultPage} of ${pageCount}`;
+    $('#screen-count').textContent = resultSummary;
+    const topResultCount = $('#screen-result-count');
+    if (topResultCount) topResultCount.textContent = resultSummary;
+    $('#screen-table').innerHTML = pageRows.map(stock => screenerRow(stock, selectedColumns)).join('') || `<tr><td colspan="${8 + selectedColumns.length}">No active US stocks match these filters. Try clearing one or two filters.</td></tr>`;
+    const pagination = $('#screen-pagination');
+    if (pagination) {
+      const pages = Array.from(new Set([1, resultPage - 1, resultPage, resultPage + 1, pageCount].filter(item => item >= 1 && item <= pageCount)));
+      pagination.innerHTML = results.length > pageSize ? `<button type="button" data-screen-page="${resultPage - 1}" ${resultPage === 1 ? 'disabled' : ''}>Previous</button>${pages.map(item => `<button type="button" class="${item === resultPage ? 'selected' : ''}" data-screen-page="${item}">${item}</button>`).join('')}<button type="button" data-screen-page="${resultPage + 1}" ${resultPage === pageCount ? 'disabled' : ''}>Next</button><span>50 results per page</span>` : `<span>${results.length.toLocaleString()} result${results.length === 1 ? '' : 's'} shown</span>`;
+      pagination.querySelectorAll('[data-screen-page]').forEach(button => button.onclick = () => { resultPage = Number(button.dataset.screenPage) || 1; draw(); });
+    }
     wireCommon();
-    if (!skipEnrichment) enrichVisible(results);
+    if (!skipEnrichment) enrichVisible(pageRows);
   };
   const load = async force => {
     const freshness = $('#screen-freshness');
@@ -1164,18 +1221,29 @@ function setupScreener() {
     drawSavedScreens();
   };
   drawSavedScreens();
+  $('#screen-save-focus').onclick = () => {
+    const controls = $('.screen-more-filters');
+    if (controls) controls.open = true;
+    $('#saved-screen-name')?.focus();
+  };
+  $('#screen-columns-focus').onclick = () => {
+    const controls = $('.screen-more-filters');
+    if (controls) controls.open = true;
+    $('#screen-column-controls')?.scrollIntoView({ behavior:'smooth', block:'center' });
+  };
   document.querySelectorAll('[data-screen-preset]').forEach(button => button.onclick = () => {
     const preset = presets[button.dataset.screenPreset];
     Object.entries(presets.reset).forEach(([name, selected]) => { const input = $(`#screen-${name}`); if (input) input.value = selected; });
     Object.entries(preset).forEach(([name, selected]) => { const input = $(`#screen-${name}`); if (input) input.value = selected; });
     $('#screen-search').value = '';
     document.querySelectorAll('[data-screen-preset]').forEach(item => item.classList.toggle('selected', item === button && button.dataset.screenPreset !== 'reset'));
+    resultPage = 1;
     draw();
   });
-  ['screen-search', 'screen-query', 'screen-sector', 'screen-exchange', 'screen-cap', 'screen-price', 'screen-pe', 'screen-roe', 'screen-eps', 'screen-growth', 'screen-volume', 'screen-dividend', 'screen-sort', 'screen-formula-metric', 'screen-formula-op', 'screen-formula-value'].forEach(id => $(`#${id}`).oninput = draw);
-  $('#screen-query-clear').onclick = () => { $('#screen-query').value = ''; draw(); };
-  $('#screen-run-query').onclick = () => draw();
-  document.querySelectorAll('[data-screen-query]').forEach(button => button.onclick = () => { $('#screen-query').value = button.dataset.screenQuery || ''; draw(); });
+  ['screen-search', 'screen-query', 'screen-sector', 'screen-exchange', 'screen-cap', 'screen-price', 'screen-pe', 'screen-roe', 'screen-eps', 'screen-growth', 'screen-volume', 'screen-dividend', 'screen-sort', 'screen-formula-metric', 'screen-formula-op', 'screen-formula-value'].forEach(id => $(`#${id}`).oninput = () => { resultPage = 1; draw(); });
+  $('#screen-query-clear').onclick = () => { $('#screen-query').value = ''; resultPage = 1; draw(); };
+  $('#screen-run-query').onclick = () => { resultPage = 1; draw(); $('.screen-results-heading')?.scrollIntoView({ behavior:'smooth', block:'start' }); };
+  document.querySelectorAll('[data-screen-query]').forEach(button => button.onclick = () => { $('#screen-query').value = button.dataset.screenQuery || ''; resultPage = 1; draw(); });
   $('#screen-formula-clear').onclick = () => { $('#screen-formula-metric').value = 'none'; $('#screen-formula-value').value = ''; draw(); };
   $('#screen-run').onclick = () => load(true);
   $('#export-screen').onclick = () => {
