@@ -296,7 +296,7 @@ function marketsView() {
 function screenerView() {
   return `<div class="page">${pageHeader('DISCOVER', 'US stock screener', 'Filter a broad US-equity universe, customise your query and export a research list.')}
   <section class="screen-query-builder" aria-label="Create a search query"><label class="screen-query-label" for="screen-query">Query</label><div class="screen-query-composer"><textarea id="screen-query" rows="5" placeholder="P/E < 25 AND ROE >= 15" autocomplete="off" aria-describedby="screen-query-status"></textarea><aside class="screen-query-help"><b>Custom query example</b><span>Market cap &gt; 10B AND<br>P/E &lt; 25 AND<br>ROE &gt;= 15</span><button type="button" data-screen-query="Market cap > 10B AND P/E < 25 AND ROE >= 15">Use this example</button></aside></div><p id="screen-query-status" class="screen-query-status">Build a rule from a ratio, an operator and a number.</p><div class="screen-query-actions"><button class="solid-btn" id="screen-run-query" type="button">▶&nbsp; Run this query</button><div><button class="link-button" id="screen-gallery-open" type="button">Show all Ratios</button><button class="link-button" id="screen-query-clear" type="button">Clear</button></div></div></section>
-  <section id="screen-ratio-gallery" class="screen-ratio-gallery" aria-label="Ratio Gallery" hidden><div class="ratio-gallery-head"><b>Ratio Gallery</b><button type="button" id="screen-gallery-close" class="link-button">Close gallery</button></div><div class="ratio-gallery-operators" aria-label="Query operators"><button type="button" data-query-operator=">">&gt;</button><button type="button" data-query-operator="<">&lt;</button><button type="button" data-query-operator=">=">≥</button><button type="button" data-query-operator="<=">≤</button><button type="button" data-query-operator="AND">AND</button></div><div class="ratio-gallery-tabs" role="tablist"><button type="button" class="selected" data-ratio-gallery-tab="most-used">Most Used</button><button type="button" data-ratio-gallery-tab="valuation">Valuation</button><button type="button" data-ratio-gallery-tab="quality">Quality</button><button type="button" data-ratio-gallery-tab="income">Income</button><button type="button" data-ratio-gallery-tab="balance">Balance Sheet</button><button type="button" data-ratio-gallery-tab="price">Price</button></div><label class="ratio-gallery-search">Search ratio<input id="screen-ratio-search" type="search" placeholder="e.g. sales"></label><div id="screen-ratio-list" class="ratio-gallery-list"></div><p class="ratio-gallery-note">Only shown metrics are ready to run on current live data. Reported-quarter history will be added when the financial-history sync is available.</p></section>
+  <section id="screen-ratio-gallery" class="screen-ratio-gallery" aria-label="Ratio Gallery" hidden><div class="ratio-gallery-head"><b>Ratio Gallery</b><button type="button" id="screen-gallery-close" class="link-button">Close gallery</button></div><div class="ratio-gallery-operators" aria-label="Query operators"><button type="button" disabled title="Formula expressions are coming soon">+</button><button type="button" disabled title="Formula expressions are coming soon">−</button><button type="button" disabled title="Formula expressions are coming soon">÷</button><button type="button" disabled title="Formula expressions are coming soon">×</button><button type="button" data-query-operator=">">&gt;</button><button type="button" data-query-operator="<">&lt;</button><button type="button" data-query-operator="AND">AND</button><button type="button" disabled title="OR logic is coming soon">OR</button></div><div class="ratio-gallery-tabs" role="tablist"><button type="button" class="selected" data-ratio-gallery-tab="most-used">Most Used</button><button type="button" data-ratio-gallery-tab="annual">Annual P&amp;L</button><button type="button" data-ratio-gallery-tab="quarterly">Quarterly P&amp;L</button><button type="button" data-ratio-gallery-tab="balance">Balance Sheet</button><button type="button" data-ratio-gallery-tab="cash-flow">Cash Flow</button><button type="button" data-ratio-gallery-tab="ratios">Ratios</button><button type="button" data-ratio-gallery-tab="price">Price</button></div><label class="ratio-gallery-search">Search ratio<input id="screen-ratio-search" type="search" placeholder="e.g. sales"></label><div id="screen-ratio-list" class="ratio-gallery-list"></div><p class="ratio-gallery-note">Available fields run against current live US-market and TTM fundamental data. Historical fields appear as company financial history is synced.</p></section>
   <div class="screen-utility-row"><input id="screen-search" placeholder="Search a company or ticker"><button class="solid-btn" id="screen-run">Refresh live data</button><button class="link-button" id="export-screen">Export CSV</button></div>
   <section class="advanced-screen-builder" aria-label="Advanced formula filter"><div><b>Advanced filter</b><small>Add one extra rule to any screen without writing code.</small></div><select id="screen-formula-metric" aria-label="Formula metric"><option value="none">No extra rule</option><option value="pe">P/E</option><option value="roe">ROE %</option><option value="eps">EPS</option><option value="growth">Revenue growth %</option><option value="debt">Debt to equity</option><option value="dividend">Dividend yield %</option><option value="cap">Market cap ($B)</option><option value="volume">Daily volume</option></select><select id="screen-formula-op" aria-label="Formula operator"><option value="gte">at least</option><option value="lte">at most</option><option value="gt">greater than</option><option value="lt">less than</option></select><input id="screen-formula-value" type="number" step="any" placeholder="Value" aria-label="Formula value"><button class="link-button" id="screen-formula-clear" type="button">Clear rule</button></section>
   <div class="screen-presets" aria-label="Quick screening presets"><span>Popular screens</span><button data-screen-preset="mega">Mega-cap leaders</button><button data-screen-preset="value">Profitable value</button><button data-screen-preset="quality">High ROE</button><button data-screen-preset="liquid">Highly liquid</button><button data-screen-preset="dividend">Dividend payers</button><button data-screen-preset="reset">Clear all</button></div>
@@ -922,7 +922,10 @@ function setupScreener() {
     ['volume', 'volume'], ['daily volume', 'volume'],
     ['current ratio', 'currentRatio'],
     ['debt to equity', 'debt'], ['debt/equity', 'debt'], ['d/e', 'debt'],
-    ['dividend yield', 'dividend'], ['dividend', 'dividend']
+    ['dividend yield', 'dividend'], ['dividend', 'dividend'],
+    ['operating cash flow per share', 'operatingCashFlowPerShare'], ['operating cash flow / share', 'operatingCashFlowPerShare'],
+    ['free cash flow per share', 'freeCashFlowPerShare'], ['free cash flow / share', 'freeCashFlowPerShare'],
+    ['free cash flow yield', 'freeCashFlowYield'], ['fcf yield', 'freeCashFlowYield']
   ]);
   const normaliseQueryMetric = input => queryMetrics.get(String(input || '').trim().toLowerCase().replace(/\s+/g, ' '));
   const queryMetricValue = (stock, metric) => {
@@ -942,6 +945,12 @@ function setupScreener() {
     if (metric === 'volume') return scanNumber(stock.volume, stock.avgVolume);
     if (metric === 'currentRatio') return scanNumber(stock.currentRatioTTM);
     if (metric === 'debt') return scanNumber(stock.debtToEquityRatioTTM, stock.debtToEquity);
+    if (metric === 'operatingCashFlowPerShare') return scanNumber(stock.operatingCashFlowPerShareTTM);
+    if (metric === 'freeCashFlowPerShare') return scanNumber(stock.freeCashFlowPerShareTTM);
+    if (metric === 'freeCashFlowYield') {
+      const yieldValue = scanNumber(stock.freeCashFlowYieldTTM);
+      return yieldValue === null ? null : Math.abs(Number(yieldValue)) <= 1 ? Number(yieldValue) * 100 : Number(yieldValue);
+    }
     if (metric === 'dividend') {
       const yieldValue = scanNumber(stock.dividendYieldTTM);
       return yieldValue === null ? null : Math.abs(Number(yieldValue)) <= 1 ? Number(yieldValue) * 100 : Number(yieldValue);
@@ -991,17 +1000,20 @@ function setupScreener() {
       ['P/E', 'P/E'], ['Return on equity', 'ROE'], ['Market cap', 'Market cap'], ['Current price', 'Current price'],
       ['Revenue growth', 'Sales growth'], ['EPS', 'EPS'], ['Dividend yield', 'Dividend yield'], ['Volume', 'Volume']
     ],
-    valuation: [
-      ['P/E', 'P/E'], ['Price to book', 'P / B'], ['Price to sales', 'P / S'], ['EV / EBITDA', 'EV / EBITDA'], ['Dividend yield', 'Dividend yield']
+    annual: [
+      ['Revenue growth', 'Sales growth'], ['EPS', 'EPS'], ['Net margin', 'Net profit margin'], ['Dividend yield', 'Dividend yield']
     ],
-    quality: [
-      ['Return on equity', 'Return on equity'], ['Net margin', 'Net profit margin'], ['Revenue growth', 'Revenue growth'], ['EPS', 'EPS']
-    ],
-    income: [
-      ['Revenue growth', 'Revenue growth'], ['EPS', 'EPS'], ['Net margin', 'Net margin'], ['Dividend yield', 'Dividend yield']
+    quarterly: [
+      ['Revenue growth', 'Sales growth'], ['EPS', 'EPS'], ['Net margin', 'Net profit margin']
     ],
     balance: [
       ['Debt to equity', 'Debt / equity'], ['Current ratio', 'Current ratio'], ['Market cap', 'Market cap']
+    ],
+    'cash-flow': [
+      ['Operating cash flow / share', 'Operating cash flow / share'], ['Free cash flow / share', 'Free cash flow / share'], ['Free cash flow yield', 'Free cash flow yield']
+    ],
+    ratios: [
+      ['P/E', 'P/E'], ['Price to book', 'P / B'], ['Price to sales', 'P / S'], ['EV / EBITDA', 'EV / EBITDA'], ['Return on equity', 'ROE'], ['Net margin', 'Net profit margin'], ['Current ratio', 'Current ratio'], ['Debt to equity', 'Debt / equity'], ['Dividend yield', 'Dividend yield']
     ],
     price: [
       ['Current price', 'Current price'], ['Market cap', 'Market cap'], ['Volume', 'Daily volume'], ['P/E', 'P/E']

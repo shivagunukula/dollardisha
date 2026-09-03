@@ -199,6 +199,9 @@ async function screenerRatio(ticker) {
     debtToEquityRatioTTM:finiteValue(item.debtToEquityRatioTTM, item.debtToEquityTTM, metrics.debtToEquityTTM),
     netProfitMarginTTM:finiteValue(item.netProfitMarginTTM, item.netMarginTTM, metrics.netProfitMarginTTM, metrics.netMarginTTM),
     epsTTM:finiteValue(item.netIncomePerShareTTM, item.epsTTM, metrics.netIncomePerShareTTM, metrics.epsTTM),
+    operatingCashFlowPerShareTTM:finiteValue(item.operatingCashFlowPerShareTTM, metrics.operatingCashFlowPerShareTTM),
+    freeCashFlowPerShareTTM:finiteValue(item.freeCashFlowPerShareTTM, metrics.freeCashFlowPerShareTTM),
+    freeCashFlowYieldTTM:finiteValue(item.freeCashFlowYieldTTM, metrics.freeCashFlowYieldTTM),
     revenueGrowthTTM:finiteValue(item.revenueGrowthTTM, metrics.revenueGrowthTTM),
     netIncomeGrowthTTM:finiteValue(item.netIncomeGrowthTTM, metrics.netIncomeGrowthTTM),
     metricsLoaded:true
