@@ -193,10 +193,20 @@ async function screenerRatio(ticker) {
     priceToSalesRatioTTM:finiteValue(item.priceToSalesRatioTTM, item.priceSalesRatioTTM, metrics.priceToSalesRatioTTM, metrics.priceSalesRatioTTM),
     priceToBookRatioTTM:finiteValue(item.priceToBookRatioTTM, item.priceBookValueRatioTTM, metrics.priceToBookRatioTTM, metrics.priceBookValueRatioTTM),
     enterpriseValueMultipleTTM:finiteValue(item.enterpriseValueMultipleTTM, item.enterpriseValueOverEBITDATTM, metrics.enterpriseValueMultipleTTM, metrics.enterpriseValueOverEBITDATTM, metrics.evToEBITDATTM),
+    priceToFreeCashFlowTTM:finiteValue(item.priceToFreeCashFlowsRatioTTM, item.priceToFreeCashFlowRatioTTM, metrics.priceToFreeCashFlowRatioTTM, metrics.pfcfRatioTTM),
     returnOnEquityTTM:finiteValue(item.returnOnEquityTTM, item.roeTTM, metrics.returnOnEquityTTM, metrics.roeTTM),
+    returnOnAssetsTTM:finiteValue(item.returnOnAssetsTTM, item.roaTTM, metrics.returnOnAssetsTTM, metrics.roaTTM),
+    returnOnInvestedCapitalTTM:finiteValue(item.returnOnInvestedCapitalTTM, item.roicTTM, metrics.returnOnInvestedCapitalTTM, metrics.roicTTM),
+    grossProfitMarginTTM:finiteValue(item.grossProfitMarginTTM, item.grossMarginTTM, metrics.grossProfitMarginTTM, metrics.grossMarginTTM),
+    operatingProfitMarginTTM:finiteValue(item.operatingProfitMarginTTM, item.operatingMarginTTM, metrics.operatingProfitMarginTTM, metrics.operatingMarginTTM),
     dividendYieldTTM:finiteValue(item.dividendYieldTTM, metrics.dividendYieldTTM),
+    payoutRatioTTM:finiteValue(item.payoutRatioTTM, item.dividendPayoutRatioTTM, metrics.payoutRatioTTM),
     currentRatioTTM:finiteValue(item.currentRatioTTM, metrics.currentRatioTTM),
+    quickRatioTTM:finiteValue(item.quickRatioTTM, metrics.quickRatioTTM),
     debtToEquityRatioTTM:finiteValue(item.debtToEquityRatioTTM, item.debtToEquityTTM, metrics.debtToEquityTTM),
+    interestCoverageTTM:finiteValue(item.interestCoverageTTM, item.interestCoverageRatioTTM, metrics.interestCoverageTTM),
+    assetTurnoverTTM:finiteValue(item.assetTurnoverTTM, metrics.assetTurnoverTTM),
+    inventoryTurnoverTTM:finiteValue(item.inventoryTurnoverTTM, metrics.inventoryTurnoverTTM),
     netProfitMarginTTM:finiteValue(item.netProfitMarginTTM, item.netMarginTTM, metrics.netProfitMarginTTM, metrics.netMarginTTM),
     epsTTM:finiteValue(item.netIncomePerShareTTM, item.epsTTM, metrics.netIncomePerShareTTM, metrics.epsTTM),
     operatingCashFlowPerShareTTM:finiteValue(item.operatingCashFlowPerShareTTM, metrics.operatingCashFlowPerShareTTM),
@@ -834,19 +844,43 @@ async function database(path, { method = 'GET', body, prefer } = {}) {
   if (!response.ok) throw new Error(`Database returned ${response.status}`);
   return response.status === 204 ? null : response.json();
 }
+function financialPeriod(row, periodType, index) {
+  const date = String(row?.date || row?.fillingDate || row?.filingDate || '').slice(0, 10) || null;
+  const year = Number(row?.calendarYear || row?.fiscalYear || (date ? date.slice(0, 4) : NaN));
+  const period = String(row?.period || row?.fiscalPeriod || (periodType === 'quarterly' ? `Q${index + 1}` : periodType === 'ttm' ? 'TTM' : 'FY')).toUpperCase();
+  return { date, year: Number.isFinite(year) ? year : new Date().getFullYear(), period };
+}
+async function cacheFinancialStatements(ticker, statements = {}) {
+  if (!supabaseUrl || !supabaseKey) return;
+  const sets = [
+    ['income', 'annual', statements.income], ['income', 'quarterly', statements.quarterlyIncome],
+    ['balance', 'annual', statements.balance], ['cashflow', 'annual', statements.cashflow]
+  ];
+  const rows = sets.flatMap(([statementType, periodType, records]) => (Array.isArray(records) ? records : []).map((record, index) => {
+    const { date, year, period } = financialPeriod(record, periodType, index);
+    return { symbol:ticker, statement_type:statementType, period_type:periodType, fiscal_year:year, fiscal_period:period, period_end:date, values:record, source_updated_at:new Date().toISOString() };
+  }));
+  if (statements.ratios && typeof statements.ratios === 'object') {
+    const { date, year, period } = financialPeriod(statements.ratios, 'ttm', 0);
+    rows.push({ symbol:ticker, statement_type:'ratios', period_type:'ttm', fiscal_year:year, fiscal_period:period, period_end:date, values:statements.ratios, source_updated_at:new Date().toISOString() });
+  }
+  if (!rows.length) return;
+  await database('company_financials?on_conflict=symbol,statement_type,period_type,fiscal_year,fiscal_period', { method:'POST', prefer:'resolution=merge-duplicates', body:rows });
+}
 async function cacheCompany(ticker, profile, quote, statements = {}) {
   if (!supabaseUrl || !supabaseKey || !profile?.companyName) return;
+  await database('companies?on_conflict=symbol', { method: 'POST', prefer: 'resolution=merge-duplicates', body: {
+    symbol: ticker, company_name: profile.companyName, exchange: profile.exchangeShortName,
+    sector: profile.sector, industry: profile.industry, cik: profile.cik, website: profile.website,
+    description: profile.description, market_cap: profile.mktCap, source_updated_at: new Date().toISOString()
+  }}).catch(error => console.warn(`Could not cache ${ticker}: ${error.message}`));
   await Promise.all([
-    database('companies?on_conflict=symbol', { method: 'POST', prefer: 'resolution=merge-duplicates', body: {
-      symbol: ticker, company_name: profile.companyName, exchange: profile.exchangeShortName,
-      sector: profile.sector, industry: profile.industry, cik: profile.cik, website: profile.website,
-      description: profile.description, market_cap: profile.mktCap, source_updated_at: new Date().toISOString()
-    }}),
     database('company_quotes?on_conflict=symbol', { method: 'POST', prefer: 'resolution=merge-duplicates', body: {
       symbol: ticker, price: quote?.price, change_percent: quote?.changesPercentage,
       previous_close: quote?.previousClose, day_high: quote?.dayHigh, day_low: quote?.dayLow,
       volume: quote?.volume, market_cap: quote?.marketCap || profile.mktCap, as_of: new Date().toISOString()
-    }})
+    }}),
+    cacheFinancialStatements(ticker, statements)
   ]).catch(error => console.warn(`Could not cache ${ticker}: ${error.message}`));
 }
 async function cacheScreenerRows(rows) {
@@ -1213,7 +1247,7 @@ createServer(async (req, res) => {
       const finalIncome = income.length ? income : secValues.income;
       const finalBalance = balance.length ? balance : secValues.balance;
       const finalCashflow = cashflow.length ? cashflow : secValues.cashflow;
-      await cacheCompany(ticker, finalProfile, quote, { income:finalIncome, balance:finalBalance, cashflow:finalCashflow, ratios:finalRatios });
+      await cacheCompany(ticker, finalProfile, quote, { income:finalIncome, quarterlyIncome, balance:finalBalance, cashflow:finalCashflow, ratios:finalRatios });
       return send(res, 200, { profile: finalProfile, quote: quote || {}, live: quote?.price !== null && quote?.price !== undefined && Number.isFinite(Number(quote.price)), providers: quote?.providers || [], metrics: finalMetrics, income:finalIncome, quarterlyIncome, balance:finalBalance, cashflow:finalCashflow, ratios: finalRatios });
     }
     if (url.pathname === '/data/chart') {

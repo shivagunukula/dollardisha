@@ -295,7 +295,7 @@ function marketsView() {
 
 function screenerView() {
   return `<div class="page">${pageHeader('DISCOVER', 'US stock screener', 'Filter a broad US-equity universe, customise your query and export a research list.')}
-  <section class="screen-query-builder" aria-label="Create a search query"><label class="screen-query-label" for="screen-query">Query</label><div class="screen-query-composer"><textarea id="screen-query" rows="5" placeholder="P/E < 25 AND ROE >= 15" autocomplete="off" aria-describedby="screen-query-status"></textarea><aside class="screen-query-help"><b>Custom query example</b><span>Market cap &gt; 10B AND<br>P/E &lt; 25 AND<br>ROE &gt;= 15</span><button type="button" data-screen-query="Market cap > 10B AND P/E < 25 AND ROE >= 15">Use this example</button></aside></div><p id="screen-query-status" class="screen-query-status">Build a rule from a ratio, an operator and a number.</p><div class="screen-query-actions"><button class="solid-btn" id="screen-run-query" type="button">▶&nbsp; Run this query</button><div><button class="link-button" id="screen-gallery-open" type="button">Show all Ratios</button><button class="link-button" id="screen-query-clear" type="button">Clear</button></div></div></section>
+  <section class="screen-query-builder" aria-label="Create a search query"><label class="screen-query-label" for="screen-query">Query</label><div class="screen-query-composer"><textarea id="screen-query" rows="5" placeholder="P/E < 25 AND ROE >= 15" autocomplete="off" aria-describedby="screen-query-status"></textarea><aside class="screen-query-help" aria-live="polite"><b id="screen-query-help-name">Custom query example</b><span id="screen-query-help-description">Market cap &gt; 10B AND<br>P/E &lt; 25 AND<br>ROE &gt;= 15</span><button type="button" id="screen-query-help-action" data-screen-query="Market cap > 10B AND P/E < 25 AND ROE >= 15">Use this example</button></aside></div><p id="screen-query-status" class="screen-query-status">Build a rule from a ratio, an operator and a number.</p><div class="screen-query-actions"><button class="solid-btn" id="screen-run-query" type="button">▶&nbsp; Run this query</button><div><button class="link-button" id="screen-gallery-open" type="button">Show all Ratios</button><button class="link-button" id="screen-query-clear" type="button">Clear</button></div></div></section>
   <section id="screen-ratio-gallery" class="screen-ratio-gallery" aria-label="Ratio Gallery" hidden><div class="ratio-gallery-head"><b>Ratio Gallery</b><button type="button" id="screen-gallery-close" class="link-button">Close gallery</button></div><div class="ratio-gallery-operators" aria-label="Query operators"><button type="button" disabled title="Formula expressions are coming soon">+</button><button type="button" disabled title="Formula expressions are coming soon">−</button><button type="button" disabled title="Formula expressions are coming soon">÷</button><button type="button" disabled title="Formula expressions are coming soon">×</button><button type="button" data-query-operator=">">&gt;</button><button type="button" data-query-operator="<">&lt;</button><button type="button" data-query-operator="AND">AND</button><button type="button" disabled title="OR logic is coming soon">OR</button></div><div class="ratio-gallery-tabs" role="tablist"><button type="button" class="selected" data-ratio-gallery-tab="most-used">Most Used</button><button type="button" data-ratio-gallery-tab="annual">Annual P&amp;L</button><button type="button" data-ratio-gallery-tab="quarterly">Quarterly P&amp;L</button><button type="button" data-ratio-gallery-tab="balance">Balance Sheet</button><button type="button" data-ratio-gallery-tab="cash-flow">Cash Flow</button><button type="button" data-ratio-gallery-tab="ratios">Ratios</button><button type="button" data-ratio-gallery-tab="price">Price</button></div><label class="ratio-gallery-search">Search ratio<input id="screen-ratio-search" type="search" placeholder="e.g. sales"></label><div id="screen-ratio-list" class="ratio-gallery-list"></div><p class="ratio-gallery-note">Available fields run against current live US-market and TTM fundamental data. Historical fields appear as company financial history is synced.</p></section>
   <div class="screen-utility-row"><input id="screen-search" placeholder="Search a company or ticker"><button class="solid-btn" id="screen-run">Refresh live data</button><button class="link-button" id="export-screen">Export CSV</button></div>
   <section class="advanced-screen-builder" aria-label="Advanced formula filter"><div><b>Advanced filter</b><small>Add one extra rule to any screen without writing code.</small></div><select id="screen-formula-metric" aria-label="Formula metric"><option value="none">No extra rule</option><option value="pe">P/E</option><option value="roe">ROE %</option><option value="eps">EPS</option><option value="growth">Revenue growth %</option><option value="debt">Debt to equity</option><option value="dividend">Dividend yield %</option><option value="cap">Market cap ($B)</option><option value="volume">Daily volume</option></select><select id="screen-formula-op" aria-label="Formula operator"><option value="gte">at least</option><option value="lte">at most</option><option value="gt">greater than</option><option value="lt">less than</option></select><input id="screen-formula-value" type="number" step="any" placeholder="Value" aria-label="Formula value"><button class="link-button" id="screen-formula-clear" type="button">Clear rule</button></section>
@@ -914,15 +914,17 @@ function setupScreener() {
     ['p/b', 'pb'], ['pb', 'pb'], ['price to book', 'pb'],
     ['p/s', 'ps'], ['ps', 'ps'], ['price to sales', 'ps'],
     ['ev/ebitda', 'evEbitda'], ['ev / ebitda', 'evEbitda'], ['ev ebitda', 'evEbitda'],
-    ['roe', 'roe'], ['return on equity', 'roe'], ['eps', 'eps'],
+    ['price to free cash flow', 'pfcf'], ['p/fcf', 'pfcf'],
+    ['roe', 'roe'], ['return on equity', 'roe'], ['roa', 'roa'], ['return on assets', 'roa'], ['roic', 'roic'], ['return on invested capital', 'roic'], ['eps', 'eps'],
     ['revenue growth', 'growth'], ['sales growth', 'growth'], ['growth', 'growth'],
-    ['net margin', 'margin'], ['net profit margin', 'margin'],
+    ['gross margin', 'grossMargin'], ['operating margin', 'operatingMargin'], ['net margin', 'margin'], ['net profit margin', 'margin'],
     ['market cap', 'cap'], ['market capitalization', 'cap'], ['mcap', 'cap'],
     ['price', 'price'], ['share price', 'price'], ['current price', 'price'],
     ['volume', 'volume'], ['daily volume', 'volume'],
     ['current ratio', 'currentRatio'],
+    ['quick ratio', 'quickRatio'], ['interest coverage', 'interestCoverage'], ['asset turnover', 'assetTurnover'], ['inventory turnover', 'inventoryTurnover'],
     ['debt to equity', 'debt'], ['debt/equity', 'debt'], ['d/e', 'debt'],
-    ['dividend yield', 'dividend'], ['dividend', 'dividend'],
+    ['dividend yield', 'dividend'], ['dividend', 'dividend'], ['payout ratio', 'payoutRatio'],
     ['operating cash flow per share', 'operatingCashFlowPerShare'], ['operating cash flow / share', 'operatingCashFlowPerShare'],
     ['free cash flow per share', 'freeCashFlowPerShare'], ['free cash flow / share', 'freeCashFlowPerShare'],
     ['free cash flow yield', 'freeCashFlowYield'], ['fcf yield', 'freeCashFlowYield']
@@ -933,17 +935,26 @@ function setupScreener() {
     if (metric === 'pb') return scanNumber(stock.priceToBookRatioTTM);
     if (metric === 'ps') return scanNumber(stock.priceToSalesRatioTTM);
     if (metric === 'evEbitda') return scanNumber(stock.enterpriseValueMultipleTTM);
+    if (metric === 'pfcf') return scanNumber(stock.priceToFreeCashFlowTTM);
     if (metric === 'roe') return scanPercent(scanNumber(stock.returnOnEquityTTM, stock.roeTTM, stock.roe));
+    if (metric === 'roa') return scanPercent(scanNumber(stock.returnOnAssetsTTM));
+    if (metric === 'roic') return scanPercent(scanNumber(stock.returnOnInvestedCapitalTTM));
     if (metric === 'eps') return scanNumber(stock.epsTTM, stock.netIncomePerShareTTM);
     if (metric === 'growth') {
       const growth = scanNumber(stock.revenueGrowthTTM);
       return growth === null ? null : Math.abs(Number(growth)) <= 1 ? Number(growth) * 100 : Number(growth);
     }
+    if (metric === 'grossMargin') return scanPercent(scanNumber(stock.grossProfitMarginTTM));
+    if (metric === 'operatingMargin') return scanPercent(scanNumber(stock.operatingProfitMarginTTM));
     if (metric === 'margin') return scanPercent(scanNumber(stock.netProfitMarginTTM));
     if (metric === 'cap') return scanNumber(stock.marketCap, stock.cap ? stock.cap * 1e9 : null);
     if (metric === 'price') return scanNumber(stock.price);
     if (metric === 'volume') return scanNumber(stock.volume, stock.avgVolume);
     if (metric === 'currentRatio') return scanNumber(stock.currentRatioTTM);
+    if (metric === 'quickRatio') return scanNumber(stock.quickRatioTTM);
+    if (metric === 'interestCoverage') return scanNumber(stock.interestCoverageTTM);
+    if (metric === 'assetTurnover') return scanNumber(stock.assetTurnoverTTM);
+    if (metric === 'inventoryTurnover') return scanNumber(stock.inventoryTurnoverTTM);
     if (metric === 'debt') return scanNumber(stock.debtToEquityRatioTTM, stock.debtToEquity);
     if (metric === 'operatingCashFlowPerShare') return scanNumber(stock.operatingCashFlowPerShareTTM);
     if (metric === 'freeCashFlowPerShare') return scanNumber(stock.freeCashFlowPerShareTTM);
@@ -955,6 +966,7 @@ function setupScreener() {
       const yieldValue = scanNumber(stock.dividendYieldTTM);
       return yieldValue === null ? null : Math.abs(Number(yieldValue)) <= 1 ? Number(yieldValue) * 100 : Number(yieldValue);
     }
+    if (metric === 'payoutRatio') return scanPercent(scanNumber(stock.payoutRatioTTM));
     return null;
   };
   const parseQueryNumber = (raw, suffix, metric) => {
@@ -1001,10 +1013,10 @@ function setupScreener() {
       ['Revenue growth', 'Sales growth'], ['EPS', 'EPS'], ['Dividend yield', 'Dividend yield'], ['Volume', 'Volume']
     ],
     annual: [
-      ['Revenue growth', 'Sales growth'], ['EPS', 'EPS'], ['Net margin', 'Net profit margin'], ['Dividend yield', 'Dividend yield']
+      ['Revenue growth', 'Sales growth'], ['EPS', 'EPS'], ['Gross margin', 'Gross margin'], ['Operating margin', 'Operating margin'], ['Net margin', 'Net profit margin'], ['Dividend yield', 'Dividend yield'], ['Payout ratio', 'Payout ratio']
     ],
     quarterly: [
-      ['Revenue growth', 'Sales growth'], ['EPS', 'EPS'], ['Net margin', 'Net profit margin']
+      ['Revenue growth', 'Sales growth'], ['EPS', 'EPS'], ['Gross margin', 'Gross margin'], ['Operating margin', 'Operating margin'], ['Net margin', 'Net profit margin']
     ],
     balance: [
       ['Debt to equity', 'Debt / equity'], ['Current ratio', 'Current ratio'], ['Market cap', 'Market cap']
@@ -1013,11 +1025,48 @@ function setupScreener() {
       ['Operating cash flow / share', 'Operating cash flow / share'], ['Free cash flow / share', 'Free cash flow / share'], ['Free cash flow yield', 'Free cash flow yield']
     ],
     ratios: [
-      ['P/E', 'P/E'], ['Price to book', 'P / B'], ['Price to sales', 'P / S'], ['EV / EBITDA', 'EV / EBITDA'], ['Return on equity', 'ROE'], ['Net margin', 'Net profit margin'], ['Current ratio', 'Current ratio'], ['Debt to equity', 'Debt / equity'], ['Dividend yield', 'Dividend yield']
+      ['P/E', 'P/E'], ['Price to book', 'P / B'], ['Price to sales', 'P / S'], ['EV / EBITDA', 'EV / EBITDA'], ['Price to free cash flow', 'P / FCF'], ['Return on equity', 'ROE'], ['Return on assets', 'ROA'], ['Return on invested capital', 'ROIC'], ['Gross margin', 'Gross margin'], ['Operating margin', 'Operating margin'], ['Net margin', 'Net profit margin'], ['Current ratio', 'Current ratio'], ['Quick ratio', 'Quick ratio'], ['Interest coverage', 'Interest coverage'], ['Asset turnover', 'Asset turnover'], ['Inventory turnover', 'Inventory turnover'], ['Debt to equity', 'Debt / equity'], ['Dividend yield', 'Dividend yield'], ['Payout ratio', 'Payout ratio']
     ],
     price: [
       ['Current price', 'Current price'], ['Market cap', 'Market cap'], ['Volume', 'Daily volume'], ['P/E', 'P/E']
     ]
+  };
+  const fieldHelp = {
+    'P/E':['Price to earnings', 'Latest price divided by trailing-twelve-month earnings per share. Enter a multiple, for example P/E < 25.'],
+    'Market cap':['Market capitalisation', 'Total market value of the company. Use B for billions, for example Market cap > 10B.'],
+    'Current price':['Current price', 'Latest available US market price in dollars.'],
+    'Sales growth':['Sales growth', 'Trailing revenue growth, expressed as a percentage.'],
+    'EPS':['Earnings per share', 'Trailing earnings per share reported by the company.'],
+    'Dividend yield':['Dividend yield', 'Trailing dividend yield, expressed as a percentage.'],
+    'Daily volume':['Daily volume', 'Latest reported trading volume. Use M for millions, for example Daily volume > 5M.'],
+    'ROE':['Return on equity', 'Trailing return on shareholders’ equity, expressed as a percentage.'],
+    'ROA':['Return on assets', 'Trailing return on assets, expressed as a percentage.'],
+    'ROIC':['Return on invested capital', 'Trailing return on invested capital, expressed as a percentage.'],
+    'P / B':['Price to book', 'Latest price divided by book value per share.'],
+    'P / S':['Price to sales', 'Market value relative to trailing sales.'],
+    'P / FCF':['Price to free cash flow', 'Market value relative to trailing free cash flow.'],
+    'EV / EBITDA':['EV / EBITDA', 'Enterprise value relative to trailing EBITDA.'],
+    'Gross margin':['Gross margin', 'Trailing gross profit as a percentage of revenue.'],
+    'Operating margin':['Operating margin', 'Trailing operating income as a percentage of revenue.'],
+    'Net profit margin':['Net profit margin', 'Trailing net income as a percentage of revenue.'],
+    'Current ratio':['Current ratio', 'Current assets divided by current liabilities.'],
+    'Quick ratio':['Quick ratio', 'Liquid current assets relative to current liabilities.'],
+    'Interest coverage':['Interest coverage', 'Operating earnings available to cover interest expense.'],
+    'Asset turnover':['Asset turnover', 'Trailing revenue relative to total assets.'],
+    'Inventory turnover':['Inventory turnover', 'Cost of sales relative to average inventory.'],
+    'Debt / equity':['Debt to equity', 'Total debt relative to shareholders’ equity.'],
+    'Payout ratio':['Payout ratio', 'Portion of earnings paid as dividends, expressed as a percentage.'],
+    'Operating cash flow / share':['Operating cash flow per share', 'Trailing operating cash flow divided by shares outstanding.'],
+    'Free cash flow / share':['Free cash flow per share', 'Trailing free cash flow divided by shares outstanding.'],
+    'Free cash flow yield':['Free cash flow yield', 'Trailing free cash flow relative to market value, expressed as a percentage.']
+  };
+  const showFieldHelp = label => {
+    const [title, description] = fieldHelp[label] || [label, 'Choose a comparison and a value to add this field to your screen.'];
+    $('#screen-query-help-name').textContent = title;
+    $('#screen-query-help-description').textContent = description;
+    const action = $('#screen-query-help-action');
+    action.textContent = 'Add to query';
+    action.dataset.screenQuery = label;
   };
   let activeGalleryTab = 'most-used';
   const insertQueryText = text => {
@@ -1034,9 +1083,9 @@ function setupScreener() {
     const needle = ($('#screen-ratio-search')?.value || '').trim().toLowerCase();
     const fields = (galleryFields[activeGalleryTab] || []).filter(([token, label]) => !needle || `${token} ${label}`.toLowerCase().includes(needle));
     holder.innerHTML = `<section class="ratio-gallery-column"><h3>Recent</h3>${fields.length
-      ? fields.map(([token, label]) => `<button type="button" data-query-token="${escapeHtml(token)}" title="Add ${escapeHtml(label)} to query">${escapeHtml(label)}</button>`).join('')
+      ? fields.map(([token, label]) => `<button type="button" data-query-token="${escapeHtml(token)}" data-query-label="${escapeHtml(label)}" title="Add ${escapeHtml(label)} to query">${escapeHtml(label)}</button>`).join('')
       : '<span class="ratio-gallery-empty">No available metrics match.</span>'}</section><section class="ratio-gallery-column ratio-gallery-column--future"><h3>Preceding</h3><p>Previous-quarter comparisons will appear after the reported-results sync.</p></section><section class="ratio-gallery-column ratio-gallery-column--future"><h3>Historical</h3><p>Multi-year growth fields will appear after historical financials are connected.</p></section>`;
-    holder.querySelectorAll('[data-query-token]').forEach(button => button.onclick = () => insertQueryText(button.dataset.queryToken));
+    holder.querySelectorAll('[data-query-token]').forEach(button => button.onclick = () => { showFieldHelp(button.dataset.queryLabel || button.dataset.queryToken); insertQueryText(button.dataset.queryToken); });
   };
   document.querySelectorAll('[data-ratio-gallery-tab]').forEach(button => button.onclick = () => {
     activeGalleryTab = button.dataset.ratioGalleryTab || 'most-used';
