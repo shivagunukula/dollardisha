@@ -247,6 +247,25 @@ const scanPercent = value => {
   if (!Number.isFinite(number)) return null;
   return Math.abs(number) <= 2 ? number * 100 : number;
 };
+const savedCustomRatios = () => {
+  try { const value = JSON.parse(localStorage.getItem('dd-custom-ratios') || '[]'); return Array.isArray(value) ? value : []; } catch { return []; }
+};
+const customRatioValue = (stock, key) => {
+  const definition = savedCustomRatios().find(item => `custom:${item.name}` === key);
+  if (!definition) return null;
+  const base = metric => ({
+    price: stock.price, eps: scanNumber(stock.epsTTM, stock.netIncomePerShareTTM), revenue: scanNumber(stock.revenueTTM, stock.revenue, stock.salesTTM, stock.sales),
+    netIncome: scanNumber(stock.netIncomeTTM, stock.netIncome), marketCap: scanNumber(stock.marketCap, stock.cap ? stock.cap * 1e9 : null), pe: scanNumber(stock.pe, stock.peRatioTTM, stock.priceToEarningsRatioTTM),
+    shares: scanNumber(stock.sharesOutstanding, stock.shareCount, stock.shares)
+  }[metric]);
+  const left = Number(base(definition.left)), right = Number(base(definition.right));
+  if (!Number.isFinite(left) || !Number.isFinite(right)) return null;
+  if (definition.op === '/') return right === 0 ? null : left / right;
+  if (definition.op === '*') return left * right;
+  if (definition.op === '+') return left + right;
+  if (definition.op === '-') return left - right;
+  return null;
+};
 function screenerRow(stock, extraColumns = []) {
   const ticker = stock.symbol || stock.ticker;
   const name = stock.companyName || stock.name || ticker;
@@ -263,7 +282,8 @@ function screenerRow(stock, extraColumns = []) {
             : key === 'pb' ? scanNumber(stock.priceToBookRatioTTM)
               : key === 'ps' ? scanNumber(stock.priceToSalesRatioTTM)
                 : key === 'evEbitda' ? scanNumber(stock.enterpriseValueMultipleTTM)
-                  : key === 'margin' ? scanPercent(scanNumber(stock.netProfitMarginTTM))
+                    : key === 'margin' ? scanPercent(scanNumber(stock.netProfitMarginTTM))
+                      : key.startsWith('custom:') ? customRatioValue(stock, key)
                     : null;
     if (value === null) return '—';
     if (['growth', 'dividend', 'margin'].includes(key)) return `${Number(value).toFixed(1)}%`;
@@ -376,6 +396,22 @@ function setupTools() {
   };
   ['tool-cagr-start','tool-cagr-end','tool-cagr-years','tool-peg-pe','tool-peg-growth','tool-size-portfolio','tool-size-risk','tool-size-entry','tool-size-stop'].forEach(id => { const input = $(`#${id}`); if (input) input.oninput = calc; });
   calc();
+  const toolsPage = document.querySelector('.tools-library-page');
+  if (toolsPage && !toolsPage.querySelector('.custom-ratio-tool')) {
+    const customRatioTool = document.createElement('section');
+    customRatioTool.className = 'panel custom-ratio-tool';
+    customRatioTool.innerHTML = '<div class="panel-head"><div><p class="crumb">CUSTOM RATIOS</p><h2>Build a reusable ratio</h2><p>Combine two reported metrics into a formula you can keep with your research.</p></div></div><div class="custom-ratio-form"><label>Name<input id="custom-ratio-name" maxlength="40" placeholder="e.g. Cash per share"></label><label>First metric<select id="custom-ratio-left"><option value="price">Current price</option><option value="eps">EPS</option><option value="revenue">Revenue</option><option value="netIncome">Net income</option><option value="marketCap">Market cap</option><option value="pe">P/E</option></select></label><label>Operator<select id="custom-ratio-op"><option value="/">÷ divide</option><option value="*">× multiply</option><option value="+">+ add</option><option value="-">− subtract</option></select></label><label>Second metric<select id="custom-ratio-right"><option value="shares">Shares outstanding</option><option value="eps">EPS</option><option value="revenue">Revenue</option><option value="netIncome">Net income</option><option value="marketCap">Market cap</option><option value="price">Current price</option></select></label><button class="solid-btn" id="custom-ratio-save" type="button">Save ratio</button></div><p id="custom-ratio-preview" class="custom-ratio-preview">Preview: Current price ÷ Shares outstanding</p><div id="custom-ratio-list" class="custom-ratio-list" aria-live="polite"></div>';
+    toolsPage.append(customRatioTool);
+    const labels = { price:'Current price', eps:'EPS', revenue:'Revenue', netIncome:'Net income', marketCap:'Market cap', pe:'P/E', shares:'Shares outstanding' };
+    const readRatios = () => { try { const value = JSON.parse(localStorage.getItem('dd-custom-ratios') || '[]'); return Array.isArray(value) ? value : []; } catch { return []; } };
+    const writeRatios = ratios => { localStorage.setItem('dd-custom-ratios', JSON.stringify(ratios.slice(0, 20))); };
+    const preview = () => { const left = $('#custom-ratio-left')?.value || 'price'; const right = $('#custom-ratio-right')?.value || 'shares'; const op = $('#custom-ratio-op')?.value || '/'; const target = $('#custom-ratio-preview'); if (target) target.textContent = `Preview: ${labels[left]} ${op === '/' ? '÷' : op === '*' ? '×' : op} ${labels[right]}`; };
+    const drawRatios = () => { const holder = $('#custom-ratio-list'); if (!holder) return; const ratios = readRatios(); holder.innerHTML = ratios.length ? ratios.map((item, index) => `<div class="custom-ratio-item"><span><b>${escapeHtml(item.name)}</b><small>${labels[item.left] || item.left} ${item.op} ${labels[item.right] || item.right}</small></span><button type="button" data-custom-ratio-remove="${index}" aria-label="Remove ${escapeHtml(item.name)}">Remove</button></div>`).join('') : '<p class="data-empty">No custom ratios saved yet.</p>'; holder.querySelectorAll('[data-custom-ratio-remove]').forEach(button => button.onclick = () => { const ratios = readRatios(); ratios.splice(Number(button.dataset.customRatioRemove), 1); writeRatios(ratios); drawRatios(); }); };
+    ['custom-ratio-left','custom-ratio-op','custom-ratio-right'].forEach(id => $(`#${id}`)?.addEventListener('change', preview));
+    $('#custom-ratio-save').onclick = () => { const name = $('#custom-ratio-name')?.value.trim() || 'Untitled ratio'; const ratio = { name, left:$('#custom-ratio-left')?.value || 'price', op:$('#custom-ratio-op')?.value || '/', right:$('#custom-ratio-right')?.value || 'shares' }; writeRatios([ratio, ...readRatios().filter(item => item.name.toLowerCase() !== name.toLowerCase())]); $('#custom-ratio-name').value = ''; drawRatios(); preview(); };
+    preview();
+    drawRatios();
+  }
 }
 
 function compareView() { return `<div class="page">${pageHeader('RESEARCH SIDE BY SIDE', 'Compare companies', 'Search the complete US stock directory and compare two companies side by side.')}<section class="panel compare-panel"><div class="compare-controls"><div class="compare-picker"><label for="compare-a">First company</label><div class="compare-search"><span>⌕</span><input id="compare-a" value="AAPL" maxlength="50" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="compare-a-results"><div id="compare-a-results" class="compare-results" hidden></div></div></div><span class="compare-vs">VS</span><div class="compare-picker"><label for="compare-b">Second company</label><div class="compare-search"><span>⌕</span><input id="compare-b" value="MSFT" maxlength="50" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="compare-b-results"><div id="compare-b-results" class="compare-results" hidden></div></div></div><button id="compare-run" class="solid-btn">Compare stocks</button></div><div id="comparison"></div></section></div>`; }
@@ -871,10 +907,18 @@ function setupScreener() {
   let universe = [];
   let results = [];
   let resultPage = 1;
+  const readCustomRatioDefinitions = () => {
+    try {
+      const value = JSON.parse(localStorage.getItem('dd-custom-ratios') || '[]');
+      return Array.isArray(value) ? value.filter(item => item && item.name && item.left && item.right && item.op) : [];
+    } catch { return []; }
+  };
+  const customRatioDefinitions = readCustomRatioDefinitions();
   const columnOptions = [
     ['eps', 'EPS'], ['growth', 'Sales growth'], ['dividend', 'Dividend yield'], ['debt', 'Debt / equity'],
     ['pb', 'P / B'], ['ps', 'P / S'], ['evEbitda', 'EV / EBITDA'], ['margin', 'Net margin']
   ];
+  customRatioDefinitions.slice(0, 20).forEach(item => columnOptions.push([`custom:${item.name}`, item.name]));
   let selectedColumns = (() => {
     try {
       const saved = JSON.parse(localStorage.getItem('dd-screener-columns') || '[]');
@@ -917,6 +961,7 @@ function setupScreener() {
     if (key === 'ps') return scanNumber(stock.priceToSalesRatioTTM) ?? '';
     if (key === 'evEbitda') return scanNumber(stock.enterpriseValueMultipleTTM) ?? '';
     if (key === 'margin') return scanPercent(scanNumber(stock.netProfitMarginTTM)) ?? '';
+    if (key.startsWith('custom:')) return queryMetricValue(stock, key) ?? '';
     return '';
   };
   renderColumns();
@@ -938,7 +983,7 @@ function setupScreener() {
     ['ev/ebitda', 'evEbitda'], ['ev / ebitda', 'evEbitda'], ['ev ebitda', 'evEbitda'],
     ['price to free cash flow', 'pfcf'], ['p/fcf', 'pfcf'],
     ['roe', 'roe'], ['return on equity', 'roe'], ['roa', 'roa'], ['return on assets', 'roa'], ['roic', 'roic'], ['return on invested capital', 'roic'], ['eps', 'eps'],
-    ['revenue growth', 'growth'], ['sales growth', 'growth'], ['growth', 'growth'],
+    ['revenue growth', 'growth'], ['sales growth', 'growth'], ['growth', 'growth'], ['revenue', 'revenue'], ['net income', 'netIncome'], ['shares outstanding', 'shares'],
     ['gross margin', 'grossMargin'], ['operating margin', 'operatingMargin'], ['net margin', 'margin'], ['net profit margin', 'margin'],
     ['market cap', 'cap'], ['market capitalization', 'cap'], ['mcap', 'cap'],
     ['price', 'price'], ['share price', 'price'], ['current price', 'price'],
@@ -969,6 +1014,7 @@ function setupScreener() {
     ['volume 1 week average', 'volume1w'], ['volume 1 month average', 'volume1m'], ['volume 1 year average', 'volume1y']
   ]);
   let galleryMetricAliases = new Map();
+  customRatioDefinitions.forEach(item => galleryMetricAliases.set(String(item.name).trim().toLowerCase().replace(/\s+/g, ' '), `custom:${item.name}`));
   const normaliseQueryMetric = input => {
     const key = String(input || '').trim().toLowerCase().replace(/\s+/g, ' ');
     return galleryMetricAliases.get(key) || queryMetrics.get(key);
@@ -995,6 +1041,9 @@ function setupScreener() {
     if (metric === 'cap') return scanNumber(stock.marketCap, stock.cap ? stock.cap * 1e9 : null);
     if (metric === 'price') return scanNumber(stock.price);
     if (metric === 'volume') return scanNumber(stock.volume, stock.avgVolume);
+    if (metric === 'revenue') return scanNumber(stock.revenueTTM, stock.revenue, stock.salesTTM, stock.sales);
+    if (metric === 'netIncome') return scanNumber(stock.netIncomeTTM, stock.netIncome, stock.netIncomeAvailable);
+    if (metric === 'shares') return scanNumber(stock.sharesOutstanding, stock.shareCount, stock.shares);
     if (metric === 'currentRatio') return scanNumber(stock.currentRatioTTM);
     if (metric === 'quickRatio') return scanNumber(stock.quickRatioTTM);
     if (metric === 'interestCoverage') return scanNumber(stock.interestCoverageTTM);
@@ -1012,6 +1061,17 @@ function setupScreener() {
       return yieldValue === null ? null : Math.abs(Number(yieldValue)) <= 1 ? Number(yieldValue) * 100 : Number(yieldValue);
     }
     if (metric === 'payoutRatio') return scanPercent(scanNumber(stock.payoutRatioTTM));
+    if (String(metric).startsWith('custom:')) {
+      const definition = customRatioDefinitions.find(item => `custom:${item.name}` === metric);
+      if (!definition) return null;
+      const left = queryMetricValue(stock, definition.left);
+      const right = queryMetricValue(stock, definition.right);
+      if (left === null || right === null || !Number.isFinite(Number(left)) || !Number.isFinite(Number(right))) return null;
+      if (definition.op === '/') return Number(right) === 0 ? null : Number(left) / Number(right);
+      if (definition.op === '*') return Number(left) * Number(right);
+      if (definition.op === '+') return Number(left) + Number(right);
+      if (definition.op === '-') return Number(left) - Number(right);
+    }
     if (dateQueryMetrics.has(metric)) {
       const timestamp = Date.parse(String(stock[metric] || ''));
       return Number.isFinite(timestamp) ? timestamp : null;
@@ -1208,6 +1268,10 @@ function setupScreener() {
     ['Return on equity', 'ROE %'], ['Return on assets', 'ROA %'], ['Return on invested capital', 'ROIC %'], ['Current ratio', 'Liquidity ratio'], ['Quick ratio', 'Liquidity ratio'], ['Debt to equity', 'Leverage ratio'],
     ['Sales growth', 'Trailing sales growth %'], ['Gross margin', 'Gross margin %'], ['Operating margin', 'Operating margin %'], ['Net profit margin', 'Net margin %'], ['EPS', 'Trailing EPS'],
   ];
+  if (customRatioDefinitions.length) {
+    galleryFields['most-used'].recent.push(...customRatioDefinitions.slice(0, 20).map(item => galleryField(item.name, 'Custom ratio')));
+    coreQuerySuggestions.push(...customRatioDefinitions.slice(0, 20).map(item => [item.name, 'Saved custom ratio']));
+  }
   const galleryQuerySuggestions = Object.values(galleryFields).flatMap(category => ['recent', 'preceding', 'historical'].flatMap(column => (category[column] || []).map(field => [field.token, field.label])));
   const querySuggestionCatalog = [...new Map([...coreQuerySuggestions, ...galleryQuerySuggestions]
     .filter(([token]) => Boolean(normaliseQueryMetric(token)))
