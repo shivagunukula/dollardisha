@@ -1284,6 +1284,15 @@ function setupScreener() {
     .map(([token, detail]) => [token.toLowerCase(), [token, detail]])).values()];
   const queryInput = $('#screen-query');
   const querySuggestionHolder = $('#screen-query-suggestions');
+  const sharedQuery = new URLSearchParams(window.location.search).get('query');
+  if (queryInput && sharedQuery && !queryInput.value.trim()) queryInput.value = sharedQuery;
+  const syncSharedQuery = () => {
+    if (!queryInput) return;
+    const url = new URL(window.location.href);
+    const query = queryInput.value.trim();
+    if (query) url.searchParams.set('query', query); else url.searchParams.delete('query');
+    window.history.replaceState({}, '', url);
+  };
   let activeQuerySuggestion = -1;
   let activeQuerySuggestionItems = [];
   const hideQuerySuggestions = () => {
@@ -1662,10 +1671,10 @@ function setupScreener() {
   });
   ['screen-search', 'screen-query', 'screen-sector', 'screen-exchange', 'screen-cap', 'screen-price', 'screen-pe', 'screen-roe', 'screen-eps', 'screen-growth', 'screen-volume', 'screen-dividend', 'screen-sort', 'screen-formula-metric', 'screen-formula-op', 'screen-formula-value'].forEach(id => $(`#${id}`).oninput = () => { resultPage = 1; draw(); });
   $('#screen-query-clear').onclick = () => { $('#screen-query').value = ''; resultPage = 1; draw(); };
-  $('#screen-run-query').onclick = () => { resultPage = 1; draw(); $('.screen-results-heading')?.scrollIntoView({ behavior:'smooth', block:'start' }); };
+  $('#screen-run-query').onclick = () => { syncSharedQuery(); resultPage = 1; draw(); $('.screen-results-heading')?.scrollIntoView({ behavior:'smooth', block:'start' }); };
   document.querySelectorAll('[data-screen-query]').forEach(button => button.onclick = () => { $('#screen-query').value = button.dataset.screenQuery || ''; resultPage = 1; draw(); });
   $('#screen-formula-clear').onclick = () => { $('#screen-formula-metric').value = 'none'; $('#screen-formula-value').value = ''; draw(); };
-  $('#screen-run').onclick = () => load(true);
+  $('#screen-run').onclick = () => { syncSharedQuery(); load(true); };
   $('#export-screen').onclick = () => {
     const selectedLabels = new Map(columnOptions);
     const csv = [['Symbol','Company','Price','Market Cap','P/E','ROE','Volume', ...selectedColumns.map(key => selectedLabels.get(key)), 'Sector'].join(','), ...results.map(stock => {
