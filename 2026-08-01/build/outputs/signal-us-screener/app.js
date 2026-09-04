@@ -889,6 +889,23 @@ function setupScreener() {
     resultsPanel.innerHTML = `<div class="screen-results-heading"><div><h2>Query results</h2><p id="screen-result-count">Loading active US stocks…</p></div><div class="screen-results-actions"><button type="button" class="link-button" id="screen-save-focus">Save this query</button><button type="button" class="link-button" id="screen-columns-focus">Edit columns</button></div></div>`;
     const actionGroup = resultsPanel.querySelector('.screen-results-actions');
     if (exportButton) actionGroup.append(exportButton);
+    const copyLinkButton = document.createElement('button');
+    copyLinkButton.type = 'button';
+    copyLinkButton.className = 'link-button';
+    copyLinkButton.id = 'screen-copy-link';
+    copyLinkButton.textContent = 'Copy screen link';
+    actionGroup.append(copyLinkButton);
+    copyLinkButton.onclick = async () => {
+      syncSharedQuery?.();
+      const link = window.location.href;
+      try {
+        await navigator.clipboard.writeText(link);
+        copyLinkButton.textContent = 'Link copied';
+        setTimeout(() => { copyLinkButton.textContent = 'Copy screen link'; }, 1800);
+      } catch {
+        window.prompt('Copy this screen link', link);
+      }
+    };
     resultsPanel.append(tablePanel);
     resultsPanel.insertAdjacentHTML('beforeend', '<div class="screen-pagination" id="screen-pagination"></div>');
     const extraTools = document.createElement('details');
