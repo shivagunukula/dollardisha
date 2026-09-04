@@ -398,6 +398,9 @@ function setupTools() {
   calc();
   const toolsPage = document.querySelector('.tools-library-page');
   if (toolsPage && !toolsPage.querySelector('.custom-ratio-tool')) {
+    toolsPage.querySelectorAll('.tool-library-card h3').forEach(title => {
+      if (title.textContent.trim().toLowerCase() === 'global market pulse') title.closest('.tool-library-card')?.remove();
+    });
     const customRatioTool = document.createElement('section');
     customRatioTool.className = 'panel custom-ratio-tool';
     customRatioTool.innerHTML = '<div class="panel-head"><div><p class="crumb">CUSTOM RATIOS</p><h2>Build a reusable ratio</h2><p>Combine two reported metrics into a formula you can keep with your research.</p></div></div><div class="custom-ratio-form"><label>Name<input id="custom-ratio-name" maxlength="40" placeholder="e.g. Cash per share"></label><label>First metric<select id="custom-ratio-left"><option value="price">Current price</option><option value="eps">EPS</option><option value="revenue">Revenue</option><option value="netIncome">Net income</option><option value="marketCap">Market cap</option><option value="pe">P/E</option></select></label><label>Operator<select id="custom-ratio-op"><option value="/">÷ divide</option><option value="*">× multiply</option><option value="+">+ add</option><option value="-">− subtract</option></select></label><label>Second metric<select id="custom-ratio-right"><option value="shares">Shares outstanding</option><option value="eps">EPS</option><option value="revenue">Revenue</option><option value="netIncome">Net income</option><option value="marketCap">Market cap</option><option value="price">Current price</option></select></label><button class="solid-btn" id="custom-ratio-save" type="button">Save ratio</button></div><p id="custom-ratio-preview" class="custom-ratio-preview">Preview: Current price ÷ Shares outstanding</p><div id="custom-ratio-list" class="custom-ratio-list" aria-live="polite"></div>';
