@@ -1380,6 +1380,14 @@ function setupScreener() {
   queryInput?.addEventListener('focus', renderQuerySuggestions);
   queryInput?.addEventListener('input', () => { activeQuerySuggestion = -1; renderQuerySuggestions(); });
   queryInput?.addEventListener('keydown', event => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      event.preventDefault();
+      hideQuerySuggestions();
+      syncSharedQuery();
+      resultPage = 1;
+      draw();
+      return;
+    }
     if (!querySuggestionHolder || querySuggestionHolder.hidden) return;
     if (event.key === 'Escape') { event.preventDefault(); hideQuerySuggestions(); return; }
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
