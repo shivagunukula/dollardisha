@@ -848,7 +848,7 @@ function setupScreener() {
     extraContent.append(dataTools, advancedBuilder, presetsPanel, columnsPanel, savedPanel, filterPanel);
     filterLayout.remove();
     utilityRow?.remove();
-    screenerPage.append(resultsPanel, queryBuilder, ratioGallery, extraTools);
+    screenerPage.append(queryBuilder, ratioGallery, resultsPanel, extraTools);
   }
   let universe = [];
   let results = [];
