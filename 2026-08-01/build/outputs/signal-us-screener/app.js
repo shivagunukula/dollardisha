@@ -1284,13 +1284,27 @@ function setupScreener() {
     .map(([token, detail]) => [token.toLowerCase(), [token, detail]])).values()];
   const queryInput = $('#screen-query');
   const querySuggestionHolder = $('#screen-query-suggestions');
-  const sharedQuery = new URLSearchParams(window.location.search).get('query');
+  const sharedParams = new URLSearchParams(window.location.search);
+  const sharedQuery = sharedParams.get('query');
   if (queryInput && sharedQuery && !queryInput.value.trim()) queryInput.value = sharedQuery;
+  ['sector','exchange','cap','price','pe','roe','eps','growth','volume','dividend','sort'].forEach(name => {
+    const input = $(`#screen-${name}`);
+    const selected = sharedParams.get(name);
+    if (input && selected !== null && [...input.options].some(option => option.value === selected)) input.value = selected;
+  });
+  const sharedSearch = sharedParams.get('search');
+  if ($('#screen-search') && sharedSearch !== null) $('#screen-search').value = sharedSearch;
   const syncSharedQuery = () => {
     if (!queryInput) return;
     const url = new URL(window.location.href);
     const query = queryInput.value.trim();
     if (query) url.searchParams.set('query', query); else url.searchParams.delete('query');
+    ['sector','exchange','cap','price','pe','roe','eps','growth','volume','dividend','sort'].forEach(name => {
+      const value = $(`#screen-${name}`)?.value;
+      if (value) url.searchParams.set(name, value); else url.searchParams.delete(name);
+    });
+    const search = $('#screen-search')?.value.trim();
+    if (search) url.searchParams.set('search', search); else url.searchParams.delete('search');
     window.history.replaceState({}, '', url);
   };
   let activeQuerySuggestion = -1;
