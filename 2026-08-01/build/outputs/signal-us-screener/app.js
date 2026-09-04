@@ -1801,7 +1801,7 @@ function companyView(ticker) {
       </div>
       <button class="solid-btn ${watchlist.includes(ticker) ? 'saved' : ''}" data-watch="${ticker}">${watchlist.includes(ticker) ? 'Following' : 'Follow'}</button>
     </div>
-    <nav class="company-tabs" aria-label="Company research sections"><a href="#overview">Summary</a><a href="#chart">Chart</a><a href="#earnings">Earnings</a><a href="#intelligence">Analysis</a><a href="#intelligence">Outlook</a><a href="#peers">Peers</a><a href="#quarterly">Quarters</a><a href="#financials">P&amp;L</a><a href="#financials">Balance Sheet</a><a href="#financials">Cash Flow</a><a href="#overview-ratios">Ratios</a><a href="#intelligence">Investors</a><a href="#events">Events</a><a href="#documents">Documents</a></nav>
+    <nav class="company-tabs" aria-label="Company research sections"><a href="#overview">Summary</a><a href="#chart">Chart</a><a href="#earnings">Earnings</a><a href="#intelligence">Analysis</a><a href="#intelligence">Outlook</a><a href="#peers">Peers</a><a href="#quarterly">Quarters</a><a href="#pnl">P&amp;L</a><a href="#balance-sheet">Balance Sheet</a><a href="#cash-flow">Cash Flow</a><a href="#overview-ratios">Ratios</a><a href="#intelligence">Investors</a><a href="#events">Events</a><a href="#documents">Documents</a></nav>
     <div class="company-actionbar"><span class="live-pill"><i></i> Live research data</span><span id="company-freshness">Updating from connected providers…</span><button type="button" class="link-button" id="company-refresh">Refresh data</button><button type="button" class="solid-btn" id="company-export">Export research CSV</button></div>
     <div id="overview" class="company-overview-stack">
       <section class="panel company-summary company-research-card">
@@ -3206,6 +3206,10 @@ hydrateCompany = async function(ticker) {
     await hydrateCompanyBeforeMotion(ticker);
   } finally {
     if (page !== ticker || !companyPage?.isConnected) return;
+    companyPage.querySelectorAll('#financials > .financial-panel').forEach((panel, index) => {
+      const ids = ['pnl', 'balance-sheet', 'cash-flow'];
+      if (ids[index]) panel.id = ids[index];
+    });
     companyPage.classList.remove('company-loading');
     companyPage.classList.add('company-ready');
     companyPage.setAttribute('aria-busy', 'false');
