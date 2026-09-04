@@ -2158,7 +2158,10 @@ function renderCompanyEventTimeline(holder, intel, filingData, ticker) {
   const calls = (Array.isArray(intel?.transcriptDates) ? intel.transcriptDates : []).slice(0, 10).map(item => ({
     type:'call', date:reportedDate(item.date), title:`Q${item.quarter || '—'} ${item.year || ''} earnings call`, detail:'Company management discussion and analyst Q&A', year:item.year, quarter:item.quarter
   }));
-  const events = [...earnings, ...dividends, ...calls, ...filings].filter(item => item.date).sort((a, b) => {
+  const insiders = (Array.isArray(intel?.insiders) ? intel.insiders : []).slice(0, 10).map(item => ({
+    type:'insider', date:reportedDate(item.transactionDate, item.filingDate, item.date), title:item.reportingName || item.name || 'Insider transaction', detail:`${item.transactionType || item.transactionTypeName || 'Reported transaction'}${item.securitiesTransacted ? ` · ${item.securitiesTransacted} shares` : ''}`
+  }));
+  const events = [...earnings, ...dividends, ...calls, ...insiders, ...filings].filter(item => item.date).sort((a, b) => {
     const aFuture = a.date >= today; const bFuture = b.date >= today;
     if (aFuture !== bFuture) return aFuture ? -1 : 1;
     return aFuture ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date);
@@ -2167,7 +2170,7 @@ function renderCompanyEventTimeline(holder, intel, filingData, ticker) {
     holder.innerHTML = '<div class="earnings-empty"><b>No dated company events were returned</b><span>DollarDisha will show the timeline when the provider or SEC reports a dated event.</span></div>';
     return;
   }
-  const labels = { all:'All events', earnings:'Earnings', filing:'SEC filings', dividend:'Dividends', call:'Calls' };
+  const labels = { all:'All events', earnings:'Earnings', filing:'SEC filings', dividend:'Dividends', call:'Calls', insider:'Insider activity' };
   let active = 'all';
   const draw = () => {
     const visible = events.filter(item => active === 'all' || item.type === active).slice(0, 18);
@@ -2182,6 +2185,8 @@ async function hydrateCompanyEarningsAndEvents(ticker) {
   const earningsHolder = $('#company-earnings-dashboard');
   const timelineHolder = $('#company-event-timeline');
   if (!earningsHolder && !timelineHolder) return;
+  // Insider activity belongs to the unified event timeline rather than a separate intelligence card.
+  $('#company-insiders')?.closest('.panel')?.remove();
   try {
     const [intel, filings] = await Promise.all([
       getJson(`/data/company-intel?symbol=${encodeURIComponent(ticker)}`, 45000),
