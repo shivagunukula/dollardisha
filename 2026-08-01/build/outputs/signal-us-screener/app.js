@@ -932,6 +932,7 @@ function setupScreener() {
     ['operating cash flow per share', 'operatingCashFlowPerShare'], ['operating cash flow / share', 'operatingCashFlowPerShare'],
     ['free cash flow per share', 'freeCashFlowPerShare'], ['free cash flow / share', 'freeCashFlowPerShare'],
     ['free cash flow yield', 'freeCashFlowYield'], ['fcf yield', 'freeCashFlowYield']
+    ,['earnings yield', 'earningsYield'], ['enterprise value', 'enterpriseValue']
     ,['sales', 'sales'], ['sales preceding year', 'salesPrev'], ['sales growth 3 years', 'salesGrowth3y'], ['sales growth 5 years', 'salesGrowth5y'],
     ['profit after tax', 'profitAfterTax'], ['net profit last year', 'profitAfterTax'], ['net profit preceding year', 'profitPrev'], ['profit growth 3 years', 'profitGrowth3y'], ['profit growth 5 years', 'profitGrowth5y'], ['eps preceding year', 'epsPrev'],
     ['sales latest quarter', 'salesLatestQuarter'], ['profit after tax latest quarter', 'profitLatestQuarter'], ['net profit latest quarter', 'profitLatestQuarter'], ['eps latest quarter', 'epsLatestQuarter'],
@@ -949,8 +950,13 @@ function setupScreener() {
     ['rsi', 'rsi14'], ['macd', 'macd'], ['macd signal', 'macdSignal'],
     ['volume 1 week average', 'volume1w'], ['volume 1 month average', 'volume1m'], ['volume 1 year average', 'volume1y']
   ]);
-  const normaliseQueryMetric = input => queryMetrics.get(String(input || '').trim().toLowerCase().replace(/\s+/g, ' '));
+  let galleryMetricAliases = new Map();
+  const normaliseQueryMetric = input => {
+    const key = String(input || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    return galleryMetricAliases.get(key) || queryMetrics.get(key);
+  };
   const priceHistoryQueryMetrics = new Set(['return1d', 'return1w', 'return1m', 'return3m', 'return6m', 'return1y', 'return3y', 'return5y', 'high52w', 'low52w', 'allTimeHigh', 'allTimeLow', 'ma50', 'ma200', 'rsi14', 'macd', 'macdSignal', 'volume1w', 'volume1m', 'volume1y']);
+  const dateQueryMetrics = new Set(['latestResultDate']);
   const queryMetricValue = (stock, metric) => {
     if (metric === 'pe') return scanNumber(stock.pe, stock.peRatioTTM, stock.priceToEarningsRatioTTM);
     if (metric === 'pb') return scanNumber(stock.priceToBookRatioTTM);
@@ -988,7 +994,11 @@ function setupScreener() {
       return yieldValue === null ? null : Math.abs(Number(yieldValue)) <= 1 ? Number(yieldValue) * 100 : Number(yieldValue);
     }
     if (metric === 'payoutRatio') return scanPercent(scanNumber(stock.payoutRatioTTM));
-    if (['return1d', 'return1w', 'return1m', 'return3m', 'return6m', 'return1y', 'return3y', 'return5y', 'high52w', 'low52w', 'allTimeHigh', 'allTimeLow', 'ma50', 'ma200', 'rsi14', 'macd', 'macdSignal', 'volume1w', 'volume1m', 'volume1y', 'sales', 'salesPrev', 'salesGrowth3y', 'salesGrowth5y', 'profitAfterTax', 'profitPrev', 'profitGrowth3y', 'profitGrowth5y', 'epsPrev', 'salesLatestQuarter', 'profitLatestQuarter', 'epsLatestQuarter', 'salesPrecedingQuarter', 'profitPrecedingQuarter', 'epsPrecedingQuarter', 'salesPriorYearQuarter', 'profitPriorYearQuarter', 'epsPriorYearQuarter', 'salesGrowthQuarter', 'profitGrowthQuarter', 'debtBalance', 'debtPrev', 'equity', 'retainedEarnings', 'totalAssets', 'currentAssets', 'currentLiabilities', 'cashAndEquivalents', 'inventory', 'receivables', 'payables', 'operatingCashFlow', 'operatingCashFlowPrev', 'freeCashFlowPrev', 'investingCashFlow', 'financingCashFlow', 'netCashFlow'].includes(metric)) return scanNumber(stock[metric === 'debtBalance' ? 'debt' : metric]);
+    if (dateQueryMetrics.has(metric)) {
+      const timestamp = Date.parse(String(stock[metric] || ''));
+      return Number.isFinite(timestamp) ? timestamp : null;
+    }
+    if (Object.hasOwn(stock, metric)) return scanNumber(stock[metric]);
     return null;
   };
   const parseQueryNumber = (raw, suffix, metric) => {
@@ -1001,9 +1011,13 @@ function setupScreener() {
   };
   const parseScreenQuery = input => String(input || '').trim().split(/\s+and\s+|,/i).map(part => part.trim()).filter(Boolean).reduce((parsed, part) => {
     const match = part.match(/^(.+?)\s*(<=|>=|!=|=|<|>)\s*\$?\s*(-?\d[\d,]*(?:\.\d+)?)\s*([%BbMmKk]?)$/);
-    if (!match) { parsed.invalid.push(part); return parsed; }
-    const metric = normaliseQueryMetric(match[1]);
-    const target = metric ? parseQueryNumber(match[3], match[4], metric) : null;
+    const dateMatch = part.match(/^(.+?)\s*(<=|>=|!=|=|<|>)\s*(\d{4}-\d{2}-\d{2})$/);
+    const candidate = match || dateMatch;
+    if (!candidate) { parsed.invalid.push(part); return parsed; }
+    const metric = normaliseQueryMetric(candidate[1]);
+    const target = metric && dateQueryMetrics.has(metric)
+      ? Date.parse(candidate[3])
+      : match ? parseQueryNumber(match[3], match[4], metric) : null;
     if (!metric || target === null) { parsed.invalid.push(part); return parsed; }
     parsed.rules.push({ metric, operator: match[2], target });
     return parsed;
@@ -1025,21 +1039,16 @@ function setupScreener() {
     status.classList.toggle('is-active', Boolean(parsed.rules.length) && !parsed.invalid.length);
     const incompleteField = parsed.invalid.length === 1 && Boolean(normaliseQueryMetric(parsed.invalid[0]));
     if (incompleteField) { status.classList.remove('has-error'); status.textContent = `“${parsed.invalid[0]}” added. Choose an operator and number to complete this rule.`; }
-    else if (parsed.invalid.length) status.textContent = `Could not use: ${parsed.invalid.join(' · ')}. Choose a field from the Ratio Gallery, then use <, >, <= or >= with a number.`;
+    else if (parsed.invalid.length) status.textContent = `Could not use: ${parsed.invalid.join(' · ')}. Choose a field from the Ratio Gallery, then use <, >, <= or >= with a number (or YYYY-MM-DD for a result date).`;
     else if (parsed.rules.length) status.textContent = `${parsed.rules.length} custom ${parsed.rules.length === 1 ? 'rule' : 'rules'} active. Every rule must match.`;
     else status.textContent = 'Choose a metric from the Ratio Gallery, then add an operator and a number.';
   };
-  const financialHistoryTokens = new Set([
-    'Sales', 'Sales preceding year', 'Sales growth 3 years', 'Sales growth 5 years', 'Profit after tax', 'Net profit last year', 'Net profit preceding year', 'Profit growth 3 years', 'Profit growth 5 years', 'EPS preceding year',
-    'Sales latest quarter', 'Profit after tax latest quarter', 'Net profit latest quarter', 'EPS latest quarter', 'Sales preceding quarter', 'Profit after tax preceding quarter', 'Net profit preceding quarter', 'EPS preceding quarter', 'Sales preceding year quarter', 'Profit after tax preceding year quarter', 'Net profit preceding year quarter', 'EPS preceding year quarter', 'YOY quarterly sales growth', 'YOY quarterly profit growth',
-    'Debt', 'Debt preceding year', 'Equity capital', 'Reserves', 'Total assets', 'Current assets', 'Current liabilities', 'Cash equivalents', 'Inventory', 'Trade receivables', 'Trade payables',
-    'Cash from operations last year', 'Cash from operations preceding year', 'Free cash flow preceding year', 'Cash from investing last year', 'Cash from financing last year', 'Net cash flow last year'
-  ]);
   let financialHistoryLoaded = false;
+  let financialHistoryState = 'idle';
   // `available` is deliberately explicit. The gallery may show a metric that
   // belongs in a US-equity screen, but it is only selectable once it is
   // calculated for the whole live universe—not merely for one company page.
-  const galleryField = (token, label, available = true) => ({ token, label, available:available === false && financialHistoryTokens.has(token) ? 'financial' : available });
+  const galleryField = (token, label, available = true) => ({ token, label, available:available === false ? 'financial' : available });
   const galleryFields = {
     'most-used': {
       recent: [
@@ -1049,7 +1058,7 @@ function setupScreener() {
         galleryField('Dividend yield', 'Dividend yield'), galleryField('Volume', 'Volume')
       ],
       preceding: [galleryField('Sales preceding year', 'Sales preceding year', false), galleryField('EPS preceding year', 'EPS preceding year', false)],
-      historical: [galleryField('Sales growth 3 years', 'Sales growth 3 years', false), galleryField('Profit growth 3 years', 'Profit growth 3 years', false), galleryField('Return over 1 year', 'Return over 1 year', false)]
+      historical: [galleryField('Sales growth 3 years', 'Sales growth 3 years', false), galleryField('Profit growth 3 years', 'Profit growth 3 years', false), galleryField('Return over 1 year', 'Return over 1 year')]
     },
     annual: {
       recent: [
@@ -1102,9 +1111,9 @@ function setupScreener() {
     },
     balance: {
       recent: [
-        galleryField('Debt', 'Total debt', false), galleryField('Equity capital', 'Shareholders’ equity', false), galleryField('Reserves', 'Retained earnings', false), galleryField('Secured loan', 'Secured debt', false), galleryField('Unsecured loan', 'Unsecured debt', false),
+        galleryField('Debt', 'Total debt', false), galleryField('Equity capital', 'Shareholders’ equity', false), galleryField('Reserves', 'Retained earnings', false), galleryField('Short-term debt', 'Short-term debt', false), galleryField('Long-term debt', 'Long-term debt', false),
         galleryField('Balance sheet total', 'Balance-sheet total', false), galleryField('Gross block', 'Gross property, plant & equipment', false), galleryField('Accumulated depreciation', 'Accumulated depreciation', false), galleryField('Net block', 'Net property, plant & equipment', false),
-        galleryField('Capital work in progress', 'Construction in progress', false), galleryField('Investments', 'Investments', false), galleryField('Current assets', 'Current assets', false), galleryField('Current liabilities', 'Current liabilities', false),
+        galleryField('Other property, plant & equipment', 'Other property, plant & equipment', false), galleryField('Investments', 'Investments', false), galleryField('Current assets', 'Current assets', false), galleryField('Current liabilities', 'Current liabilities', false),
         galleryField('Total assets', 'Total assets', false), galleryField('Working capital', 'Working capital', false), galleryField('Lease liabilities', 'Lease liabilities', false), galleryField('Inventory', 'Inventory', false), galleryField('Trade receivables', 'Accounts receivable', false),
         galleryField('Cash equivalents', 'Cash & equivalents', false), galleryField('Trade payables', 'Accounts payable', false), galleryField('Debt to equity', 'Debt to equity'), galleryField('Current ratio', 'Current ratio'), galleryField('Quick ratio', 'Quick ratio')
       ],
@@ -1119,7 +1128,7 @@ function setupScreener() {
     ratios: {
       recent: [
         galleryField('Market cap', 'Market capitalisation'), galleryField('P/E', 'Price to earnings'), galleryField('Dividend yield', 'Dividend yield'), galleryField('Price to book', 'Price to book'), galleryField('Return on assets', 'Return on assets'), galleryField('Debt to equity', 'Debt to equity'), galleryField('Return on equity', 'Return on equity'),
-        galleryField('Earnings yield', 'Earnings yield', false), galleryField('Enterprise value', 'Enterprise value', false), galleryField('Price to sales', 'Price to sales'), galleryField('Price to free cash flow', 'Price to free cash flow'), galleryField('EV / EBITDA', 'EV / EBITDA'), galleryField('Return on invested capital', 'Return on invested capital'),
+        galleryField('Earnings yield', 'Earnings yield'), galleryField('Enterprise value', 'Enterprise value'), galleryField('Price to sales', 'Price to sales'), galleryField('Price to free cash flow', 'Price to free cash flow'), galleryField('EV / EBITDA', 'EV / EBITDA'), galleryField('Return on invested capital', 'Return on invested capital'),
         galleryField('Gross margin', 'Gross margin'), galleryField('Operating margin', 'Operating margin'), galleryField('Net profit margin', 'Net profit margin'), galleryField('Current ratio', 'Current ratio'), galleryField('Quick ratio', 'Quick ratio'), galleryField('Interest coverage', 'Interest coverage'), galleryField('Asset turnover', 'Asset turnover'), galleryField('Inventory turnover', 'Inventory turnover'), galleryField('Payout ratio', 'Payout ratio')
       ],
       preceding: [galleryField('Book value preceding year', 'Book value preceding year', false), galleryField('Return on capital employed preceding year', 'Return on capital employed preceding year', false), galleryField('Return on assets preceding year', 'Return on assets preceding year', false), galleryField('Return on equity preceding year', 'Return on equity preceding year', false)],
@@ -1131,6 +1140,21 @@ function setupScreener() {
       historical: [galleryField('Return over 1 year', 'Return over 1 year'), galleryField('Return over 3 years', 'Return over 3 years'), galleryField('Return over 5 years', 'Return over 5 years'), galleryField('Volume 1 year average', 'Volume 1-year average')]
     }
   };
+  // Every financial-gallery chip is connected to a normalized field returned
+  // by /data/screener-financial-metrics. This makes the displayed vocabulary
+  // and the query parser use one consistent source of truth.
+  const financialMetricRows = [
+    ['sales', ['Sales', 'Sales last year']], ['salesPrev', ['Sales preceding year', 'Sales preceding 12 months']], ['salesGrowth3y', ['Sales growth 3 years']], ['salesGrowth5y', ['Sales growth 5 years']], ['salesGrowth7y', ['Sales growth 7 years']], ['salesGrowth10y', ['Sales growth 10 years']],
+    ['operatingProfit', ['Operating profit last year']], ['operatingProfitPrev', ['Operating profit preceding year']], ['otherIncome', ['Other income last year']], ['otherIncomePrev', ['Other income preceding year']], ['ebitda', ['EBITDA last year']], ['ebitdaPrev', ['EBITDA preceding year']], ['depreciation', ['Depreciation last year']], ['depreciationPrev', ['Depreciation preceding year']], ['ebit', ['EBIT last year']], ['ebitPrev', ['EBIT preceding year']], ['interestExpense', ['Interest last year']], ['interestExpensePrev', ['Interest preceding year']], ['incomeBeforeTax', ['Profit before tax last year']], ['incomeBeforeTaxPrev', ['Profit before tax preceding year']], ['incomeTax', ['Tax last year']], ['incomeTaxPrev', ['Tax preceding year']],
+    ['profitAfterTax', ['Profit after tax', 'Net profit last year']], ['profitPrev', ['Profit after tax preceding year', 'Net profit preceding year', 'Net profit preceding 12 months']], ['profitGrowth3y', ['Profit growth 3 years']], ['profitGrowth5y', ['Profit growth 5 years']], ['profitGrowth7y', ['Profit growth 7 years']], ['profitGrowth10y', ['Profit growth 10 years']], ['epsAnnual', ['EPS last year']], ['epsPrev', ['EPS preceding year']], ['epsGrowth3y', ['EPS growth 3 years']], ['epsGrowth5y', ['EPS growth 5 years']], ['epsGrowth7y', ['EPS growth 7 years']], ['epsGrowth10y', ['EPS growth 10 years']], ['dividendAnnual', ['Dividend last year']], ['averageEarnings5y', ['Average earnings 5 years']], ['averageEbit5y', ['Average EBIT 5 years']],
+    ['salesLatestQuarter', ['Sales latest quarter']], ['salesPrecedingQuarter', ['Sales preceding quarter']], ['salesPriorYearQuarter', ['Sales preceding year quarter']], ['sales2QuartersBack', ['Sales 2 quarters back']], ['sales3QuartersBack', ['Sales 3 quarters back']], ['salesGrowthQuarter', ['YOY quarterly sales growth']], ['profitLatestQuarter', ['Profit after tax latest quarter', 'Net profit latest quarter']], ['profitPrecedingQuarter', ['Profit after tax preceding quarter', 'Net profit preceding quarter']], ['profitPriorYearQuarter', ['Profit after tax preceding year quarter', 'Net profit preceding year quarter']], ['profit2QuartersBack', ['Net profit 2 quarters back']], ['profit3QuartersBack', ['Net profit 3 quarters back']], ['profitGrowthQuarter', ['YOY quarterly profit growth', 'Profit growth']], ['epsLatestQuarter', ['EPS latest quarter']], ['epsPrecedingQuarter', ['EPS preceding quarter']], ['epsPriorYearQuarter', ['EPS preceding year quarter']],
+    ['operatingProfitLatestQuarter', ['Operating profit latest quarter']], ['operatingProfitPrecedingQuarter', ['Operating profit preceding quarter']], ['operatingProfitPriorYearQuarter', ['Operating profit preceding year quarter']], ['otherIncomeLatestQuarter', ['Other income latest quarter']], ['otherIncomePrecedingQuarter', ['Other income preceding quarter']], ['otherIncomePriorYearQuarter', ['Other income preceding year quarter']], ['ebitdaLatestQuarter', ['EBITDA latest quarter']], ['ebitdaPrecedingQuarter', ['EBITDA preceding quarter']], ['ebitdaPriorYearQuarter', ['EBITDA preceding year quarter']], ['depreciationLatestQuarter', ['Depreciation latest quarter']], ['depreciationPrecedingQuarter', ['Depreciation preceding quarter']], ['depreciationPriorYearQuarter', ['Depreciation preceding year quarter']], ['ebitLatestQuarter', ['EBIT latest quarter']], ['ebitPrecedingQuarter', ['EBIT preceding quarter']], ['ebitPriorYearQuarter', ['EBIT preceding year quarter']], ['interestLatestQuarter', ['Interest latest quarter']], ['interestPrecedingQuarter', ['Interest preceding quarter']], ['interestPriorYearQuarter', ['Interest preceding year quarter']], ['preTaxLatestQuarter', ['Profit before tax latest quarter']], ['preTaxPrecedingQuarter', ['Profit before tax preceding quarter']], ['preTaxPriorYearQuarter', ['Profit before tax preceding year quarter']], ['taxLatestQuarter', ['Tax latest quarter']], ['taxPrecedingQuarter', ['Tax preceding quarter']], ['taxPriorYearQuarter', ['Tax preceding year quarter']], ['grossMarginLatestQuarter', ['Gross margin latest quarter']], ['grossMarginPrecedingQuarter', ['Gross margin preceding quarter']], ['grossMarginPriorYearQuarter', ['Gross margin preceding year quarter']], ['operatingMarginLatestQuarter', ['Operating margin latest quarter']], ['operatingMarginPrecedingQuarter', ['Operating margin preceding quarter']], ['operatingMarginPriorYearQuarter', ['Operating margin preceding year quarter']], ['netMarginLatestQuarter', ['Net margin latest quarter']], ['netMarginPrecedingQuarter', ['Net margin preceding quarter']], ['netMarginPriorYearQuarter', ['Net margin preceding year quarter']], ['latestResultDate', ['Last result date']],
+    ['debt', ['Debt']], ['debtPrev', ['Debt preceding year']], ['debt3y', ['Debt 3 years back']], ['debt5y', ['Debt 5 years back']], ['debt7y', ['Debt 7 years back']], ['debt10y', ['Debt 10 years back']], ['shortTermDebt', ['Short-term debt']], ['longTermDebt', ['Long-term debt']], ['equity', ['Equity capital']], ['preferredEquity', ['Preference capital']], ['retainedEarnings', ['Reserves']], ['totalAssets', ['Total assets', 'Balance sheet total']], ['totalLiabilities', ['Total liabilities']], ['grossPpe', ['Gross block']], ['grossPpePrev', ['Gross block preceding year']], ['accumulatedDepreciation', ['Accumulated depreciation']], ['netPpe', ['Net block']], ['netPpePrev', ['Net block preceding year']], ['netPpe3y', ['Net block 3 years back']], ['netPpe5y', ['Net block 5 years back']], ['otherPpe', ['Other property, plant & equipment']], ['investments', ['Investments']], ['currentAssets', ['Current assets']], ['currentLiabilities', ['Current liabilities']], ['workingCapital', ['Working capital']], ['workingCapitalPrev', ['Working capital preceding year']], ['workingCapital3y', ['Working capital 3 years back']], ['workingCapital5y', ['Working capital 5 years back']], ['workingCapital7y', ['Working capital 7 years back']], ['workingCapital10y', ['Working capital 10 years back']], ['leaseLiabilities', ['Lease liabilities']], ['inventory', ['Inventory']], ['receivables', ['Trade receivables']], ['cashAndEquivalents', ['Cash equivalents']], ['payables', ['Trade payables']],
+    ['operatingCashFlow', ['Cash from operations last year']], ['operatingCashFlowPrev', ['Cash from operations preceding year']], ['operatingCashFlow3y', ['Operating cash flow 3 years']], ['operatingCashFlow5y', ['Operating cash flow 5 years']], ['operatingCashFlow7y', ['Operating cash flow 7 years']], ['operatingCashFlow10y', ['Operating cash flow 10 years']], ['freeCashFlow', ['Free cash flow last year']], ['freeCashFlowPrev', ['Free cash flow preceding year']], ['freeCashFlow3y', ['Free cash flow 3 years']], ['freeCashFlow5y', ['Free cash flow 5 years']], ['freeCashFlow7y', ['Free cash flow 7 years']], ['freeCashFlow10y', ['Free cash flow 10 years']], ['investingCashFlow', ['Cash from investing last year']], ['investingCashFlowPrev', ['Cash from investing preceding year']], ['investingCashFlow3y', ['Investing cash flow 3 years']], ['investingCashFlow5y', ['Investing cash flow 5 years']], ['investingCashFlow7y', ['Investing cash flow 7 years']], ['investingCashFlow10y', ['Investing cash flow 10 years']], ['financingCashFlow', ['Cash from financing last year']], ['financingCashFlowPrev', ['Cash from financing preceding year']], ['netCashFlow', ['Net cash flow last year']], ['netCashFlowPrev', ['Net cash flow preceding year']], ['cashBeginning', ['Cash beginning last year']], ['cashEnd', ['Cash end last year']], ['cash3y', ['Cash 3 years back']],
+    ['bookValuePrev', ['Book value preceding year']], ['annualRocePrev', ['Return on capital employed preceding year']], ['annualRoaPrev', ['Return on assets preceding year']], ['annualRoePrev', ['Return on equity preceding year']], ['averageRoe3y', ['Average return on equity 3 years']], ['averageRoe5y', ['Average return on equity 5 years']], ['averageRoe7y', ['Average return on equity 7 years']], ['averageRoe10y', ['Average return on equity 10 years']], ['averageRoa3y', ['Return on assets 3 years', 'Return on assets 5 years']], ['averageRoce3y', ['Average return on capital employed 3 years']], ['averageRoce5y', ['Average return on capital employed 5 years']], ['averageRoce7y', ['Average return on capital employed 7 years']], ['averageRoce10y', ['Average return on capital employed 10 years']], ['historicalPe3y', ['Historical P/E 3 years']], ['historicalPe5y', ['Historical P/E 5 years']], ['historicalPb3y', ['Historical P/B 3 years']], ['historicalPb5y', ['Historical P/B 5 years']], ['marketCap3y', ['Market capitalisation 3 years back']]
+  ];
+  galleryMetricAliases = new Map(financialMetricRows.flatMap(([metric, aliases]) => aliases.map(alias => [alias.toLowerCase(), metric])));
+  const financialHistoryMetricKeys = new Set(financialMetricRows.map(([metric]) => metric));
   const fieldHelp = {
     'P/E':['Price to earnings', 'Latest price divided by trailing-twelve-month earnings per share. Enter a multiple, for example P/E < 25.'],
     'Market cap':['Market capitalisation', 'Total market value of the company. Use B for billions, for example Market cap > 10B.'],
@@ -1160,15 +1184,16 @@ function setupScreener() {
     'Free cash flow / share':['Free cash flow per share', 'Trailing free cash flow divided by shares outstanding.'],
     'Free cash flow yield':['Free cash flow yield', 'Trailing free cash flow relative to market value, expressed as a percentage.']
   };
-  const querySuggestionCatalog = [
+  const coreQuerySuggestions = [
     ['P/E', 'Price to earnings'], ['Price to book', 'Price to book'], ['Price to sales', 'Price to sales'], ['EV / EBITDA', 'Enterprise value / EBITDA'], ['Price to free cash flow', 'Price to free cash flow'],
     ['Market cap', 'Use B for billions'], ['Current price', 'Latest market price'], ['Volume', 'Latest trading volume'], ['Dividend yield', 'Trailing dividend yield'],
     ['Return on equity', 'ROE %'], ['Return on assets', 'ROA %'], ['Return on invested capital', 'ROIC %'], ['Current ratio', 'Liquidity ratio'], ['Quick ratio', 'Liquidity ratio'], ['Debt to equity', 'Leverage ratio'],
     ['Sales growth', 'Trailing sales growth %'], ['Gross margin', 'Gross margin %'], ['Operating margin', 'Operating margin %'], ['Net profit margin', 'Net margin %'], ['EPS', 'Trailing EPS'],
-    ['Return over 1 day', 'Price return %'], ['Return over 1 month', 'Price return %'], ['Return over 3 months', 'Price return %'], ['Return over 1 year', 'Price return %'],
-    ['52-week high', 'Highest close in 52 weeks'], ['52-week low', 'Lowest close in 52 weeks'], ['50-day moving average', '50-session average'], ['200-day moving average', '200-session average'], ['RSI', '14-session RSI'], ['MACD', 'MACD value'],
-    ['Sales latest quarter', 'Reported revenue'], ['YOY quarterly sales growth', 'Reported growth %'], ['Profit after tax latest quarter', 'Reported net income'], ['Debt', 'Reported total debt'], ['Free cash flow preceding year', 'Reported cash flow']
-  ].filter(([token]) => Boolean(normaliseQueryMetric(token)));
+  ];
+  const galleryQuerySuggestions = Object.values(galleryFields).flatMap(category => ['recent', 'preceding', 'historical'].flatMap(column => (category[column] || []).map(field => [field.token, field.label])));
+  const querySuggestionCatalog = [...new Map([...coreQuerySuggestions, ...galleryQuerySuggestions]
+    .filter(([token]) => Boolean(normaliseQueryMetric(token)))
+    .map(([token, detail]) => [token.toLowerCase(), [token, detail]])).values()];
   const queryInput = $('#screen-query');
   const querySuggestionHolder = $('#screen-query-suggestions');
   let activeQuerySuggestion = -1;
@@ -1271,7 +1296,7 @@ function setupScreener() {
       if (!visible.length) return `<section class="ratio-gallery-column"><h3>${title}</h3><span class="ratio-gallery-empty">No matching metrics.</span></section>`;
       return `<section class="ratio-gallery-column"><h3>${title}</h3>${visible.map(field => (field.available === true || (field.available === 'financial' && financialHistoryLoaded))
         ? `<button type="button" data-query-token="${escapeHtml(field.token)}" data-query-label="${escapeHtml(field.label)}" title="Add ${escapeHtml(field.label)} to query">${escapeHtml(field.label)}</button>`
-        : `<button type="button" class="ratio-gallery-pending" disabled title="Company financial history is being synced before this can screen the full US universe">${escapeHtml(field.label)}<small>History sync</small></button>`).join('')}</section>`;
+        : `<button type="button" class="ratio-gallery-pending" disabled title="${financialHistoryState === 'error' ? 'The financial-data provider is temporarily unavailable. Select the tab again to retry.' : 'Select this tab to load reported financial history for the visible companies.'}">${escapeHtml(field.label)}<small>${financialHistoryState === 'loading' ? 'Loading' : financialHistoryState === 'error' ? 'Retry' : 'Load data'}</small></button>`).join('')}</section>`;
     };
     holder.innerHTML = `${renderColumn('Recent', category.recent)}${renderColumn('Preceding', category.preceding)}${renderColumn('Historical', category.historical)}`;
     holder.querySelectorAll('[data-query-token]').forEach(button => button.onclick = () => { showFieldHelp(button.dataset.queryLabel || button.dataset.queryToken); insertQueryText(button.dataset.queryToken); });
@@ -1281,12 +1306,12 @@ function setupScreener() {
     document.querySelectorAll('[data-ratio-gallery-tab]').forEach(item => item.classList.toggle('selected', item === button));
     renderRatioGallery();
     if (activeGalleryTab === 'price' && universe.length) enrichPriceHistory(universe.slice(0, 60));
-    if (['annual', 'quarterly', 'balance', 'cash-flow', 'ratios'].includes(activeGalleryTab) && universe.length) enrichFinancialHistory(universe.slice(0, 60));
+    if (activeGalleryTab !== 'price' && universe.length) enrichFinancialHistory(universe.slice(0, 60));
   });
   document.querySelectorAll('[data-query-operator]').forEach(button => button.onclick = () => insertQueryText(button.dataset.queryOperator));
   $('#screen-ratio-search').oninput = renderRatioGallery;
   $('#screen-gallery-close').onclick = () => { $('#screen-ratio-gallery').hidden = true; $('#screen-gallery-open').focus(); };
-  $('#screen-gallery-open').onclick = () => { $('#screen-ratio-gallery').hidden = false; renderRatioGallery(); $('#screen-ratio-search').focus(); };
+  $('#screen-gallery-open').onclick = () => { $('#screen-ratio-gallery').hidden = false; renderRatioGallery(); enrichFinancialHistory(universe.slice(0, 60)); $('#screen-ratio-search').focus(); };
   renderRatioGallery();
   const enrichVisible = async list => {
     const tickers = list.slice(0, 60).map(stock => stock.symbol || stock.ticker).filter(ticker => ticker && !metricSymbols.has(ticker));
@@ -1327,6 +1352,8 @@ function setupScreener() {
     if (!tickers.length) return;
     tickers.forEach(ticker => financialMetricSymbols.add(ticker));
     const request = ++financialMetricRequest;
+    financialHistoryState = 'loading';
+    renderRatioGallery();
     const note = $('#screen-data-note');
     if (note) note.textContent = 'Loading reported annual and quarterly financial statements for the visible companies…';
     try {
@@ -1335,11 +1362,14 @@ function setupScreener() {
       const metricsBySymbol = new Map(metricRows.map(item => [String(item.symbol || '').toUpperCase(), item]));
       universe = universe.map(stock => ({ ...stock, ...(metricsBySymbol.get(String(stock.symbol || stock.ticker || '').toUpperCase()) || {}) }));
       financialHistoryLoaded = metricRows.some(item => item.financialsLoaded);
+      financialHistoryState = financialHistoryLoaded ? 'ready' : 'error';
       renderRatioGallery();
       if (note) note.textContent = 'Reported annual and quarterly financial metrics are loaded from the connected financial-statement provider.';
       draw(true);
     } catch {
       tickers.forEach(ticker => financialMetricSymbols.delete(ticker));
+      financialHistoryState = 'error';
+      renderRatioGallery();
       if (note) note.textContent = 'Financial-statement data is temporarily unavailable. Select Refresh to retry.';
     }
   };
@@ -1421,6 +1451,7 @@ function setupScreener() {
     }
     wireCommon();
     if (!skipEnrichment && parsedQuery.rules.some(rule => priceHistoryQueryMetrics.has(rule.metric))) enrichPriceHistory(universe.slice(0, 60));
+    if (!skipEnrichment && parsedQuery.rules.some(rule => financialHistoryMetricKeys.has(rule.metric))) enrichFinancialHistory(universe.slice(0, 60));
     if (!skipEnrichment) enrichVisible(pageRows);
   };
   const load = async force => {

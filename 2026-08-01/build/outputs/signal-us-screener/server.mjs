@@ -142,6 +142,7 @@ async function secSubmissions(cik) {
 const screenerRatioCache = new Map();
 const screenerPriceMetricCache = new Map();
 const screenerFinancialMetricCache = new Map();
+let screenerSnapshotCacheUnavailable = false;
 const companyLogoCache = new Map();
 const saveCompanyLogo = (ticker, value) => {
   companyLogoCache.delete(ticker);
@@ -192,6 +193,7 @@ async function screenerRatio(ticker) {
   const value = {
     symbol:ticker,
     pe:finiteValue(item.peRatioTTM, item.priceToEarningsRatioTTM, item.priceEarningsRatioTTM, metrics.peRatioTTM, metrics.peRatio),
+    enterpriseValue:finiteValue(metrics.enterpriseValueTTM, metrics.enterpriseValue, item.enterpriseValueTTM),
     priceToSalesRatioTTM:finiteValue(item.priceToSalesRatioTTM, item.priceSalesRatioTTM, metrics.priceToSalesRatioTTM, metrics.priceSalesRatioTTM),
     priceToBookRatioTTM:finiteValue(item.priceToBookRatioTTM, item.priceBookValueRatioTTM, metrics.priceToBookRatioTTM, metrics.priceBookValueRatioTTM),
     enterpriseValueMultipleTTM:finiteValue(item.enterpriseValueMultipleTTM, item.enterpriseValueOverEBITDATTM, metrics.enterpriseValueMultipleTTM, metrics.enterpriseValueOverEBITDATTM, metrics.evToEBITDATTM),
@@ -216,6 +218,7 @@ async function screenerRatio(ticker) {
     freeCashFlowYieldTTM:finiteValue(item.freeCashFlowYieldTTM, metrics.freeCashFlowYieldTTM),
     revenueGrowthTTM:finiteValue(item.revenueGrowthTTM, metrics.revenueGrowthTTM),
     netIncomeGrowthTTM:finiteValue(item.netIncomeGrowthTTM, metrics.netIncomeGrowthTTM),
+    earningsYield:(() => { const pe = finiteValue(item.peRatioTTM, item.priceToEarningsRatioTTM, metrics.peRatioTTM, metrics.peRatio); return pe !== null && Number(pe) !== 0 ? 100 / Number(pe) : null; })(),
     metricsLoaded:true
   };
   screenerRatioCache.set(ticker, { value, expiresAt:Date.now() + 6 * 60 * 60 * 1000 });
@@ -326,7 +329,8 @@ async function priceHistory(ticker, points = 260) {
   // Fetch enough prior sessions to seed the 200-day moving average even when
   // the user is viewing a short range such as 1M or 6M. We still return only
   // the requested visible range after calculating the indicators.
-  const historySize = Math.max(points + 200, 260);
+  const allHistory = points === 'all';
+  const historySize = allHistory ? 260 : Math.max(points + 200, 260);
   const [fmpResult, twelveResult] = await Promise.allSettled([
     key ? fmp('historical-price-eod/full', { symbol:ticker }) : Promise.reject(new Error('FMP_API_KEY is not configured')),
     twelveDataKey ? (async () => {
@@ -348,14 +352,14 @@ async function priceHistory(ticker, points = 260) {
   twelveRows.forEach(item => { const date = String(item.datetime || item.date).slice(0, 10); const current = byDate.get(date); byDate.set(date, { ...(current || {}), date, close:Number(item.close ?? current?.close), volume:Number(item.volume ?? current?.volume ?? 0), provider:current ? 'fmp+twelve-data' : 'twelve-data' }); });
   const decorate = rows => {
     const sorted = rows.filter(item => Number.isFinite(item.close)).sort((a, b) => String(a.date).localeCompare(String(b.date)));
-    const visible = sorted.slice(-points);
+    const visible = allHistory ? sorted : sorted.slice(-points);
     const start = sorted.length - visible.length;
     const averageAt = (index, window) => index < window - 1 ? null : sorted.slice(index - window + 1, index + 1).reduce((sum, item) => sum + item.close, 0) / window;
     return visible.map((item, offset) => ({ ...item, ma50:averageAt(start + offset, 50), ma200:averageAt(start + offset, 200) }));
   };
   const combined = [...byDate.values()].filter(item => Number.isFinite(item.close)).sort((a, b) => String(a.date).localeCompare(String(b.date)));
   if (combined.length) return decorate(combined);
-  const range = historySize <= 260 ? '1y' : historySize <= 780 ? '3y' : historySize <= 1300 ? '5y' : '10y';
+  const range = allHistory ? 'max' : historySize <= 260 ? '1y' : historySize <= 780 ? '3y' : historySize <= 1300 ? '5y' : '10y';
   const response = await externalFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=${range}&interval=1d`, { headers: { 'User-Agent': 'DollarDisha research app contact@dollardisha.in' } });
   if (!response.ok) throw new Error('Historical price data is unavailable');
   const data = (await response.json()).chart?.result?.[0];
@@ -426,9 +430,9 @@ function priceMetricsFromHistory(ticker, history) {
 async function screenerPriceMetrics(ticker) {
   const cached = screenerPriceMetricCache.get(ticker);
   if (cached && Date.now() < cached.expiresAt) return cached.value;
-  // FMP returns the full available EOD history. The fallback receives enough
-  // sessions for every supported 5-year price metric and technical indicator.
-  const value = priceMetricsFromHistory(ticker, await priceHistory(ticker, 1300));
+  // Keep FMP's full EOD series so all-time high/low are not silently presented
+  // as five-year values. Yahoo's max-range fallback preserves the same intent.
+  const value = priceMetricsFromHistory(ticker, await priceHistory(ticker, 'all'));
   screenerPriceMetricCache.set(ticker, { value, expiresAt:Date.now() + 6 * 60 * 60 * 1000 });
   return value;
 }
@@ -439,49 +443,122 @@ function statementGrowth(current, prior) {
   return safeDivide(Number(current) - Number(prior), Math.abs(Number(prior))) === null ? null : safeDivide(Number(current) - Number(prior), Math.abs(Number(prior))) * 100;
 }
 function annualCagr(rows, field, years) {
-  const current = statementMetric(rows[0], field);
-  const earlier = statementMetric(rows[years], field);
+  const names = Array.isArray(field) ? field : [field];
+  const current = statementMetric(rows[0], ...names);
+  const earlier = statementMetric(rows[years], ...names);
   if (current === null || earlier === null || Number(current) <= 0 || Number(earlier) <= 0) return null;
   return (Math.pow(Number(current) / Number(earlier), 1 / years) - 1) * 100;
 }
-function screenerFinancialValues(ticker, income, quarterlyIncome, balance, cashflow) {
+function averageStatementMetric(rows, names, years) {
+  const fields = Array.isArray(names) ? names : [names];
+  const values = rows.slice(0, years).map(row => statementMetric(row, ...fields)).filter(value => value !== null);
+  return values.length ? values.reduce((sum, value) => sum + Number(value), 0) / values.length : null;
+}
+function statementRatio(numerator, denominator) {
+  const value = safeDivide(numerator, denominator);
+  return value === null ? null : value * 100;
+}
+async function historicalMarketCap(ticker, years = 3) {
+  const target = new Date();
+  target.setUTCFullYear(target.getUTCFullYear() - years);
+  const from = new Date(target);
+  from.setUTCDate(from.getUTCDate() - 45);
+  const to = new Date(target);
+  to.setUTCDate(to.getUTCDate() + 45);
+  const rows = await fmp('historical-market-capitalization', {
+    symbol:ticker, from:from.toISOString().slice(0, 10), to:to.toISOString().slice(0, 10)
+  }).catch(() => []);
+  const values = Array.isArray(rows) ? rows : (rows?.historical || []);
+  const targetTime = target.getTime();
+  const nearest = values.filter(row => finiteValue(row.marketCap, row.marketCapitalization) !== null)
+    .sort((left, right) => Math.abs(new Date(left.date).getTime() - targetTime) - Math.abs(new Date(right.date).getTime() - targetTime))[0];
+  return finiteValue(nearest?.marketCap, nearest?.marketCapitalization);
+}
+function screenerFinancialValues(ticker, income, quarterlyIncome, balance, cashflow, annualRatios = [], marketCap3y = null) {
   const year = Array.isArray(income) ? income : [];
   const quarter = Array.isArray(quarterlyIncome) ? quarterlyIncome : [];
   const balanceRows = Array.isArray(balance) ? balance : [];
   const cash = Array.isArray(cashflow) ? cashflow : [];
-  const latest = year[0] || {}, preceding = year[1] || {}, latestQuarter = quarter[0] || {}, priorQuarter = quarter[1] || {}, priorYearQuarter = quarter[4] || {};
-  const latestBalance = balanceRows[0] || {}, precedingBalance = balanceRows[1] || {}, latestCash = cash[0] || {}, precedingCash = cash[1] || {};
-  const revenue = statementMetric(latest, 'revenue');
-  const netIncome = statementMetric(latest, 'netIncome');
-  const salesQuarter = statementMetric(latestQuarter, 'revenue');
-  const netIncomeQuarter = statementMetric(latestQuarter, 'netIncome');
+  const ratios = Array.isArray(annualRatios) ? annualRatios : [];
+  const at = (rows, index) => rows[index] || {};
+  const annual = (index, ...names) => statementMetric(at(year, index), ...names);
+  const quarterly = (index, ...names) => statementMetric(at(quarter, index), ...names);
+  const balanceValue = (index, ...names) => statementMetric(at(balanceRows, index), ...names);
+  const cashValue = (index, ...names) => statementMetric(at(cash, index), ...names);
+  const ratioValue = (index, ...names) => statementMetric(at(ratios, index), ...names);
+  const annualRevenue = annual(0, 'revenue');
+  const annualNetIncome = annual(0, 'netIncome');
+  const quarterlyRevenue = quarterly(0, 'revenue');
+  const quarterlyNetIncome = quarterly(0, 'netIncome');
+  const annualRoe = index => statementRatio(annual(index, 'netIncome'), balanceValue(index, 'totalStockholdersEquity', 'totalEquity'));
+  const annualRoa = index => statementRatio(annual(index, 'netIncome'), balanceValue(index, 'totalAssets'));
+  const annualRoce = index => statementRatio(annual(index, 'ebit', 'operatingIncome'), Number(balanceValue(index, 'totalAssets') || 0) - Number(balanceValue(index, 'totalCurrentLiabilities') || 0));
+  const annualBookValue = index => safeDivide(balanceValue(index, 'totalStockholdersEquity', 'totalEquity'), annual(index, 'weightedAverageShsOutDil', 'weightedAverageShsOut'));
+  const annualOperatingMargin = index => statementRatio(annual(index, 'operatingIncome'), annual(index, 'revenue'));
+  const annualNetMargin = index => statementRatio(annual(index, 'netIncome'), annual(index, 'revenue'));
+  const annualGrossMargin = index => statementRatio(annual(index, 'grossProfit'), annual(index, 'revenue'));
+  const quarterlyOperatingMargin = index => statementRatio(quarterly(index, 'operatingIncome'), quarterly(index, 'revenue'));
+  const quarterlyNetMargin = index => statementRatio(quarterly(index, 'netIncome'), quarterly(index, 'revenue'));
+  const quarterlyGrossMargin = index => statementRatio(quarterly(index, 'grossProfit'), quarterly(index, 'revenue'));
+  const workingCapital = index => {
+    const assets = balanceValue(index, 'totalCurrentAssets');
+    const liabilities = balanceValue(index, 'totalCurrentLiabilities');
+    return assets === null || liabilities === null ? null : Number(assets) - Number(liabilities);
+  };
+  const cashFromOperations = index => cashValue(index, 'operatingCashFlow', 'netCashProvidedByOperatingActivities');
+  const cashFromInvesting = index => cashValue(index, 'netCashUsedForInvestingActivites', 'netCashUsedForInvestingActivities');
+  const cashFromFinancing = index => cashValue(index, 'netCashUsedProvidedByFinancingActivities');
+  const netCashFlow = index => cashValue(index, 'netChangeInCash', 'netCashFlow');
+  const freeCashFlow = index => {
+    const reported = cashValue(index, 'freeCashFlow');
+    if (reported !== null) return reported;
+    const operating = cashFromOperations(index);
+    const capex = cashValue(index, 'capitalExpenditure', 'investmentsInPropertyPlantAndEquipment');
+    return operating === null || capex === null ? null : Number(operating) - Math.abs(Number(capex));
+  };
+  const rowAverage = (metric, years) => {
+    const values = Array.from({ length:years }, (_, index) => metric(index)).filter(value => value !== null && Number.isFinite(Number(value)));
+    return values.length ? values.reduce((sum, value) => sum + Number(value), 0) / values.length : null;
+  };
   return {
     symbol:ticker,
-    sales:revenue, salesPrev:statementMetric(preceding, 'revenue'), salesGrowth3y:annualCagr(year, 'revenue', 3), salesGrowth5y:annualCagr(year, 'revenue', 5),
-    profitAfterTax:netIncome, profitPrev:statementMetric(preceding, 'netIncome'), profitGrowth3y:annualCagr(year, 'netIncome', 3), profitGrowth5y:annualCagr(year, 'netIncome', 5),
-    operatingProfit:statementMetric(latest, 'operatingIncome'), operatingProfitPrev:statementMetric(preceding, 'operatingIncome'), ebitda:statementMetric(latest, 'ebitda'), ebitdaPrev:statementMetric(preceding, 'ebitda'),
-    ebit:statementMetric(latest, 'ebit'), ebitPrev:statementMetric(preceding, 'ebit'), interestExpense:statementMetric(latest, 'interestExpense'), interestExpensePrev:statementMetric(preceding, 'interestExpense'),
-    incomeBeforeTax:statementMetric(latest, 'incomeBeforeTax'), incomeTax:statementMetric(latest, 'incomeTaxExpense'), epsAnnual:statementMetric(latest, 'epsdiluted', 'epsDiluted', 'eps'), epsPrev:statementMetric(preceding, 'epsdiluted', 'epsDiluted', 'eps'),
-    salesLatestQuarter:salesQuarter, profitLatestQuarter:netIncomeQuarter, epsLatestQuarter:statementMetric(latestQuarter, 'epsdiluted', 'epsDiluted', 'eps'),
-    salesPrecedingQuarter:statementMetric(priorQuarter, 'revenue'), profitPrecedingQuarter:statementMetric(priorQuarter, 'netIncome'), epsPrecedingQuarter:statementMetric(priorQuarter, 'epsdiluted', 'epsDiluted', 'eps'),
-    salesPriorYearQuarter:statementMetric(priorYearQuarter, 'revenue'), profitPriorYearQuarter:statementMetric(priorYearQuarter, 'netIncome'), epsPriorYearQuarter:statementMetric(priorYearQuarter, 'epsdiluted', 'epsDiluted', 'eps'),
-    salesGrowthQuarter:statementGrowth(salesQuarter, statementMetric(priorYearQuarter, 'revenue')), profitGrowthQuarter:statementGrowth(netIncomeQuarter, statementMetric(priorYearQuarter, 'netIncome')),
-    debt:statementMetric(latestBalance, 'totalDebt'), debtPrev:statementMetric(precedingBalance, 'totalDebt'), equity:statementMetric(latestBalance, 'totalStockholdersEquity', 'totalEquity'), retainedEarnings:statementMetric(latestBalance, 'retainedEarnings'),
-    totalAssets:statementMetric(latestBalance, 'totalAssets'), currentAssets:statementMetric(latestBalance, 'totalCurrentAssets'), currentLiabilities:statementMetric(latestBalance, 'totalCurrentLiabilities'),
-    cashAndEquivalents:statementMetric(latestBalance, 'cashAndCashEquivalents', 'cashAndShortTermInvestments'), inventory:statementMetric(latestBalance, 'inventory'), receivables:statementMetric(latestBalance, 'netReceivables', 'accountsReceivables'), payables:statementMetric(latestBalance, 'accountPayables', 'accountsPayable'),
-    operatingCashFlow:statementMetric(latestCash, 'operatingCashFlow', 'netCashProvidedByOperatingActivities'), operatingCashFlowPrev:statementMetric(precedingCash, 'operatingCashFlow', 'netCashProvidedByOperatingActivities'),
-    freeCashFlow:statementMetric(latestCash, 'freeCashFlow'), freeCashFlowPrev:statementMetric(precedingCash, 'freeCashFlow'), investingCashFlow:statementMetric(latestCash, 'netCashUsedForInvestingActivites', 'netCashUsedForInvestingActivities'), financingCashFlow:statementMetric(latestCash, 'netCashUsedProvidedByFinancingActivities'), netCashFlow:statementMetric(latestCash, 'netChangeInCash', 'netCashFlow'),
+    // Annual P&L: current, preceding and long-term growth.
+    sales:annualRevenue, salesPrev:annual(1, 'revenue'), salesPrior12m:annual(1, 'revenue'), salesGrowth3y:annualCagr(year, 'revenue', 3), salesGrowth5y:annualCagr(year, 'revenue', 5), salesGrowth7y:annualCagr(year, 'revenue', 7), salesGrowth10y:annualCagr(year, 'revenue', 10),
+    operatingProfit:annual(0, 'operatingIncome'), operatingProfitPrev:annual(1, 'operatingIncome'), otherIncome:annual(0, 'otherIncomeNet', 'otherNonOperatingIncome'), otherIncomePrev:annual(1, 'otherIncomeNet', 'otherNonOperatingIncome'),
+    ebitda:annual(0, 'ebitda'), ebitdaPrev:annual(1, 'ebitda'), ebitdaGrowth3y:annualCagr(year, 'ebitda', 3), ebitdaGrowth5y:annualCagr(year, 'ebitda', 5), ebitdaGrowth7y:annualCagr(year, 'ebitda', 7), ebitdaGrowth10y:annualCagr(year, 'ebitda', 10),
+    depreciation:annual(0, 'depreciationAndAmortization', 'depreciationAndAmortizationExpense'), depreciationPrev:annual(1, 'depreciationAndAmortization', 'depreciationAndAmortizationExpense'),
+    ebit:annual(0, 'ebit'), ebitPrev:annual(1, 'ebit'), interestExpense:annual(0, 'interestExpense'), interestExpensePrev:annual(1, 'interestExpense'), incomeBeforeTax:annual(0, 'incomeBeforeTax'), incomeBeforeTaxPrev:annual(1, 'incomeBeforeTax'), incomeTax:annual(0, 'incomeTaxExpense'), incomeTaxPrev:annual(1, 'incomeTaxExpense'),
+    profitAfterTax:annualNetIncome, profitPrev:annual(1, 'netIncome'), profitPrior12m:annual(1, 'netIncome'), profitGrowth3y:annualCagr(year, 'netIncome', 3), profitGrowth5y:annualCagr(year, 'netIncome', 5), profitGrowth7y:annualCagr(year, 'netIncome', 7), profitGrowth10y:annualCagr(year, 'netIncome', 10),
+    epsAnnual:annual(0, 'epsdiluted', 'epsDiluted', 'eps'), epsPrev:annual(1, 'epsdiluted', 'epsDiluted', 'eps'), epsGrowth3y:annualCagr(year, ['epsdiluted', 'epsDiluted', 'eps'], 3), epsGrowth5y:annualCagr(year, ['epsdiluted', 'epsDiluted', 'eps'], 5), epsGrowth7y:annualCagr(year, ['epsdiluted', 'epsDiluted', 'eps'], 7), epsGrowth10y:annualCagr(year, ['epsdiluted', 'epsDiluted', 'eps'], 10),
+    dividendAnnual:Math.abs(Number(cashValue(0, 'dividendsPaid') || 0)) || null, operatingMarginAnnual:annualOperatingMargin(0), netMarginAnnual:annualNetMargin(0), grossMarginAnnual:annualGrossMargin(0), averageEarnings5y:averageStatementMetric(year, 'netIncome', 5), averageEarnings10y:averageStatementMetric(year, 'netIncome', 10), averageEbit5y:averageStatementMetric(year, 'ebit', 5), averageEbit10y:averageStatementMetric(year, 'ebit', 10),
+    // Quarterly P&L: current, preceding and the comparable prior-year quarter.
+    salesLatestQuarter:quarterlyRevenue, salesPrecedingQuarter:quarterly(1, 'revenue'), salesPriorYearQuarter:quarterly(4, 'revenue'), sales2QuartersBack:quarterly(2, 'revenue'), sales3QuartersBack:quarterly(3, 'revenue'),
+    profitLatestQuarter:quarterlyNetIncome, profitPrecedingQuarter:quarterly(1, 'netIncome'), profitPriorYearQuarter:quarterly(4, 'netIncome'), profit2QuartersBack:quarterly(2, 'netIncome'), profit3QuartersBack:quarterly(3, 'netIncome'),
+    salesGrowthQuarter:statementGrowth(quarterlyRevenue, quarterly(4, 'revenue')), profitGrowthQuarter:statementGrowth(quarterlyNetIncome, quarterly(4, 'netIncome')), epsLatestQuarter:quarterly(0, 'epsdiluted', 'epsDiluted', 'eps'), epsPrecedingQuarter:quarterly(1, 'epsdiluted', 'epsDiluted', 'eps'), epsPriorYearQuarter:quarterly(4, 'epsdiluted', 'epsDiluted', 'eps'),
+    operatingProfitLatestQuarter:quarterly(0, 'operatingIncome'), operatingProfitPrecedingQuarter:quarterly(1, 'operatingIncome'), operatingProfitPriorYearQuarter:quarterly(4, 'operatingIncome'), otherIncomeLatestQuarter:quarterly(0, 'otherIncomeNet', 'otherNonOperatingIncome'), otherIncomePrecedingQuarter:quarterly(1, 'otherIncomeNet', 'otherNonOperatingIncome'), otherIncomePriorYearQuarter:quarterly(4, 'otherIncomeNet', 'otherNonOperatingIncome'),
+    ebitdaLatestQuarter:quarterly(0, 'ebitda'), ebitdaPrecedingQuarter:quarterly(1, 'ebitda'), ebitdaPriorYearQuarter:quarterly(4, 'ebitda'), depreciationLatestQuarter:quarterly(0, 'depreciationAndAmortization', 'depreciationAndAmortizationExpense'), depreciationPrecedingQuarter:quarterly(1, 'depreciationAndAmortization', 'depreciationAndAmortizationExpense'), depreciationPriorYearQuarter:quarterly(4, 'depreciationAndAmortization', 'depreciationAndAmortizationExpense'),
+    ebitLatestQuarter:quarterly(0, 'ebit'), ebitPrecedingQuarter:quarterly(1, 'ebit'), ebitPriorYearQuarter:quarterly(4, 'ebit'), interestLatestQuarter:quarterly(0, 'interestExpense'), interestPrecedingQuarter:quarterly(1, 'interestExpense'), interestPriorYearQuarter:quarterly(4, 'interestExpense'), preTaxLatestQuarter:quarterly(0, 'incomeBeforeTax'), preTaxPrecedingQuarter:quarterly(1, 'incomeBeforeTax'), preTaxPriorYearQuarter:quarterly(4, 'incomeBeforeTax'), taxLatestQuarter:quarterly(0, 'incomeTaxExpense'), taxPrecedingQuarter:quarterly(1, 'incomeTaxExpense'), taxPriorYearQuarter:quarterly(4, 'incomeTaxExpense'),
+    grossMarginLatestQuarter:quarterlyGrossMargin(0), grossMarginPrecedingQuarter:quarterlyGrossMargin(1), grossMarginPriorYearQuarter:quarterlyGrossMargin(4), operatingMarginLatestQuarter:quarterlyOperatingMargin(0), operatingMarginPrecedingQuarter:quarterlyOperatingMargin(1), operatingMarginPriorYearQuarter:quarterlyOperatingMargin(4), netMarginLatestQuarter:quarterlyNetMargin(0), netMarginPrecedingQuarter:quarterlyNetMargin(1), netMarginPriorYearQuarter:quarterlyNetMargin(4), latestResultDate:at(quarter, 0).acceptedDate || at(quarter, 0).filingDate || at(quarter, 0).date || null,
+    // Balance sheet: US-equivalent lines from reported statements.
+    debt:balanceValue(0, 'totalDebt'), debtPrev:balanceValue(1, 'totalDebt'), debt3y:balanceValue(3, 'totalDebt'), debt5y:balanceValue(5, 'totalDebt'), debt7y:balanceValue(7, 'totalDebt'), debt10y:balanceValue(10, 'totalDebt'), shortTermDebt:balanceValue(0, 'shortTermDebt', 'shortTermBorrowings'), longTermDebt:balanceValue(0, 'longTermDebt', 'longTermDebtNoncurrent'), equity:balanceValue(0, 'totalStockholdersEquity', 'totalEquity'), preferredEquity:balanceValue(0, 'preferredStock'), retainedEarnings:balanceValue(0, 'retainedEarnings'),
+    totalAssets:balanceValue(0, 'totalAssets'), totalLiabilities:balanceValue(0, 'totalLiabilities'), grossPpe:balanceValue(0, 'propertyPlantEquipmentGross'), grossPpePrev:balanceValue(1, 'propertyPlantEquipmentGross'), accumulatedDepreciation:balanceValue(0, 'accumulatedDepreciation'), netPpe:balanceValue(0, 'propertyPlantEquipmentNet'), netPpePrev:balanceValue(1, 'propertyPlantEquipmentNet'), netPpe3y:balanceValue(3, 'propertyPlantEquipmentNet'), netPpe5y:balanceValue(5, 'propertyPlantEquipmentNet'), otherPpe:balanceValue(0, 'otherPropertyPlantAndEquipment', 'constructionInProgress'), investments:balanceValue(0, 'shortTermInvestments', 'longTermInvestments'), currentAssets:balanceValue(0, 'totalCurrentAssets'), currentLiabilities:balanceValue(0, 'totalCurrentLiabilities'), workingCapital:workingCapital(0), workingCapitalPrev:workingCapital(1), workingCapital3y:workingCapital(3), workingCapital5y:workingCapital(5), workingCapital7y:workingCapital(7), workingCapital10y:workingCapital(10),
+    leaseLiabilities:balanceValue(0, 'capitalLeaseObligations', 'operatingLeaseObligations'), inventory:balanceValue(0, 'inventory'), receivables:balanceValue(0, 'netReceivables', 'accountsReceivables'), cashAndEquivalents:balanceValue(0, 'cashAndCashEquivalents', 'cashAndShortTermInvestments'), payables:balanceValue(0, 'accountPayables', 'accountsPayable'),
+    // Cash flow: reported fiscal-year figures and long-term history.
+    operatingCashFlow:cashFromOperations(0), operatingCashFlowPrev:cashFromOperations(1), operatingCashFlow3y:cashFromOperations(3), operatingCashFlow5y:cashFromOperations(5), operatingCashFlow7y:cashFromOperations(7), operatingCashFlow10y:cashFromOperations(10), freeCashFlow:freeCashFlow(0), freeCashFlowPrev:freeCashFlow(1), freeCashFlow3y:freeCashFlow(3), freeCashFlow5y:freeCashFlow(5), freeCashFlow7y:freeCashFlow(7), freeCashFlow10y:freeCashFlow(10), investingCashFlow:cashFromInvesting(0), investingCashFlowPrev:cashFromInvesting(1), investingCashFlow3y:cashFromInvesting(3), investingCashFlow5y:cashFromInvesting(5), investingCashFlow7y:cashFromInvesting(7), investingCashFlow10y:cashFromInvesting(10), financingCashFlow:cashFromFinancing(0), financingCashFlowPrev:cashFromFinancing(1), netCashFlow:netCashFlow(0), netCashFlowPrev:netCashFlow(1), cashBeginning:cashValue(0, 'cashAtBeginningOfPeriod'), cashEnd:cashValue(0, 'cashAtEndOfPeriod', 'cashAndCashEquivalentsAtCarryingValue'), cash3y:cashValue(3, 'cashAtEndOfPeriod', 'cashAndCashEquivalentsAtCarryingValue'),
+    // Annual quality and valuation context (provider annual ratios when reported).
+    bookValue:annualBookValue(0), bookValuePrev:annualBookValue(1), bookValue3y:annualBookValue(3), bookValue5y:annualBookValue(5), bookValue10y:annualBookValue(10), annualRoe:annualRoe(0), annualRoePrev:annualRoe(1), annualRoa:annualRoa(0), annualRoaPrev:annualRoa(1), annualRoce:annualRoce(0), annualRocePrev:annualRoce(1), averageRoe3y:rowAverage(annualRoe, 3), averageRoe5y:rowAverage(annualRoe, 5), averageRoe7y:rowAverage(annualRoe, 7), averageRoe10y:rowAverage(annualRoe, 10), averageRoa3y:rowAverage(annualRoa, 3), averageRoa5y:rowAverage(annualRoa, 5), averageRoce3y:rowAverage(annualRoce, 3), averageRoce5y:rowAverage(annualRoce, 5), averageRoce7y:rowAverage(annualRoce, 7), averageRoce10y:rowAverage(annualRoce, 10),
+    historicalPe3y:ratioValue(3, 'peRatio', 'priceEarningsRatio'), historicalPe5y:ratioValue(5, 'peRatio', 'priceEarningsRatio'), historicalPb3y:ratioValue(3, 'priceToBookRatio', 'priceBookValueRatio'), historicalPb5y:ratioValue(5, 'priceToBookRatio', 'priceBookValueRatio'), marketCap3y,
     financialsLoaded:true
   };
 }
 async function screenerFinancialMetrics(ticker) {
   const cached = screenerFinancialMetricCache.get(ticker);
   if (cached && Date.now() < cached.expiresAt) return cached.value;
-  const [income, quarterlyIncome, balance, cashflow] = await Promise.all([
-    fmp('income-statement', { symbol:ticker, limit:10 }).catch(() => []), fmp('income-statement', { symbol:ticker, period:'quarter', limit:12 }).catch(() => []),
-    fmp('balance-sheet-statement', { symbol:ticker, limit:10 }).catch(() => []), fmp('cash-flow-statement', { symbol:ticker, limit:10 }).catch(() => [])
+  const [income, quarterlyIncome, balance, cashflow, annualRatios, marketCap3y] = await Promise.all([
+    fmp('income-statement', { symbol:ticker, limit:12 }).catch(() => []), fmp('income-statement', { symbol:ticker, period:'quarter', limit:12 }).catch(() => []),
+    fmp('balance-sheet-statement', { symbol:ticker, limit:12 }).catch(() => []), fmp('cash-flow-statement', { symbol:ticker, limit:12 }).catch(() => []), fmp('ratios', { symbol:ticker, limit:12 }).catch(() => []), historicalMarketCap(ticker, 3)
   ]);
-  const value = screenerFinancialValues(ticker, income, quarterlyIncome, balance, cashflow);
+  const value = screenerFinancialValues(ticker, income, quarterlyIncome, balance, cashflow, annualRatios, marketCap3y);
   screenerFinancialMetricCache.set(ticker, { value, expiresAt:Date.now() + 6 * 60 * 60 * 1000 });
   return value;
 }
@@ -1021,6 +1098,83 @@ async function cacheScreenerRows(rows) {
     database('companies?on_conflict=symbol', { method: 'POST', prefer: 'resolution=merge-duplicates', body: companies }),
     database('company_quotes?on_conflict=symbol', { method: 'POST', prefer: 'resolution=merge-duplicates', body: quotes })
   ]).catch(error => console.warn(`Could not cache screener rows: ${error.message}`));
+}
+async function cachedScreenerMetricRows(metricGroup, tickers, maxAgeMs = 6 * 60 * 60 * 1000) {
+  if (!supabaseUrl || !supabaseKey || screenerSnapshotCacheUnavailable || !tickers.length) return new Map();
+  const symbols = tickers.map(ticker => symbol(ticker)).filter(Boolean);
+  if (!symbols.length) return new Map();
+  try {
+    const rows = await database(`screener_metric_snapshots?select=symbol,values,source_updated_at&metric_group=eq.${encodeURIComponent(metricGroup)}&symbol=in.(${symbols.join(',')})`);
+    const cutoff = Date.now() - maxAgeMs;
+    return new Map((Array.isArray(rows) ? rows : [])
+      .filter(row => Date.parse(row.source_updated_at || '') >= cutoff && row.values && typeof row.values === 'object')
+      .map(row => [String(row.symbol || '').toUpperCase(), { ...row.values, symbol:String(row.symbol || '').toUpperCase() }]));
+  } catch (error) {
+    // The application remains live while a new schema migration is waiting to
+    // be applied or the optional cache is temporarily unavailable.
+    console.warn(`Could not read ${metricGroup} screener cache: ${error.message}`);
+    screenerSnapshotCacheUnavailable = true;
+    return new Map();
+  }
+}
+async function cacheScreenerMetricRows(metricGroup, rows) {
+  if (!supabaseUrl || !supabaseKey || screenerSnapshotCacheUnavailable || !rows.length) return;
+  const now = new Date().toISOString();
+  const values = rows.filter(row => symbol(row?.symbol)).map(row => ({
+    symbol:symbol(row.symbol), metric_group:metricGroup, values:row, source_updated_at:now
+  }));
+  if (!values.length) return;
+  await database('screener_metric_snapshots?on_conflict=symbol,metric_group', {
+    method:'POST', prefer:'resolution=merge-duplicates', body:values
+  }).catch(error => {
+    console.warn(`Could not cache ${metricGroup} screener metrics: ${error.message}`);
+    screenerSnapshotCacheUnavailable = true;
+  });
+}
+async function screenerMetricRows(metricGroup, tickers, loader, loadedKey, concurrency = 4) {
+  const cached = await cachedScreenerMetricRows(metricGroup, tickers);
+  const missing = tickers.filter(ticker => !cached.has(ticker));
+  const fetched = await mapWithConcurrency(missing, concurrency, async ticker => {
+    try { return await loader(ticker); }
+    catch (error) {
+      console.warn(`${metricGroup} metrics unavailable for ${ticker}: ${error.message}`);
+      return { symbol:ticker, [loadedKey]:false };
+    }
+  });
+  const successful = fetched.filter(row => row?.[loadedKey]);
+  if (successful.length) void cacheScreenerMetricRows(metricGroup, successful);
+  const fresh = new Map(fetched.map(row => [String(row.symbol || '').toUpperCase(), row]));
+  return tickers.map(ticker => cached.get(ticker) || fresh.get(ticker) || { symbol:ticker, [loadedKey]:false });
+}
+async function screenerMetricCoverage() {
+  if (!supabaseUrl || !supabaseKey || screenerSnapshotCacheUnavailable) return { configured:false, ratio:0, financial:0, price:0 };
+  try {
+    const rows = await database('screener_metric_snapshots?select=metric_group,source_updated_at');
+    const cutoff = Date.now() - 6 * 60 * 60 * 1000;
+    const counts = { ratio:0, financial:0, price:0 };
+    (Array.isArray(rows) ? rows : []).forEach(row => {
+      if (Date.parse(row.source_updated_at || '') >= cutoff && Object.hasOwn(counts, row.metric_group)) counts[row.metric_group] += 1;
+    });
+    return { configured:true, ...counts };
+  } catch (error) {
+    console.warn(`Could not read screener coverage: ${error.message}`);
+    return { configured:true, ratio:0, financial:0, price:0 };
+  }
+}
+async function addCachedScreenerMetrics(rows) {
+  if (!supabaseUrl || !supabaseKey || screenerSnapshotCacheUnavailable || !rows.length) return rows;
+  const groups = ['ratio', 'financial', 'price'];
+  const cacheBySymbol = new Map();
+  const chunks = [];
+  for (let index = 0; index < rows.length; index += 400) chunks.push(rows.slice(index, index + 400));
+  await Promise.all(chunks.map(async chunk => {
+    const symbols = chunk.map(row => symbol(row.symbol)).filter(Boolean);
+    const collections = await Promise.all(groups.map(group => cachedScreenerMetricRows(group, symbols)));
+    collections.forEach(collection => collection.forEach((metrics, ticker) => {
+      cacheBySymbol.set(ticker, { ...(cacheBySymbol.get(ticker) || {}), ...metrics });
+    }));
+  }));
+  return rows.map(row => ({ ...row, ...(cacheBySymbol.get(symbol(row.symbol)) || {}) }));
 }
 
 // Latest quarterly results change only a few times a day. Build the research
@@ -1682,25 +1836,20 @@ createServer(async (req, res) => {
     if (url.pathname === '/data/screener-metrics') {
       const tickers = [...new Set(String(url.searchParams.get('symbols') || '').split(',').map(symbol).filter(Boolean))].slice(0, 60);
       if (!tickers.length) return send(res, 200, []);
-      return send(res, 200, await Promise.all(tickers.map(screenerRatio)));
+      return send(res, 200, await screenerMetricRows('ratio', tickers, screenerRatio, 'metricsLoaded', 6));
     }
     if (url.pathname === '/data/screener-price-metrics') {
       const tickers = [...new Set(String(url.searchParams.get('symbols') || '').split(',').map(symbol).filter(Boolean))].slice(0, 60);
       if (!tickers.length) return send(res, 200, []);
-      const rows = await mapWithConcurrency(tickers, 4, ticker => screenerPriceMetrics(ticker).catch(error => {
-        console.warn(`Price history unavailable for ${ticker}: ${error.message}`);
-        return { symbol:ticker, metricsLoaded:false };
-      }));
-      return send(res, 200, rows);
+      return send(res, 200, await screenerMetricRows('price', tickers, screenerPriceMetrics, 'metricsLoaded', 4));
     }
     if (url.pathname === '/data/screener-financial-metrics') {
       const tickers = [...new Set(String(url.searchParams.get('symbols') || '').split(',').map(symbol).filter(Boolean))].slice(0, 60);
       if (!tickers.length) return send(res, 200, []);
-      const rows = await mapWithConcurrency(tickers, 4, ticker => screenerFinancialMetrics(ticker).catch(error => {
-        console.warn(`Financial statements unavailable for ${ticker}: ${error.message}`);
-        return { symbol:ticker, financialsLoaded:false };
-      }));
-      return send(res, 200, rows);
+      return send(res, 200, await screenerMetricRows('financial', tickers, screenerFinancialMetrics, 'financialsLoaded', 4));
+    }
+    if (url.pathname === '/data/screener-coverage') {
+      return send(res, 200, await screenerMetricCoverage());
     }
     if (url.pathname === '/data/screener' || url.pathname === '/api/screener') {
       const parameters = { limit: 3000, isEtf: false, isFund: false, isActivelyTrading: true };
@@ -1716,7 +1865,7 @@ createServer(async (req, res) => {
         return true;
       });
       await cacheScreenerRows(rows.slice(0, 1500));
-      return send(res, 200, rows);
+      return send(res, 200, await addCachedScreenerMetrics(rows));
     }
     const stockRoute = url.pathname.match(/^\/stocks\/([A-Z0-9][A-Z0-9._-]{0,14})\/?$/i);
     const requested = url.pathname === '/' || stockRoute ? 'index.html' : normalize(url.pathname).replace(/^([.][.][\\/])+/, '');

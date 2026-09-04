@@ -334,6 +334,26 @@ test('financial-history screen metrics use reported annual and quarterly stateme
   assert.match(server, /financialsLoaded/);
 });
 
+test('financial gallery loads each supported history field instead of presenting a permanent placeholder', async () => {
+  const [client, server] = await Promise.all([read('app.js'), read('server.mjs')]);
+  assert.match(client, /financialHistoryState/);
+  assert.match(client, /Load data/);
+  assert.match(client, /enrichFinancialHistory/);
+  assert.match(client, /financialMetricRows/);
+  assert.match(server, /salesGrowth10y/);
+  assert.match(server, /profitGrowth10y/);
+  assert.match(server, /epsGrowth10y/);
+  assert.match(server, /workingCapital10y/);
+});
+
+test('screener keeps provider-derived metrics in a durable cache between browser sessions', async () => {
+  const [server, schema] = await Promise.all([read('server.mjs'), read('../../../../supabase/schema.sql')]);
+  assert.match(server, /screener_metric_snapshots/);
+  assert.match(server, /addCachedScreenerMetrics/);
+  assert.match(server, /screener-coverage/);
+  assert.match(schema, /create table if not exists public\.screener_metric_snapshots/);
+});
+
 test('custom-query editor offers keyboard-accessible metric and operator suggestions', async () => {
   const [client, styles] = await Promise.all([read('app.js'), read('ui-refresh.css')]);
   assert.match(client, /screen-query-suggestions/);

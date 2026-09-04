@@ -46,6 +46,19 @@ create table if not exists public.company_financials (
 
 create index if not exists company_financials_lookup on public.company_financials(symbol, statement_type, period_type, period_end desc);
 
+-- Flat, screen-ready values are kept separately from the raw statements. This
+-- lets the screener reuse a refreshed metric snapshot without re-requesting a
+-- provider for every visitor or server restart.
+create table if not exists public.screener_metric_snapshots (
+  symbol text not null,
+  metric_group text not null check (metric_group in ('ratio','financial','price')),
+  values jsonb not null default '{}'::jsonb,
+  source_updated_at timestamptz not null default now(),
+  primary key (symbol, metric_group)
+);
+
+create index if not exists screener_metric_snapshots_freshness on public.screener_metric_snapshots(metric_group, source_updated_at desc);
+
 create table if not exists public.company_events (
   id bigint generated always as identity primary key,
   symbol text not null references public.companies(symbol) on delete cascade,
@@ -129,6 +142,7 @@ create table if not exists public.research_state (
 alter table public.companies enable row level security;
 alter table public.company_quotes enable row level security;
 alter table public.company_financials enable row level security;
+alter table public.screener_metric_snapshots enable row level security;
 alter table public.company_events enable row level security;
 alter table public.screen_definitions enable row level security;
 alter table public.watchlists enable row level security;
@@ -141,6 +155,7 @@ alter table public.research_state enable row level security;
 create policy "Public can read companies" on public.companies for select using (true);
 create policy "Public can read quotes" on public.company_quotes for select using (true);
 create policy "Public can read financials" on public.company_financials for select using (true);
+create policy "Public can read screener metric snapshots" on public.screener_metric_snapshots for select using (true);
 create policy "Public can read company events" on public.company_events for select using (true);
 
 drop policy if exists "Users can read own research state" on public.research_state;
