@@ -1087,20 +1087,26 @@ function setupScreener() {
     if (metric === 'volume') return number * (unit === 'b' ? 1e9 : unit === 'm' ? 1e6 : unit === 'k' ? 1e3 : 1);
     return number;
   };
-  const parseScreenQuery = input => String(input || '').trim().split(/\s+and\s+|,/i).map(part => part.trim()).filter(Boolean).reduce((parsed, part) => {
-    const match = part.match(/^(.+?)\s*(<=|>=|!=|=|<|>)\s*\$?\s*(-?\d[\d,]*(?:\.\d+)?)\s*([%BbMmKk]?)$/);
-    const dateMatch = part.match(/^(.+?)\s*(<=|>=|!=|=|<|>)\s*(\d{4}-\d{2}-\d{2})$/);
-    const candidate = match || dateMatch;
-    if (!candidate) { parsed.invalid.push(part); return parsed; }
-    const metric = normaliseQueryMetric(candidate[1]);
-    const target = metric && dateQueryMetrics.has(metric)
-      ? Date.parse(candidate[3])
-      : match ? parseQueryNumber(match[3], match[4], metric) : null;
-    if (!metric || target === null) { parsed.invalid.push(part); return parsed; }
-    parsed.rules.push({ metric, operator: match[2], target });
+  const parseScreenQuery = input => {
+    const parsed = { rules: [], groups: [], invalid: [] };
+    String(input || '').trim().split(/\s+or\s+/i).map(group => group.trim()).filter(Boolean).forEach(groupText => {
+      const group = [];
+      groupText.split(/\s+and\s+|,/i).map(part => part.trim()).filter(Boolean).forEach(part => {
+        const match = part.match(/^(.+?)\s*(<=|>=|!=|=|<|>)\s*\$?\s*(-?\d[\d,]*(?:\.\d+)?)\s*([%BbMmKk]?)$/);
+        const dateMatch = part.match(/^(.+?)\s*(<=|>=|!=|=|<|>)\s*(\d{4}-\d{2}-\d{2})$/);
+        const candidate = match || dateMatch;
+        if (!candidate) { parsed.invalid.push(part); return; }
+        const metric = normaliseQueryMetric(candidate[1]);
+        const target = metric && dateQueryMetrics.has(metric) ? Date.parse(candidate[3]) : match ? parseQueryNumber(match[3], match[4], metric) : null;
+        if (!metric || target === null) { parsed.invalid.push(part); return; }
+        const rule = { metric, operator: candidate[2], target };
+        group.push(rule); parsed.rules.push(rule);
+      });
+      if (group.length) parsed.groups.push(group);
+    });
     return parsed;
-  }, { rules: [], invalid: [] });
-  const queryPass = (stock, rules) => rules.every(rule => {
+  };
+  const queryPass = (stock, rules, groups = []) => (groups.length ? groups.some(group => queryPass(stock, group)) : rules.every(rule => {
     const current = queryMetricValue(stock, rule.metric);
     if (current === null || !Number.isFinite(Number(current))) return false;
     if (rule.operator === '<') return current < rule.target;
@@ -1109,7 +1115,7 @@ function setupScreener() {
     if (rule.operator === '>=') return current >= rule.target;
     if (rule.operator === '!=') return current !== rule.target;
     return current === rule.target;
-  });
+  }));
   const updateQueryStatus = parsed => {
     const status = $('#screen-query-status');
     if (!status) return;
@@ -1118,7 +1124,7 @@ function setupScreener() {
     const incompleteField = parsed.invalid.length === 1 && Boolean(normaliseQueryMetric(parsed.invalid[0]));
     if (incompleteField) { status.classList.remove('has-error'); status.textContent = `“${parsed.invalid[0]}” added. Choose an operator and number to complete this rule.`; }
     else if (parsed.invalid.length) status.textContent = `Could not use: ${parsed.invalid.join(' · ')}. Choose a field from the Ratio Gallery, then use <, >, <= or >= with a number (or YYYY-MM-DD for a result date).`;
-    else if (parsed.rules.length) status.textContent = `${parsed.rules.length} custom ${parsed.rules.length === 1 ? 'rule' : 'rules'} active. Every rule must match.`;
+    else if (parsed.rules.length) status.textContent = `${parsed.rules.length} custom ${parsed.rules.length === 1 ? 'rule' : 'rules'} active.${parsed.groups?.length > 1 ? ' Any OR group can match; AND rules inside a group all apply.' : ' Every rule must match.'}`;
     else status.textContent = 'Choose a metric from the Ratio Gallery, then add an operator and a number.';
   };
   let financialHistoryLoaded = false;
@@ -1391,6 +1397,8 @@ function setupScreener() {
     if (activeGalleryTab !== 'price' && universe.length) enrichFinancialHistory(universe.slice(0, 60));
   });
   document.querySelectorAll('[data-query-operator]').forEach(button => button.onclick = () => insertQueryText(button.dataset.queryOperator));
+  const orOperator = document.querySelector('.ratio-gallery-operators button[title*="OR logic"]');
+  if (orOperator) { orOperator.disabled = false; orOperator.removeAttribute('title'); orOperator.dataset.queryOperator = 'OR'; orOperator.onclick = () => insertQueryText('OR'); }
   $('#screen-ratio-search').oninput = renderRatioGallery;
   $('#screen-gallery-close').onclick = () => { $('#screen-ratio-gallery').hidden = true; $('#screen-gallery-open').focus(); };
   $('#screen-gallery-open').onclick = () => { $('#screen-ratio-gallery').hidden = false; renderRatioGallery(); enrichFinancialHistory(universe.slice(0, 60)); $('#screen-ratio-search').focus(); };
@@ -1504,7 +1512,7 @@ function setupScreener() {
         (minRoe === 0 || (roe !== null && roe >= minRoe)) &&
         (minEps <= -999998 || (eps !== null && eps >= minEps)) &&
         (minGrowth <= -999998 || (growth !== null && growth >= minGrowth)) && volume >= minVolume &&
-        (dividend === 'all' || paysDividend) && formulaPass(stock) && queryPass(stock, parsedQuery.rules);
+        (dividend === 'all' || paysDividend) && formulaPass(stock) && queryPass(stock, parsedQuery.rules, parsedQuery.groups);
     });
     const sorter = {
       cap: (a, b) => Number(b.marketCap || 0) - Number(a.marketCap || 0),
