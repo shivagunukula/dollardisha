@@ -275,11 +275,29 @@ function screenerRow(stock, extraColumns = []) {
 function pageHeader(kicker, title, text) { return `<div class="section-header"><div><p class="crumb">${kicker}</p><h1 class="page-title">${title}</h1><p class="sub">${text}</p></div></div>`; }
 
 function dashboardView() {
-  return `<div class="page">${pageHeader('US EQUITY RESEARCH', 'Your research desk.', 'Screen US stocks, read official filings, compare companies and organise your ideas.')}
-  <section class="market-grid" id="market-cards">${['NVDA', 'MSFT', 'AAPL', 'GOOGL'].map((ticker) => `<div class="market-card" data-market-ticker="${ticker}"><span>${ticker}</span><strong>Loading…</strong><b>Latest available quote</b></div>`).join('')}</section>
-  <section class="dashboard-grid"><div class="panel"><div class="panel-head"><div><h2>Research workflow</h2><p>Everything starts with a question.</p></div></div><div class="workflow"><button data-page="screener"><b>1</b><span>Screen US equities<small>Use filters and export your list</small></span></button><button data-page="markets"><b>2</b><span>See market scans<small>Find leaders, gainers and laggards</small></span></button><button data-page="research"><b>3</b><span>Write your thesis<small>Read SEC filings and save notes</small></span></button></div></div>
-  <div class="panel"><div class="panel-head"><div><h2>Your watchlist</h2><p>${watchlist.length ? `${watchlist.length} saved companies` : 'No companies saved yet'}</p></div><button data-page="watchlist">Open</button></div>${watchlist.slice(0, 3).map((ticker) => { const stock = stocks.find((item) => item.ticker === ticker) || { ticker, name: ticker, change: 0 }; return `<div class="idea"><div class="avatar">${ticker.slice(0, 2)}</div><div><b>${escapeHtml(stock.name)}</b><small>${ticker}</small></div><strong class="${stock.change >= 0 ? 'positive' : 'down'}">${percent(stock.change)}</strong></div>`; }).join('') || '<div class="watch-empty"><b>Your research list is waiting</b>Add companies from Market Scans or the Stock Screener.</div>'}</div></section>
-  <section class="panel" style="margin-top:18px"><div class="panel-head"><div><h2>What you can do now</h2><p>Research features are ready to use.</p></div></div><div class="workflow"><button data-page="markets"><b>◆</b><span>Market Scans<small>Gainers, losers, leaders</small></span></button><button data-page="indexlab"><b>◎</b><span>Custom Index<small>Make your own US-stock basket</small></span></button><button data-page="compare"><b>↔</b><span>Compare Companies<small>Review two stocks side by side</small></span></button></div></section></div>`;
+  return `<div class="page public-home">
+  <section class="home-intro" aria-labelledby="home-title"><p class="crumb">DOLLARDISHA · US EQUITY RESEARCH</p><h1 id="home-title">Research a US company.</h1><p>Prices, financial statements, valuation ratios and SEC filings—built for deliberate research, not noise.</p><form id="home-company-form" class="home-company-search"><label class="sr-only" for="home-company-search">Company ticker</label><span aria-hidden="true">⌕</span><input id="home-company-search" autocomplete="off" placeholder="Enter a ticker, e.g. NVDA"><button class="solid-btn" type="submit">Research company</button></form><div class="home-ideas"><span>Try:</span><button type="button" data-page="NVDA">NVDA</button><button type="button" data-page="MSFT">MSFT</button><button type="button" data-page="AAPL">AAPL</button><button type="button" data-page="GOOGL">GOOGL</button></div></section>
+  <section class="home-market-section" aria-labelledby="home-market-title"><div class="home-section-head"><div><p class="crumb">MARKET SNAPSHOT</p><h2 id="home-market-title">Large US companies</h2></div><button class="link-button" type="button" data-page="markets">View market scans</button></div><section class="home-market-grid" id="market-cards">${['NVDA', 'MSFT', 'AAPL', 'GOOGL'].map((ticker) => `<button type="button" class="home-market-row market-card" data-market-ticker="${ticker}"><span>${ticker}</span><strong>Loading…</strong><b>Latest available quote</b></button>`).join('')}</section></section>
+  <section class="home-research-links" aria-label="Research tools"><article><p class="crumb">01</p><h2>Screen stocks</h2><p>Build a precise list from valuation, quality and price criteria.</p><button class="link-button" type="button" data-page="screener">Open stock screener →</button></article><article><p class="crumb">02</p><h2>Compare companies</h2><p>Put fundamentals and valuation side by side before forming a view.</p><button class="link-button" type="button" data-page="compare">Compare companies →</button></article><article><p class="crumb">03</p><h2>Read filings</h2><p>Follow official SEC disclosures and keep your research in one place.</p><button class="link-button" type="button" data-page="research">Open research hub →</button></article></section>
+  <section class="home-watchlist"><div class="home-section-head"><div><p class="crumb">YOUR LIST</p><h2>Watchlist</h2></div><button class="link-button" type="button" data-page="watchlist">Open watchlist</button></div>${watchlist.slice(0, 3).map((ticker) => { const stock = stocks.find((item) => item.ticker === ticker) || { ticker, name: ticker, change: 0 }; return `<button type="button" class="home-watch-row" data-page="${ticker}"><span>${ticker}</span><b>${escapeHtml(stock.name)}</b><em class="${stock.change >= 0 ? 'positive' : 'down'}">${percent(stock.change)}</em></button>`; }).join('') || '<p class="home-empty">No companies saved yet. Add them while browsing the screener or market scans.</p>'}</section></div>`;
+}
+function setupDashboard() {
+  const form = $('#home-company-form');
+  const input = $('#home-company-search');
+  if (!form || !input) return;
+  form.onsubmit = event => {
+    event.preventDefault();
+    const query = input.value.trim();
+    const match = stocks.find(stock => stock.ticker === query.toUpperCase() || stock.name.toLowerCase() === query.toLowerCase());
+    if (!match) {
+      input.setCustomValidity('Enter a ticker, such as NVDA, MSFT or AAPL.');
+      input.reportValidity();
+      return;
+    }
+    input.setCustomValidity('');
+    navigateTo(match.ticker);
+  };
+  input.oninput = () => input.setCustomValidity('');
 }
 
 function marketsView() {
@@ -511,7 +529,7 @@ function render() {
   document.querySelectorAll('.nav').forEach((button) => button.classList.toggle('active', button.dataset.page === page));
   $('#watch-count').textContent = watchlist.length;
   wireCommon();
-  if (page === 'dashboard') hydrateDashboard();
+  if (page === 'dashboard') { setupDashboard(); hydrateDashboard(); }
   if (page === 'markets') setupMarkets();
   if (page === 'screener') setupScreener();
   if (page === 'indexlab') setupIndex();
