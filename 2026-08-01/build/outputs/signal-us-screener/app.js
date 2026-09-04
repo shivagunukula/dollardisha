@@ -3238,7 +3238,7 @@ function renderCompanyDocuments(ticker) {
     .catch(() => ['doc-announcements','doc-annual','doc-quarterly','doc-concalls'].forEach(id => { const holder = $(`#${id}`); if (holder) holder.innerHTML = '<p class="data-empty">Document data is temporarily unavailable.</p>'; }));
 }
 const previousCompanyExtras = hydrateCompanyExtras;
-hydrateCompanyExtras = function(ticker) { previousCompanyExtras(ticker); renderCompanyDocuments(ticker); };
+hydrateCompanyExtras = function(ticker) { $('#intelligence')?.remove(); previousCompanyExtras(ticker); renderCompanyDocuments(ticker); };
 
 // Keep SPA routes shareable and make them usable as real browser tabs. Section
 // anchors on a company page (for example #chart) remain normal in-page links.
