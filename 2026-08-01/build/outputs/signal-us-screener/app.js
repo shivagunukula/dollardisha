@@ -1801,7 +1801,7 @@ function companyView(ticker) {
       </div>
       <button class="solid-btn ${watchlist.includes(ticker) ? 'saved' : ''}" data-watch="${ticker}">${watchlist.includes(ticker) ? 'Following' : 'Follow'}</button>
     </div>
-    <nav class="company-tabs"><a href="#overview">Overview</a><a href="#chart">Chart</a><a href="#earnings">Earnings</a><a href="#strengths">Pros &amp; cons</a><a href="#quarterly">Quarterly</a><a href="#financials">Financials</a><a href="#peers">Peers</a><a href="#intelligence">Outlook</a><a href="#events">Events</a><a href="#documents">Documents</a></nav>
+    <nav class="company-tabs" aria-label="Company research sections"><a href="#overview">Summary</a><a href="#chart">Chart</a><a href="#earnings">Earnings</a><a href="#intelligence">Analysis</a><a href="#intelligence">Outlook</a><a href="#peers">Peers</a><a href="#quarterly">Quarters</a><a href="#financials">P&amp;L</a><a href="#financials">Balance Sheet</a><a href="#financials">Cash Flow</a><a href="#overview-ratios">Ratios</a><a href="#intelligence">Investors</a><a href="#events">Events</a><a href="#documents">Documents</a></nav>
     <div class="company-actionbar"><span class="live-pill"><i></i> Live research data</span><span id="company-freshness">Updating from connected providers…</span><button type="button" class="link-button" id="company-refresh">Refresh data</button><button type="button" class="solid-btn" id="company-export">Export research CSV</button></div>
     <div id="overview" class="company-overview-stack">
       <section class="panel company-summary company-research-card">
@@ -1821,7 +1821,7 @@ function companyView(ticker) {
         </div>
         <aside class="company-about"><p class="about-label">ABOUT</p><p id="company-description">Loading company profile and latest available quote…</p><div class="about-meta"><span>Website</span><b id="company-site">—</b></div><div id="company-keypoints" class="key-points"></div></aside>
       </section>
-      <section class="panel ratios-panel overview-ratios">
+      <section id="overview-ratios" class="panel ratios-panel overview-ratios">
         <div class="panel-head"><div><h2>Financial ratio explorer</h2><p>Filter the latest trailing-twelve-month valuation, quality and efficiency metrics</p></div></div>
         <div id="company-ratios"><p class="data-empty">Loading ratios…</p></div>
       </section>
