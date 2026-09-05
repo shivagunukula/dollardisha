@@ -3151,3 +3151,5 @@ html[data-theme="light"] .screen-results-panel,html[data-theme="light"] .screen-
 .home-company-search .search-results button{display:flex;align-items:center;gap:9px;width:100%;padding:10px 12px;border:0;border-bottom:1px solid var(--dd-line-soft);background:transparent;color:var(--dd-text);text-align:left;cursor:pointer}
 .home-company-search .search-results button:hover{background:var(--dd-surface-3)}
 .home-company-search .search-results button>span{flex:1;min-width:0}.home-company-search .search-results small{color:var(--dd-muted);font-size:10px}
+/* Keep live freshness messaging on the homepage; stock pages retain actions without duplicate status badges. */
+body.company-route .data-freshness,body.company-route .company-actionbar .live-pill,body.company-route .company-actionbar #company-freshness{display:none}

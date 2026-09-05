@@ -590,6 +590,7 @@ function render() {
   const content = $('#content');
   content.classList.remove('route-ready');
   content.innerHTML = view;
+  document.body.classList.toggle('company-route', Boolean(content.querySelector('.company-page')));
   document.querySelectorAll('.nav').forEach((button) => button.classList.toggle('active', button.dataset.page === page));
   $('#watch-count').textContent = watchlist.length;
   wireCommon();
