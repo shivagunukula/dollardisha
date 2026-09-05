@@ -981,6 +981,12 @@ async function marketScan(mode) {
     const endpoint = mode === 'losers' ? 'biggest-losers' : mode === 'active' ? 'most-actives' : 'biggest-gainers';
     source = await fmp(endpoint, { limit:30 }).catch(() => []);
   }
+  if (!source.length) {
+    const directory = await nasdaqDirectory().catch(() => []);
+    source = directory.map(nasdaqDirectoryItem);
+    source.sort((a, b) => mode === 'largest' ? Number(b.marketCap || 0) - Number(a.marketCap || 0) : mode === 'active' ? Number(b.volume || 0) - Number(a.volume || 0) : Number(b.changesPercentage || 0) - Number(a.changesPercentage || 0));
+    if (mode === 'losers') source.reverse();
+  }
   const seen = new Set();
   const seeds = source.filter(item => {
     const ticker = symbol(item.symbol);
@@ -1534,7 +1540,7 @@ createServer(async (req, res) => {
       const requested = Number(url.searchParams.get('points'));
       const points = [22, 130, 260, 780, 1300, 2600, 3900].includes(requested) ? requested : 260;
       const [history, quarterly, quote] = await Promise.all([
-        priceHistory(ticker, points),
+        priceHistory(ticker, points).catch(error => { console.warn(`Price history unavailable for ${ticker}: ${error.message}`); return []; }),
         fmp('income-statement', { symbol:ticker, period:'quarter', limit:80 }).catch(() => []),
         liveQuote(ticker).catch(() => normalizeQuote(ticker))
       ]);
@@ -1547,6 +1553,7 @@ createServer(async (req, res) => {
         const eps = report?.eps ?? null;
         return { ...point, eps, pe:eps !== null && eps > 0 ? point.close / eps : null };
       });
+      if (!values.length && Number.isFinite(Number(quote?.price))) values.push({ date:new Date().toISOString().slice(0, 10), close:Number(quote.price), volume:Number(quote.volume || 0), provider:quote.provider || 'quote-fallback' });
       // Keep the carried-forward EPS for tooltip/P-E calculations, but mark
       // only the first daily candle after each reported filing for the EPS
       // bars. This prevents a quarterly figure from becoming a giant daily
@@ -1581,6 +1588,12 @@ createServer(async (req, res) => {
         else filters.sector = targetProfile.sector;
         if (targetProfile.exchangeShortName) filters.exchange = targetProfile.exchangeShortName;
         screenerRows = await fmp('company-screener', filters).catch(error => { console.warn(`FMP peer screener unavailable for ${ticker}: ${error.message}`); return []; });
+        peerList = screenerRows.map(row => row.symbol);
+      }
+      if (!peerList.length) {
+        const directory = await nasdaqDirectory().catch(() => []);
+        const matches = directory.filter(row => symbol(row.symbol) !== ticker && (!targetProfile.sector || String(row.sector || '').toLowerCase() === String(targetProfile.sector).toLowerCase()));
+        screenerRows = matches.slice(0, 20).map(nasdaqDirectoryItem);
         peerList = screenerRows.map(row => row.symbol);
       }
 
