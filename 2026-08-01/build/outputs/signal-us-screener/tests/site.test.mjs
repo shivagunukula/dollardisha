@@ -364,3 +364,11 @@ test('custom-query editor offers keyboard-accessible metric and operator suggest
   assert.match(styles, /\.screen-query-suggestions/);
   assert.match(styles, /\.screen-query-suggestion/);
 });
+
+test('custom index uses the live holdings template after adding a company', async () => {
+  const client = await read('app.js');
+  assert.match(client, /function indexView\(\) \{ return legacyIndexView\(\); \}/);
+  assert.match(client, /id="basket-body"/);
+  assert.match(client, /\/data\/watchlist\?symbols=/);
+  assert.match(client, /basket\.symbols\.length === 1 \? 'company' : 'companies'/);
+});
