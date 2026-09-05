@@ -3153,3 +3153,14 @@ html[data-theme="light"] .screen-results-panel,html[data-theme="light"] .screen-
 .home-company-search .search-results button>span{flex:1;min-width:0}.home-company-search .search-results small{color:var(--dd-muted);font-size:10px}
 /* Keep live freshness messaging on the homepage; stock pages retain actions without duplicate status badges. */
 body.company-route .data-freshness,body.company-route .company-actionbar .live-pill,body.company-route .company-actionbar #company-freshness{display:none}
+/* UI polish: consistent rhythm, typography and restrained motion. */
+:root{--dd-space-1:6px;--dd-space-2:10px;--dd-space-3:16px;--dd-space-4:24px;--dd-space-5:36px;--dd-ease:cubic-bezier(.22,.61,.36,1)}
+body{letter-spacing:.005em}
+.page{animation:ddPageIn .34s var(--dd-ease) both}
+.panel,.market-card,.index-card,.filter-layout,.query-card,.home-research-links article,.home-market-row{transition:transform .22s var(--dd-ease),border-color .22s ease,box-shadow .22s ease}
+.panel:hover,.market-card:hover,.index-card:hover,.filter-layout:hover,.query-card:hover{border-color:color-mix(in srgb,var(--dd-accent) 52%,var(--dd-line));box-shadow:0 14px 30px rgba(0,0,0,.16)}
+.home-research-links article:hover,.home-market-row:hover{transform:translateY(-2px)}
+button,.link-button,.solid-btn,a{transition:color .18s ease,background-color .18s ease,border-color .18s ease,transform .18s ease,opacity .18s ease}
+button:active,.link-button:active,.solid-btn:active{transform:translateY(1px)}
+@keyframes ddPageIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
