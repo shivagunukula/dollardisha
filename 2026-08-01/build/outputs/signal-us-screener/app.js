@@ -1906,6 +1906,18 @@ async function hydrateCompanyResearchSummary(ticker) {
     window.currentCompanyData = { ticker, data };
     const income = Array.isArray(data.income) ? data.income.slice().sort((a,b) => String(b.date || b.calendarYear || '').localeCompare(String(a.date || a.calendarYear || ''))) : [];
     const ratios = data.ratios || {};
+    const metricData = data.metrics || {};
+    const latestIncome = income[0] || {};
+    const snapshotSet = (id, value) => { const node = $(`#${id}`); if (node) node.textContent = value; };
+    const hasSnapshotValue = value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
+    const snapshotNumber = (value, digits = 2, suffix = '') => hasSnapshotValue(value) ? `${Number(value).toFixed(digits)}${suffix}` : '—';
+    const snapshotPercent = (value, digits = 1) => hasSnapshotValue(value) ? `${(Number(value) * 100).toFixed(digits)}%` : '—';
+    snapshotSet('company-ps', snapshotNumber(ratios.priceToSalesRatioTTM, 1, 'x'));
+    snapshotSet('company-eps', Number.isFinite(Number(metricData.netIncomePerShareTTM ?? latestIncome.eps)) ? `$${Number(metricData.netIncomePerShareTTM ?? latestIncome.eps).toFixed(2)}` : '—');
+    snapshotSet('company-roa', snapshotPercent(ratios.returnOnAssetsTTM));
+    snapshotSet('company-margin', snapshotPercent(ratios.netProfitMarginTTM));
+    snapshotSet('company-quick', snapshotNumber(ratios.quickRatioTTM));
+    snapshotSet('company-interest', snapshotNumber(ratios.interestCoverageTTM, 1, 'x'));
     const num = value => Number.isFinite(Number(value)) ? Number(value) : null;
     const field = (row, names) => { for (const name of names) { const value = num(row?.[name]); if (value !== null) return value; } return null; };
     const values = names => income.map(row => field(row, names)).filter(value => value !== null);
@@ -1963,12 +1975,18 @@ function companyView(ticker) {
           <div class="ratio-cell price-cell"><span>Current price</span><b id="company-price">—</b><small id="company-change">Quote loading…</small></div>
           <div class="ratio-cell"><span>Day high / low</span><b id="company-range">—</b></div>
           <div class="ratio-cell emphasis"><span>Stock P/E</span><b id="company-pe">—</b></div>
+          <div class="ratio-cell emphasis"><span>Price to book</span><b id="company-pb">—</b></div>
+          <div class="ratio-cell emphasis"><span>Price to sales</span><b id="company-ps">—</b></div>
           <div class="ratio-cell emphasis"><span>Book value / share</span><b id="company-book">—</b></div>
+          <div class="ratio-cell"><span>EPS</span><b id="company-eps">—</b></div>
           <div class="ratio-cell emphasis"><span>Dividend yield</span><b id="company-dividend">—</b></div>
           <div class="ratio-cell"><span>Return on equity</span><b id="company-roe">—</b></div>
+          <div class="ratio-cell"><span>Return on assets</span><b id="company-roa">—</b></div>
+          <div class="ratio-cell"><span>Net profit margin</span><b id="company-margin">—</b></div>
           <div class="ratio-cell"><span>Current ratio</span><b id="company-current">—</b></div>
+          <div class="ratio-cell"><span>Quick ratio</span><b id="company-quick">—</b></div>
           <div class="ratio-cell"><span>Debt to equity</span><b id="company-debt">—</b></div>
-          <div class="ratio-cell emphasis"><span>Price to book</span><b id="company-pb">—</b></div>
+          <div class="ratio-cell"><span>Interest coverage</span><b id="company-interest">—</b></div>
           <div class="ratio-cell"><span>Volume</span><b id="company-volume">—</b></div>
           <div class="ratio-cell"><span>Sector</span><b id="company-sector">—</b></div>
         </div>
