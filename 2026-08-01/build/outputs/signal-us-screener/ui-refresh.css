@@ -3153,6 +3153,11 @@ html[data-theme="light"] .screen-results-panel,html[data-theme="light"] .screen-
 .home-company-search .search-results button>span{flex:1;min-width:0}.home-company-search .search-results small{color:var(--dd-muted);font-size:10px}
 /* Keep live freshness messaging on the homepage; stock pages retain actions without duplicate status badges. */
 body.company-route .data-freshness,body.company-route .company-actionbar .live-pill,body.company-route .company-actionbar #company-freshness{display:none}
+.company-top-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.company-top-actions .link-button{white-space:nowrap}
+.company-summary{align-items:stretch!important}
+.company-summary .ratio-board{align-self:stretch;grid-auto-rows:minmax(52px,1fr)!important}
+@media(max-width:700px){.company-top{align-items:flex-start!important;flex-direction:column}.company-top-actions{width:100%;justify-content:flex-start}.company-summary .ratio-board{grid-auto-rows:minmax(52px,auto)!important}}
 /* UI polish: consistent rhythm, typography and restrained motion. */
 :root{--dd-space-1:6px;--dd-space-2:10px;--dd-space-3:16px;--dd-space-4:24px;--dd-space-5:36px;--dd-ease:cubic-bezier(.22,.61,.36,1)}
 body{letter-spacing:.005em}

@@ -1953,10 +1953,9 @@ function companyView(ticker) {
         ${companyLogo(ticker, ticker, 'large')}
         <div><p class="crumb">US EQUITY RESEARCH</p><h1 class="page-title" id="company-title">${escapeHtml(ticker)}</h1><p class="sub" id="company-subtitle">${escapeHtml(ticker)} · Loading company research…</p></div>
       </div>
-      <button class="solid-btn ${watchlist.includes(ticker) ? 'saved' : ''}" data-watch="${ticker}">${watchlist.includes(ticker) ? 'Following' : 'Follow'}</button>
+      <div class="company-top-actions"><button type="button" class="link-button" id="company-refresh">Refresh data</button><button type="button" class="link-button" id="company-export">Export CSV</button><button class="solid-btn ${watchlist.includes(ticker) ? 'saved' : ''}" data-watch="${ticker}">${watchlist.includes(ticker) ? 'Following' : 'Follow'}</button></div>
     </div>
     <nav class="company-tabs" aria-label="Company research sections"><a href="#overview">Summary</a><a href="#chart">Chart</a><a href="#earnings">Earnings</a><a href="#intelligence">Analysis</a><a href="#intelligence">Outlook</a><a href="#peers">Peers</a><a href="#quarterly">Quarters</a><a href="#pnl">P&amp;L</a><a href="#balance-sheet">Balance Sheet</a><a href="#cash-flow">Cash Flow</a><a href="#overview-ratios">Ratios</a><a href="#intelligence">Investors</a><a href="#events">Events</a><a href="#documents">Documents</a></nav>
-    <div class="company-actionbar"><span class="live-pill"><i></i> Live research data</span><span id="company-freshness">Updating from connected providers…</span><button type="button" class="link-button" id="company-refresh">Refresh data</button><button type="button" class="solid-btn" id="company-export">Export research CSV</button></div>
     <div id="overview" class="company-overview-stack">
       <section class="panel company-summary company-research-card">
         <div class="summary-main ratio-board">
