@@ -841,8 +841,8 @@ async function globalMarketPulse() {
       const regions = [...new Set(globalMarketDefinitions.indices.map(item => item.region))].map(region => {
         const rows = indices.filter(item => item.region === region);
         const liveRows = rows.filter(item => item.dataStatus !== 'unavailable');
-        const changes = liveRows.map(item => Number(item.changesPercentage)).filter(Number.isFinite);
-        return { region, change:changes.length ? changes.reduce((sum, value) => sum + value, 0) / changes.length : null, breadth:liveRows.filter(item => Number.isFinite(Number(item.changesPercentage)) && Number(item.changesPercentage) >= 0).length, total:liveRows.length };
+        const changes = liveRows.map(item => finiteValue(item.changesPercentage)).filter(value => value !== null).map(Number);
+        return { region, change:changes.length ? changes.reduce((sum, value) => sum + value, 0) / changes.length : null, breadth:changes.filter(value => value >= 0).length, total:changes.length };
       });
       const result = { updatedAt:new Date().toISOString(), indices, commodities, crypto, regions };
       globalMarketCache.value = result;
@@ -889,7 +889,7 @@ function countryForMarket(asset) {
   if (symbol === '^J203.JO') return 'South Africa';
   return asset?.region || 'Global';
 }
-const benchmarkDetails = (asset, row = {}) => ({ name:asset.name, symbol:asset.symbol, exchange:asset.exchange || null, country:countryForMarket(asset), change:Number.isFinite(Number(row.change)) ? Number(row.change) : null, cagr:Number.isFinite(Number(row.cagr)) ? Number(row.cagr) : null });
+const benchmarkDetails = (asset, row = {}) => ({ name:asset.name, symbol:asset.symbol, exchange:asset.exchange || null, country:countryForMarket(asset), change:finiteValue(row.change) === null ? null : Number(row.change), cagr:finiteValue(row.cagr) === null ? null : Number(row.cagr) });
 async function marketPerformance(period = 'day') {
   const selected = ['day', 'week', 'month', 'ytd', '3m', '6m', 'year', '3y', '5y', '10y'].includes(period) ? period : 'day';
   const cached = marketPerformanceCache.get(selected);
@@ -898,7 +898,8 @@ async function marketPerformance(period = 'day') {
     const pulse = await globalMarketPulse();
     const regions = (pulse.regions || []).map(region => ({
       ...region,
-      benchmarks: (pulse.indices || []).filter(item => item.region === region.region).map(item => benchmarkDetails(item, item))
+      // Quote `change` is an index-point move, not a percentage return.
+      benchmarks: (pulse.indices || []).filter(item => item.region === region.region).map(item => benchmarkDetails(item, { change:item.changesPercentage }))
     }));
     const value = { updatedAt:pulse.updatedAt, period:selected, regions };
     marketPerformanceCache.set(selected, { value, expiresAt:Date.now() + 55 * 1000 });

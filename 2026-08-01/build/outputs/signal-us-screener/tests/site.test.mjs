@@ -209,7 +209,7 @@ test('market and screener views stay useful during partial provider coverage', a
 
 test('phone and tablet layouts contain every tool without widening the page', async () => {
   const [html, styles] = await Promise.all([read('index.html'), read('ui-refresh.css')]);
-  assert.match(html, /ui-refresh\.css\?v=20260825-mobile-audit/);
+  assert.match(html, /ui-refresh\.css\?v=20260905-home-fixes/);
   assert.match(styles, /Complete phone and tablet containment pass/);
   assert.match(styles, /@media \(max-width: 900px\)[\s\S]*?\.toolkit-page[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(styles, /@media \(max-width: 760px\)[\s\S]*?\.filter-layout[\s\S]*?\.index-lab-grid/);

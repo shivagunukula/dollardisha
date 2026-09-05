@@ -2334,7 +2334,8 @@ dashboardView = function() {
   const match = polishedHtml.match(/<section class="panel dashboard-hero">([\s\S]*?)<\/section><div class="section-header">/);
   if (!match) return polishedHtml;
   const insights = dashboardInsightCards();
-  const hero = `<section class="panel dashboard-hero"><div class="dashboard-hero-layout">${dashboardQuickAccess()}${panel}</div></section><div class="section-header">`;
+  const researchStart = baseDashboardView().match(/<section class="home-intro"[\s\S]*?<\/section>/)?.[0] || '';
+  const hero = `${researchStart}<div class="home-screen-action"><button class="solid-btn" type="button" data-page="screener">Screen US stocks →</button></div><section class="panel dashboard-hero"><div class="dashboard-hero-layout">${dashboardQuickAccess()}${panel}</div></section><div class="section-header">`;
   return polishedHtml.replace(match[0], hero).replace('<section class="dashboard-grid">', `${insights}<section class="dashboard-grid">`);
 };
 
@@ -2368,7 +2369,7 @@ async function hydrateMarketLeaders(period = 'day') {
       const label = change === null ? 'Unavailable' : percent(change);
       const cagr = scanNumber(row.cagr);
       const trend = change === null ? '' : change >= 0 ? 'positive' : 'down';
-      return `<button type="button" class="market-leader-row" data-market-region-row="${escapeHtml(row.region)}"><span class="market-leader-rank">${index + 1}</span><div><b>${escapeHtml(row.region)}</b><small>${row.breadth !== null && row.total ? `${row.breadth}/${row.total} rising` : 'Regional benchmark'} · CAGR ${cagr === null ? '—' : percent(cagr)}</small></div><strong class="${trend}">${label}</strong></button>`;
+      return `<button type="button" class="market-leader-row" data-market-region-row="${escapeHtml(row.region)}"><span class="market-leader-rank">${index + 1}</span><div><b>${escapeHtml(row.region)}</b><small>${row.breadth !== null && row.total ? `${row.breadth}/${row.total} rising` : 'Regional benchmark'}${['3y', '5y', '10y'].includes(period) && cagr !== null ? ` · CAGR ${percent(cagr)}` : ''}</small></div><strong class="${trend}">${label}</strong></button>`;
     }).join('') : '<div class="market-leader-loading">Market performance is temporarily unavailable.</div>';
     const details = document.querySelector('#market-benchmark-details');
     const showDetails = (region) => {
@@ -2377,7 +2378,7 @@ async function hydrateMarketLeaders(period = 'day') {
       details.innerHTML = `<p class="crumb">${escapeHtml(row.region)} BENCHMARKS</p><strong>${escapeHtml(row.region)} market detail</strong><div class="market-benchmark-list">${(row.benchmarks || []).map(item => {
         const itemChange = scanNumber(item.change);
         const itemCagr = scanNumber(item.cagr);
-        return `<div><span><b>${escapeHtml(item.country || item.name)}</b><small>${escapeHtml(item.name)} · ${escapeHtml(item.exchange || 'Global')}</small></span><strong class="${itemChange === null ? '' : itemChange >= 0 ? 'positive' : 'down'}"><em>${itemChange === null ? 'Unavailable' : percent(itemChange)}</em><small>CAGR ${itemCagr === null ? '—' : percent(itemCagr)}</small></strong></div>`;
+        return `<div><span><b>${escapeHtml(item.country || item.name)}</b><small>${escapeHtml(item.name)} · ${escapeHtml(item.exchange || 'Global')}</small></span><strong class="${itemChange === null ? '' : itemChange >= 0 ? 'positive' : 'down'}"><em>${itemChange === null ? 'Unavailable' : percent(itemChange)}</em>${['3y', '5y', '10y'].includes(period) && itemCagr !== null ? `<small>CAGR ${percent(itemCagr)}</small>` : ''}</strong></div>`;
       }).join('') || '<small>No benchmark detail is available for this region yet.</small>'}</div>`;
     };
     document.querySelectorAll('[data-market-region-row]').forEach(rowButton => rowButton.addEventListener('click', () => showDetails(rowButton.dataset.marketRegionRow)));
@@ -2400,7 +2401,7 @@ async function hydrateMarketLeaders(period = 'day') {
       details.innerHTML = `<p class="crumb">${rising ? 'RISING' : 'FALLING'} COUNTRIES</p><strong>${rising ? 'Country benchmarks rising' : 'Country benchmarks falling'}</strong><small>${rising ? 'Benchmarks with a positive return' : 'Benchmarks with a negative return'} for the selected period. Click a region to narrow the list.</small><div class="market-benchmark-list">${matching.map(item => {
         const itemChange = scanNumber(item.change);
         const itemCagr = scanNumber(item.cagr);
-        return `<div><span><b>${escapeHtml(item.country || item.name)}</b><small>${escapeHtml(item.name)} · ${escapeHtml(item.region || 'Global')} · ${escapeHtml(item.exchange || 'Global')}</small></span><strong class="${itemChange >= 0 ? 'positive' : 'down'}"><em>${percent(itemChange)}</em><small>CAGR ${itemCagr === null ? '—' : percent(itemCagr)}</small></strong></div>`;
+        return `<div><span><b>${escapeHtml(item.country || item.name)}</b><small>${escapeHtml(item.name)} · ${escapeHtml(item.region || 'Global')} · ${escapeHtml(item.exchange || 'Global')}</small></span><strong class="${itemChange >= 0 ? 'positive' : 'down'}"><em>${percent(itemChange)}</em>${['3y', '5y', '10y'].includes(period) && itemCagr !== null ? `<small>CAGR ${percent(itemCagr)}</small>` : ''}</strong></div>`;
       }).join('') || '<small>No country benchmark matches this filter yet.</small>'}</div>`;
     }
     const updated = document.querySelector('#market-leaders-updated');

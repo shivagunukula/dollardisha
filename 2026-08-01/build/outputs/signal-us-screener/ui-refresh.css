@@ -154,7 +154,26 @@ body {
     linear-gradient(145deg, #141e35, #0e1628) !important;
 }
 .dashboard-hero > div:first-of-type { max-width: none; }
-.dashboard-hero-layout { display: grid; width: 100%; grid-template-columns: minmax(0, .88fr) minmax(560px, 1.12fr); gap: 30px; align-items: stretch; }
+.dashboard-hero-layout { display: grid; width: 100%; grid-template-columns: minmax(280px, .88fr) minmax(0, 1.12fr); gap: 24px; align-items: stretch; }
+.home-screen-action { margin: 16px 0 28px; }
+.dashboard-hero-layout > * { min-width: 0; box-sizing: border-box; }
+@media (max-width: 1100px) {
+  .site-header .header-inner { display: flex; flex-wrap: wrap; height: auto !important; padding-top: 12px !important; padding-bottom: 12px !important; }
+  .site-header .brand { min-width: 0 !important; margin-right: auto; }
+  .site-header .theme-picker, .site-header .account-button { flex: 0 0 auto; }
+  .site-header .universal-search { order: 4; flex: 1 1 100%; width: 100% !important; margin: 0; min-width: 0; }
+  .site-header .primary-nav { order: 5; flex: 1 1 100%; flex-wrap: wrap; min-width: 0; justify-content: flex-start; }
+  .site-header .secondary-nav { height: auto !important; min-height: 38px; flex-wrap: wrap; gap: 8px; }
+  .site-header .secondary-nav > div { display: flex; flex-wrap: wrap; min-width: 0; }
+  .dashboard-hero-layout { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+}
+@media (max-width: 560px) {
+  .dashboard-quick-access, .market-leaders-panel { padding: 16px; }
+  .dashboard-quick-list > button { grid-template-columns: 32px minmax(0, 1fr) auto; gap: 8px; }
+  .dashboard-quick-list > button > i { display: none; }
+  .market-leaders-head, .market-leader-toolbar { flex-wrap: wrap; }
+  .market-filter-group { flex-wrap: wrap; min-width: 0; }
+}
 .dashboard-hero-copy { min-width: 0; }
 .dashboard-hero-copy > .hero-proof { margin-top: 26px; }
 .dashboard-quick-access { display: flex; min-width: 0; padding: 24px; flex-direction: column; border: 1px solid rgba(151,170,224,.24); border-radius: 15px; background: linear-gradient(145deg, rgba(8,15,29,.72), rgba(19,34,62,.62)); box-shadow: 0 18px 42px rgba(0,0,0,.2); }
