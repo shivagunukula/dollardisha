@@ -296,7 +296,7 @@ function pageHeader(kicker, title, text) { return `<div class="section-header"><
 
 function dashboardView() {
   return `<div class="page public-home">
-  <section class="home-intro" aria-labelledby="home-title"><p class="crumb">DOLLARDISHA · US EQUITY RESEARCH</p><h1 id="home-title">Research a US company.</h1><p>Prices, financial statements, valuation ratios and SEC filings—built for deliberate research, not noise.</p><form id="home-company-form" class="home-company-search"><label class="sr-only" for="home-company-search">Company ticker</label><span aria-hidden="true">⌕</span><input id="home-company-search" autocomplete="off" placeholder="Enter a ticker, e.g. NVDA"><button class="solid-btn" type="submit">Research company</button></form><div class="home-ideas"><span>Try:</span><button type="button" data-page="NVDA">NVDA</button><button type="button" data-page="MSFT">MSFT</button><button type="button" data-page="AAPL">AAPL</button><button type="button" data-page="GOOGL">GOOGL</button></div></section>
+  <section class="home-intro" aria-labelledby="home-title"><p class="crumb">DOLLARDISHA · US EQUITY RESEARCH</p><h1 id="home-title">Research a US company.</h1><p>Prices, financial statements, valuation ratios and SEC filings—built for deliberate research, not noise.</p><form id="home-company-form" class="home-company-search"><label class="sr-only" for="home-company-search">Company ticker</label><span aria-hidden="true">⌕</span><input id="home-company-search" autocomplete="off" placeholder="Enter a ticker, e.g. NVDA" aria-controls="home-company-results" aria-expanded="false"><button class="solid-btn" type="submit">Research company</button><div id="home-company-results" class="search-results" role="listbox" aria-label="Company suggestions" hidden></div></form><div class="home-ideas"><span>Try:</span><button type="button" data-page="NVDA">NVDA</button><button type="button" data-page="MSFT">MSFT</button><button type="button" data-page="AAPL">AAPL</button><button type="button" data-page="GOOGL">GOOGL</button></div></section>
   <section class="home-market-section" aria-labelledby="home-market-title"><div class="home-section-head"><div><p class="crumb">MARKET SNAPSHOT</p><h2 id="home-market-title">Large US companies</h2></div><button class="link-button" type="button" data-page="markets">View market scans</button></div><section class="home-market-grid" id="market-cards">${['NVDA', 'MSFT', 'AAPL', 'GOOGL'].map((ticker) => `<button type="button" class="home-market-row market-card" data-market-ticker="${ticker}"><span>${ticker}</span><strong>Loading…</strong><b>Latest available quote</b></button>`).join('')}</section></section>
   <section class="home-research-links" aria-label="Research tools"><article><p class="crumb">01</p><h2>Screen stocks</h2><p>Build a precise list from valuation, quality and price criteria.</p><button class="link-button" type="button" data-page="screener">Open stock screener →</button></article><article><p class="crumb">02</p><h2>Compare companies</h2><p>Put fundamentals and valuation side by side before forming a view.</p><button class="link-button" type="button" data-page="compare">Compare companies →</button></article><article><p class="crumb">03</p><h2>Read filings</h2><p>Follow official SEC disclosures and keep your research in one place.</p><button class="link-button" type="button" data-page="research">Open research hub →</button></article></section>
   <section class="home-watchlist"><div class="home-section-head"><div><p class="crumb">YOUR LIST</p><h2>Watchlist</h2></div><button class="link-button" type="button" data-page="watchlist">Open watchlist</button></div>${watchlist.slice(0, 3).map((ticker) => { const stock = stocks.find((item) => item.ticker === ticker) || { ticker, name: ticker, change: 0 }; return `<button type="button" class="home-watch-row" data-page="${ticker}"><span>${ticker}</span><b>${escapeHtml(stock.name)}</b><em class="${stock.change >= 0 ? 'positive' : 'down'}">${percent(stock.change)}</em></button>`; }).join('') || '<p class="home-empty">No companies saved yet. Add them while browsing the screener or market scans.</p>'}</section></div>`;
@@ -304,7 +304,20 @@ function dashboardView() {
 function setupDashboard() {
   const form = $('#home-company-form');
   const input = $('#home-company-search');
+  const results = $('#home-company-results');
   if (!form || !input) return;
+  let timer;
+  const showMatches = (found = []) => {
+    results.innerHTML = found.slice(0, 8).map(stock => {
+      const ticker = String(stock.symbol || stock.ticker || '').toUpperCase();
+      const name = stock.name || stock.companyName || ticker;
+      const exchange = stock.exchangeShortName || stock.exchange || 'NASDAQ/NYSE';
+      return `<button type="button" role="option" data-home-find="${escapeHtml(ticker)}">${companyLogo(ticker, name, 'small')}<span>${escapeHtml(name)} <small>${escapeHtml(ticker)}</small></span><small>${escapeHtml(exchange)}</small></button>`;
+    }).join('') || '<button type="button" disabled>No matching US company</button>';
+    results.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+    results.querySelectorAll('[data-home-find]').forEach(button => button.onclick = () => { input.value = button.dataset.homeFind; results.hidden = true; input.setAttribute('aria-expanded', 'false'); navigateTo(button.dataset.homeFind); });
+  };
   form.onsubmit = event => {
     event.preventDefault();
     const query = input.value.trim();
@@ -317,7 +330,19 @@ function setupDashboard() {
     input.setCustomValidity('');
     navigateTo(match.ticker);
   };
-  input.oninput = () => input.setCustomValidity('');
+  input.oninput = () => {
+    input.setCustomValidity('');
+    clearTimeout(timer);
+    const query = input.value.trim();
+    if (!query) { results.hidden = true; input.setAttribute('aria-expanded', 'false'); return; }
+    timer = setTimeout(async () => {
+      results.innerHTML = '<button type="button" disabled>Searching Nasdaq companies…</button>';
+      results.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+      try { showMatches(await getJson(`/data/search?q=${encodeURIComponent(query)}`, 15000)); }
+      catch { showMatches(stocks.filter(stock => stock.ticker.includes(query.toUpperCase()) || stock.name.toLowerCase().includes(query.toLowerCase()))); }
+    }, 180);
+  };
 }
 
 function marketsView() {
