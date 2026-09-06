@@ -2020,7 +2020,49 @@ async function hydrateCompanyResearchSummary(ticker) {
 }
 var companyChartOptions = { points:260, ma50:true, ma200:true, volume:true };
 function movingAverage(values, window) { return values.map((item, index) => index < window - 1 ? null : values.slice(index - window + 1, index + 1).reduce((sum, value) => sum + value, 0) / window); }
-function setupSearch() { const input = $('#global-search'); const results = $('#global-results'); let timer; const openCompany = () => document.querySelectorAll('[data-find]').forEach((button) => { const target = button.dataset.find; button.setAttribute('title', 'Open with Ctrl/Cmd-click or middle-click in a new tab'); button.onclick = event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); openRouteInNewTab(target); return; } input.value = ''; results.hidden = true; navigateTo(target); }; button.onauxclick = event => { if (event.button === 1) { event.preventDefault(); openRouteInNewTab(target); } }; }); input.oninput = () => { clearTimeout(timer); const query = input.value.trim(); if (!query) { results.hidden = true; return; } timer = setTimeout(async () => { results.hidden = false; results.innerHTML = '<button disabled>Searching global exchanges…</button>'; try { const found = await getJson(`/data/search?q=${encodeURIComponent(query)}`); results.innerHTML = found.map((stock) => { const ticker = stock.symbol || stock.ticker; const name = stock.name || stock.companyName || ticker; const exchange = stock.exchangeShortName || stock.exchange || stock.sector || 'Global'; return `<button data-find="${escapeHtml(ticker)}">${companyLogo(ticker, name, 'small')}<span>${escapeHtml(name)} <small>${escapeHtml(ticker)}</small></span><small>${escapeHtml(exchange)}</small></button>`; }).join('') || '<button disabled>No matching company in the connected directories</button>'; } catch { const needle = query.toUpperCase(); const found = stocks.filter((stock) => stock.ticker.includes(needle) || stock.name.toUpperCase().includes(needle)); results.innerHTML = found.map((stock) => `<button data-find="${stock.ticker}">${companyLogo(stock.ticker, stock.name, 'small')}<span>${escapeHtml(stock.name)} <small>${stock.ticker}</small></span><small>${escapeHtml(stock.sector)}</small></button>`).join('') || '<button disabled>Global directory temporarily unavailable</button>'; } openCompany(); }, 220); }; }
+function setupSearch() {
+  const input = $('#global-search');
+  const results = $('#global-results');
+  if (!input || !results) return;
+  let timer;
+  const openCompany = () => document.querySelectorAll('[data-find]').forEach((button) => {
+    const target = button.dataset.find;
+    button.setAttribute('title', 'Open with Ctrl/Cmd-click or middle-click in a new tab');
+    button.onclick = event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); openRouteInNewTab(target); return; } input.value = ''; results.hidden = true; navigateTo(target); };
+    button.onauxclick = event => { if (event.button === 1) { event.preventDefault(); openRouteInNewTab(target); } };
+  });
+  input.onkeydown = event => {
+    if (event.key === 'Escape') { results.hidden = true; input.setAttribute('aria-expanded', 'false'); return; }
+    if (event.key !== 'Enter') return;
+    const query = input.value.trim();
+    const local = stocks.find(stock => stock.ticker === query.toUpperCase() || stock.name.toLowerCase() === query.toLowerCase());
+    if (!local && !/^[A-Z][A-Z0-9.-]{0,9}$/i.test(query)) return;
+    event.preventDefault();
+    results.hidden = true;
+    input.setAttribute('aria-expanded', 'false');
+    input.value = '';
+    navigateTo(local?.ticker || query.toUpperCase());
+  };
+  input.oninput = () => {
+    clearTimeout(timer);
+    const query = input.value.trim();
+    if (!query) { results.hidden = true; input.setAttribute('aria-expanded', 'false'); return; }
+    timer = setTimeout(async () => {
+      results.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+      results.innerHTML = '<button disabled>Searching global exchanges…</button>';
+      try {
+        const found = await getJson(`/data/search?q=${encodeURIComponent(query)}`);
+        results.innerHTML = found.map((stock) => { const ticker = stock.symbol || stock.ticker; const name = stock.name || stock.companyName || ticker; const exchange = stock.exchangeShortName || stock.exchange || stock.sector || 'Global'; return `<button data-find="${escapeHtml(ticker)}">${companyLogo(ticker, name, 'small')}<span>${escapeHtml(name)} <small>${escapeHtml(ticker)}</small></span><small>${escapeHtml(exchange)}</small></button>`; }).join('') || '<button disabled>No matching company in the connected directories</button>';
+      } catch {
+        const needle = query.toUpperCase();
+        const found = stocks.filter((stock) => stock.ticker.includes(needle) || stock.name.toUpperCase().includes(needle));
+        results.innerHTML = found.map((stock) => `<button data-find="${stock.ticker}">${companyLogo(stock.ticker, stock.name, 'small')}<span>${escapeHtml(stock.name)} <small>${stock.ticker}</small></span><small>${escapeHtml(stock.sector)}</small></button>`).join('') || '<button disabled>Global directory temporarily unavailable</button>';
+      }
+      openCompany();
+    }, 220);
+  };
+}
 // Expanded company workspace. Provider results remain optional so a missing
 // premium endpoint never breaks charts, filings, or financial statements.
 function intelNumber(value, digits = 1) { return Number.isFinite(Number(value)) ? Number(value).toLocaleString('en-US', { maximumFractionDigits:digits }) : '—'; }
