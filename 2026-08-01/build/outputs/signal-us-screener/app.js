@@ -2071,6 +2071,44 @@ function companyView(ticker) {
   </div>`;
 }
 
+async function hydrateCompany(ticker) {
+  try {
+    const data = await getJson(`/data/company?symbol=${encodeURIComponent(ticker)}`);
+    const profile = data.profile || {}, quote = data.quote || {}, ratios = data.ratios || {}, metrics = data.metrics || {};
+    const valid = value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
+    const ratio = (value, digits = 2) => valid(value) ? Number(value).toFixed(digits) : '—';
+    const pct = (value, digits = 1) => valid(value) ? `${(Number(value) * 100).toFixed(digits)}%` : '—';
+    const set = (id, value) => { const element = $(`#${id}`); if (element) element.textContent = value; };
+    set('company-title', profile.companyName || ticker);
+    set('company-subtitle', `${ticker} · ${profile.exchangeShortName || profile.exchange || 'US Equity'}`);
+    set('company-description', profile.description || 'Company profile is unavailable from the current provider.');
+    set('company-cap', usd(profile.mktCap || quote.marketCap));
+    set('company-price', valid(quote.price) ? `$${Number(quote.price).toFixed(2)}` : '—');
+    const change = $('#company-change');
+    if (change) { change.textContent = valid(quote.changesPercentage) ? `${percent(quote.changesPercentage)} today` : 'Latest available quote'; change.className = Number(quote.changesPercentage) >= 0 ? 'positive' : 'down'; }
+    set('company-range', valid(quote.dayHigh) && valid(quote.dayLow) ? `$${Number(quote.dayLow).toFixed(2)} / $${Number(quote.dayHigh).toFixed(2)}` : '—');
+    set('company-pe', valid(ratios.peRatioTTM) ? `${ratio(ratios.peRatioTTM, 1)}x` : '—');
+    set('company-book', valid(metrics.bookValuePerShareTTM) ? `$${ratio(metrics.bookValuePerShareTTM, 2)}` : '—');
+    set('company-dividend', pct(ratios.dividendYieldTTM, 2));
+    set('company-roe', pct(ratios.returnOnEquityTTM));
+    set('company-current', ratio(ratios.currentRatioTTM));
+    set('company-debt', ratio(ratios.debtToEquityRatioTTM));
+    set('company-pb', valid(ratios.priceToBookRatioTTM) ? `${ratio(ratios.priceToBookRatioTTM, 1)}x` : '—');
+    set('company-volume', whole(quote.volume));
+    set('company-sector', profile.sector || '—');
+    const site = $('#company-site');
+    if (site) site.innerHTML = profile.website ? `<a href="${escapeHtml(profile.website)}" target="_blank" rel="noreferrer">Website ↗</a>` : '—';
+    const income = Array.isArray(data.income) ? data.income : [], latest = income[0] || {}, previous = income[1] || {}, points = $('#company-keypoints');
+    if (points) { const growth = valid(latest.revenue) && valid(previous.revenue) && Number(previous.revenue) !== 0 ? ((Number(latest.revenue) - Number(previous.revenue)) / Math.abs(Number(previous.revenue))) * 100 : null; points.innerHTML = `<p class="about-label">KEY POINTS</p><ul>${Number.isFinite(growth) ? `<li>Revenue changed ${percent(growth)} in the latest reported year.</li>` : ''}${valid(latest.netIncome) && valid(latest.revenue) && Number(latest.revenue) !== 0 ? `<li>Latest reported net margin: ${(Number(latest.netIncome) / Number(latest.revenue) * 100).toFixed(1)}%.</li>` : ''}</ul>`; }
+    const financials = $('#financials');
+    if (financials) financials.innerHTML = financialTable('Income statement', data.income || [], [['Revenue','revenue'],['Gross profit','grossProfit'],['Operating income','operatingIncome'],['Net income','netIncome'],['EPS','eps']]) + financialTable('Balance sheet', data.balance || [], [['Cash & equivalents','cashAndCashEquivalents'],['Total assets','totalAssets'],['Total debt','totalDebt'],['Total liabilities','totalLiabilities'],['Total equity','totalStockholdersEquity']]) + financialTable('Cash flow', data.cashflow || [], [['Operating cash flow','operatingCashFlow'],['Capital expenditure','capitalExpenditure'],['Free cash flow','freeCashFlow'],['Net income','netIncome']]);
+    getJson(`/data/chart?symbol=${encodeURIComponent(ticker)}&points=${companyChartOptions.points}`).then(chart => { const holder = $('#company-chart'); if (holder) holder.innerHTML = drawCompanyChart(chart.values || []); }).catch(() => { const holder = $('#company-chart'); if (holder) holder.innerHTML = '<p class="data-empty">Price history is temporarily unavailable.</p>'; });
+  } catch {
+    const description = $('#company-description');
+    if (description) description.textContent = 'Live company data is temporarily unavailable.';
+  }
+}
+
 function renderFilteredRatioExplorer(holder, ratios) {
   const metric = (label, value, format = 'number', digits = 2) => ({ label, value, format, digits, available: value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)) });
   const groups = [
