@@ -159,7 +159,21 @@ test('homepage keeps the interactive global market performance panel', async () 
   assert.match(client, /id="dashboard-ipo-count"/);
   assert.match(client, /const resultsTask = getJson\('\/data\/results\/latest'/);
   assert.match(client, /`\$\{latestCount\} new`/);
+  assert.match(client, /id="home-index-grid"/);
+  assert.match(client, /\/data\/home-market/);
   assert.doesNotMatch(client, /<em[^>]*>9 new<\/em>/);
+});
+
+test('homepage and company pages expose Indian-investor context', async () => {
+  const [client, server, styles] = await Promise.all([read('app.js'), read('server.mjs'), read('ui-refresh.css')]);
+  assert.match(client, /class="panel company-india-context"/);
+  assert.match(client, /id="company-price-inr"/);
+  assert.match(client, /async function hydrateCompanyIndianContext\(ticker\)/);
+  assert.match(client, /\/data\/fx-rate/);
+  assert.match(server, /url\.pathname === '\/data\/home-market'/);
+  assert.match(server, /\['VIX', '\^VIX'\]/);
+  assert.match(styles, /\.home-index-strip/);
+  assert.match(styles, /\.india-context-grid/);
 });
 
 test('homepage calendar shortcuts open real earnings and IPO data views', async () => {
@@ -211,7 +225,7 @@ test('market and screener views stay useful during partial provider coverage', a
 
 test('phone and tablet layouts contain every tool without widening the page', async () => {
   const [html, styles] = await Promise.all([read('index.html'), read('ui-refresh.css')]);
-  assert.match(html, /ui-refresh\.css\?v=20260906-quarterly-home/);
+  assert.match(html, /ui-refresh\.css\?v=20260906-indian-market/);
   assert.match(styles, /Complete phone and tablet containment pass/);
   assert.match(styles, /@media \(max-width: 900px\)[\s\S]*?\.toolkit-page[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(styles, /@media \(max-width: 760px\)[\s\S]*?\.filter-layout[\s\S]*?\.index-lab-grid/);

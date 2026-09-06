@@ -297,6 +297,7 @@ function pageHeader(kicker, title, text) { return `<div class="section-header"><
 function dashboardView() {
   return `<div class="page public-home">
   <section class="home-intro" aria-labelledby="home-title"><p class="crumb">DOLLARDISHA · US EQUITY RESEARCH</p><h1 id="home-title">Research a US company.</h1><p>Prices, financial statements, valuation ratios and SEC filings—built for deliberate research, not noise.</p><form id="home-company-form" class="home-company-search"><label class="sr-only" for="home-company-search">Company ticker</label><span aria-hidden="true">⌕</span><input id="home-company-search" autocomplete="off" placeholder="Enter a ticker, e.g. NVDA" aria-controls="home-company-results" aria-expanded="false"><button class="solid-btn" type="submit">Research company</button><div id="home-company-results" class="search-results" role="listbox" aria-label="Company suggestions" hidden></div></form><div class="home-ideas"><span>Try:</span><button type="button" data-page="NVDA">NVDA</button><button type="button" data-page="MSFT">MSFT</button><button type="button" data-page="AAPL">AAPL</button><button type="button" data-page="GOOGL">GOOGL</button></div></section>
+  <section class="home-index-strip" aria-label="US market snapshot"><div class="home-index-strip-head"><div><p class="crumb">US MARKET</p><b>Open market context</b></div><span id="home-market-freshness">Checking live data…</span></div><div class="home-index-grid" id="home-index-grid">${[['S&P 500','^GSPC'],['Nasdaq','^IXIC'],['Dow Jones','^DJI'],['VIX','^VIX'],['USD / INR','USDINR']].map(([name, symbol]) => `<article class="home-index-card" data-home-market-symbol="${symbol}"><span>${name}</span><strong>Loading…</strong><b>Latest available</b></article>`).join('')}</div></section>
   <section class="home-market-section" aria-labelledby="home-market-title"><div class="home-section-head"><div><p class="crumb">MARKET SNAPSHOT</p><h2 id="home-market-title">Large US companies</h2></div><button class="link-button" type="button" data-page="markets">View market scans</button></div><section class="home-market-grid" id="market-cards">${['NVDA', 'MSFT', 'AAPL', 'GOOGL'].map((ticker) => `<button type="button" class="home-market-row market-card" data-market-ticker="${ticker}"><span>${ticker}</span><strong>Loading…</strong><b>Latest available quote</b></button>`).join('')}</section></section>
   <section class="home-research-links" aria-label="Research tools"><article><p class="crumb">01</p><h2>Screen stocks</h2><p>Build a precise list from valuation, quality and price criteria.</p><button class="link-button" type="button" data-page="screener">Open stock screener →</button></article><article><p class="crumb">02</p><h2>Compare companies</h2><p>Put fundamentals and valuation side by side before forming a view.</p><button class="link-button" type="button" data-page="compare">Compare companies →</button></article><article><p class="crumb">03</p><h2>Read filings</h2><p>Follow official SEC disclosures and keep your research in one place.</p><button class="link-button" type="button" data-page="research">Open research hub →</button></article></section>
   <section class="home-watchlist"><div class="home-section-head"><div><p class="crumb">YOUR LIST</p><h2>Watchlist</h2></div><button class="link-button" type="button" data-page="watchlist">Open watchlist</button></div>${watchlist.slice(0, 3).map((ticker) => { const stock = stocks.find((item) => item.ticker === ticker) || { ticker, name: ticker, change: 0 }; return `<button type="button" class="home-watch-row" data-page="${ticker}"><span>${ticker}</span><b>${escapeHtml(stock.name)}</b><em class="${stock.change >= 0 ? 'positive' : 'down'}">${percent(stock.change)}</em></button>`; }).join('') || '<p class="home-empty">No companies saved yet. Add them while browsing the screener or market scans.</p>'}</section></div>`;
@@ -343,6 +344,26 @@ function setupDashboard() {
       catch { showMatches(stocks.filter(stock => stock.ticker.includes(query.toUpperCase()) || stock.name.toLowerCase().includes(query.toLowerCase()))); }
     }, 180);
   };
+  getJson('/data/home-market', 45000).then(data => {
+    const rows = Array.isArray(data?.rows) ? data.rows : [];
+    rows.forEach(row => {
+      const card = document.querySelector(`[data-home-market-symbol="${row.symbol}"]`);
+      if (!card) return;
+      const value = scanNumber(row.price);
+      const change = scanNumber(row.changesPercentage, row.changePercentage);
+      const isFx = String(row.symbol).toUpperCase() === 'USDINR';
+      card.querySelector('strong').textContent = value === null ? 'Unavailable' : isFx ? `₹${Number(value).toFixed(2)}` : Number(value).toLocaleString('en-US', { maximumFractionDigits: 2 });
+      const note = card.querySelector('b');
+      note.textContent = change === null ? 'Latest available' : `${percent(change)} today`;
+      note.className = change === null ? '' : Number(change) >= 0 ? 'positive' : 'down';
+    });
+    const freshness = $('#home-market-freshness');
+    if (freshness) freshness.textContent = data?.updatedAt ? `Updated ${new Date(data.updatedAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}` : 'Latest available data';
+  }).catch(() => {
+    document.querySelectorAll('.home-index-card').forEach(card => { card.querySelector('strong').textContent = 'Unavailable'; card.querySelector('b').textContent = 'Provider unavailable'; });
+    const freshness = $('#home-market-freshness');
+    if (freshness) freshness.textContent = 'Market snapshot unavailable';
+  });
 }
 
 function marketsView() {
@@ -614,6 +635,7 @@ function render() {
     const companyPage = content.querySelector('.company-page');
     if (companyPage) { companyPage.classList.add('company-loading'); companyPage.setAttribute('aria-busy', 'true'); }
     hydrateCompany(page);
+    hydrateCompanyIndianContext(page);
     hydrateCompanyResearchSummary(page);
     hydrateCompanyExtras(page);
   }
@@ -636,7 +658,7 @@ async function refreshLiveData() {
     else if (page === 'watchlist') await hydrateWatchlist();
     else if (page === 'portfolio') await hydratePortfolio();
     else if (page === 'status') await hydrateSystemStatus();
-    else if (isCompanyRoute(page)) await Promise.allSettled([hydrateCompany(page), hydrateCompanyExtras(page), hydrateCompanyResearchSummary(page)]);
+    else if (isCompanyRoute(page)) await Promise.allSettled([hydrateCompany(page), hydrateCompanyIndianContext(page), hydrateCompanyExtras(page), hydrateCompanyResearchSummary(page)]);
     else if (page === 'markets') await setupMarkets();
     else if (page === 'screener') $('#screen-run')?.click();
     else if (page === 'latest-results') await setupLatestResults();
@@ -1901,7 +1923,32 @@ async function drawComparisonChart(tickers) {
   } catch { holder.textContent = 'Relative performance is temporarily unavailable.'; }
 }
 function ratioCard(label, value) { return `<div><span>${label}</span><b>${value}</b></div>`; }
-async function hydrateCompany(ticker) { try { const data = await getJson(`/data/company?symbol=${encodeURIComponent(ticker)}`); const profile = data.profile || {}; const quote = data.quote || {}; const ratios = data.ratios || {}; const metrics = data.metrics || {}; const set = (id, value) => { const element = $(`#${id}`); if (element) element.textContent = value; }; const valid = value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)); const ratio = (value, digits = 2) => valid(value) ? Number(value).toFixed(digits) : '—'; const pct = (value, digits = 1) => valid(value) ? `${(Number(value) * 100).toFixed(digits)}%` : '—'; set('company-title', profile.companyName || ticker); set('company-subtitle', `${ticker} · ${profile.exchangeShortName || profile.exchange || 'US Equity'}`); set('company-description', profile.description || 'Company profile is unavailable from the current provider.'); set('company-cap', usd(profile.mktCap || quote.marketCap)); set('company-price', quote.price ? `$${Number(quote.price).toFixed(2)}` : '—'); const change = quote.changesPercentage; const changeElement = $('#company-change'); if (changeElement) { changeElement.textContent = Number.isFinite(Number(change)) ? `${percent(change)} today` : 'Latest available quote'; changeElement.className = Number(change) >= 0 ? 'positive' : 'down'; } set('company-range', quote.dayHigh && quote.dayLow ? `$${Number(quote.dayLow).toFixed(2)} / $${Number(quote.dayHigh).toFixed(2)}` : '—'); set('company-pe', valid(ratios.peRatioTTM) ? `${ratio(ratios.peRatioTTM, 1)}x` : '—'); set('company-book', valid(metrics.bookValuePerShareTTM) ? `$${ratio(metrics.bookValuePerShareTTM, 2)}` : '—'); set('company-dividend', pct(ratios.dividendYieldTTM, 2)); set('company-roe', pct(ratios.returnOnEquityTTM)); set('company-current', ratio(ratios.currentRatioTTM)); set('company-debt', ratio(ratios.debtToEquityRatioTTM)); set('company-pb', valid(ratios.priceToBookRatioTTM) ? `${ratio(ratios.priceToBookRatioTTM, 1)}x` : '—'); set('company-volume', whole(quote.volume)); set('company-sector', profile.sector || '—'); const site = $('#company-site'); if (site) site.innerHTML = profile.website ? `<a href="${escapeHtml(profile.website)}" target="_blank" rel="noreferrer">Website ↗</a>` : '—'; const points = $('#company-keypoints'); const income = data.income || []; if (points) { const latest = income[0] || {}; const previous = income[1] || {}; const growth = latest.revenue && previous.revenue ? ((latest.revenue - previous.revenue) / Math.abs(previous.revenue)) * 100 : null; points.innerHTML = `<p class="about-label">KEY POINTS</p><ul>${Number.isFinite(growth) ? `<li>Revenue changed ${percent(growth)} in the latest reported year.</li>` : ''}${latest.netIncome && latest.revenue ? `<li>Latest reported net margin: ${((latest.netIncome / latest.revenue) * 100).toFixed(1)}%.</li>` : ''}</ul>`; } const financials = $('#financials'); if (financials) financials.innerHTML = financialTable('Income statement', data.income || [], [['Revenue','revenue'],['Gross profit','grossProfit'],['Operating income','operatingIncome'],['Net income','netIncome'],['EPS','eps']]) + financialTable('Balance sheet', data.balance || [], [['Cash & equivalents','cashAndCashEquivalents'],['Total assets','totalAssets'],['Total debt','totalDebt'],['Total liabilities','totalLiabilities'],['Total equity','totalStockholdersEquity']]) + financialTable('Cash flow', data.cashflow || [], [['Operating cash flow','operatingCashFlow'],['Capital expenditure','capitalExpenditure'],['Free cash flow','freeCashFlow'],['Net income','netIncome']]); const ratiosElement = $('#company-ratios'); if (ratiosElement) ratiosElement.innerHTML = ratioCard('P/E', valid(ratios.peRatioTTM) ? `${ratio(ratios.peRatioTTM, 1)}x` : '—') + ratioCard('Price to book', valid(ratios.priceToBookRatioTTM) ? `${ratio(ratios.priceToBookRatioTTM, 1)}x` : '—') + ratioCard('Return on equity', pct(ratios.returnOnEquityTTM)) + ratioCard('Current ratio', ratio(ratios.currentRatioTTM)) + ratioCard('Debt to equity', ratio(ratios.debtToEquityRatioTTM)) + ratioCard('Dividend yield', pct(ratios.dividendYieldTTM, 2)); getJson(`/data/chart?symbol=${encodeURIComponent(ticker)}&points=${companyChartOptions.points}`).then(chart => { const holder = $('#company-chart'); if (holder) holder.innerHTML = drawCompanyChart(chart.values || []); }).catch(() => { const holder = $('#company-chart'); if (holder) holder.innerHTML = '<p class="data-empty">Price history is temporarily unavailable.</p>'; }); } catch { const description = $('#company-description'); if (description) description.textContent = 'Live company data is temporarily unavailable.'; } }
+async function hydrateCompanyIndianContext(ticker) {
+  const priceNode = $('#company-price-inr');
+  const fxNode = $('#company-fx-rate');
+  const changeNode = $('#company-fx-change');
+  const statusNode = $('#company-fx-updated');
+  if (!priceNode || !fxNode || !changeNode || !statusNode) return;
+  try {
+    const [company, fx] = await Promise.all([
+      getJson(`/data/company?symbol=${encodeURIComponent(ticker)}`, 45000),
+      getJson('/data/fx-rate', 30000)
+    ]);
+    const price = Number(company?.quote?.price);
+    const rate = Number(fx?.rate);
+    priceNode.textContent = Number.isFinite(price) && Number.isFinite(rate) ? `₹${Math.round(price * rate).toLocaleString('en-IN')}` : '—';
+    fxNode.textContent = Number.isFinite(rate) ? `₹${rate.toFixed(2)}` : '—';
+    const change = Number(fx?.change);
+    changeNode.textContent = Number.isFinite(change) ? `${percent(change)} today` : 'Not reported';
+    changeNode.className = Number.isFinite(change) ? change >= 0 ? 'positive' : 'down' : '';
+    statusNode.textContent = fx?.updatedAt ? `Updated ${new Date(fx.updatedAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}` : 'Live reference rate';
+  } catch {
+    priceNode.textContent = 'Unavailable';
+    fxNode.textContent = 'Unavailable';
+    changeNode.textContent = 'Not reported';
+    statusNode.textContent = 'FX feed unavailable';
+  }
+}
 async function hydrateCompanyResearchSummary(ticker) {
   try {
     const data = await getJson(`/data/company?symbol=${encodeURIComponent(ticker)}`);
@@ -1994,6 +2041,7 @@ function companyView(ticker) {
         </div>
         <aside class="company-about"><p class="about-label">ABOUT</p><p id="company-description">Loading company profile and latest available quote…</p><div class="about-meta"><span>Website</span><b id="company-site">—</b></div><div id="company-keypoints" class="key-points"></div></aside>
       </section>
+      <section class="panel company-india-context" aria-labelledby="company-india-title"><div class="panel-head"><div><p class="crumb">INDIAN INVESTOR VIEW</p><h2 id="company-india-title">USD and INR context</h2><p>Approximate conversion for research; excludes taxes, fees and broker FX spreads.</p></div><span class="data-badge" id="company-fx-updated">Checking USD/INR…</span></div><div class="india-context-grid"><div><span>Approx. price in INR</span><b id="company-price-inr">—</b><small>Per share</small></div><div><span>USD / INR</span><b id="company-fx-rate">—</b><small>Live reference rate</small></div><div><span>Currency move</span><b id="company-fx-change">—</b><small>Today</small></div><div><span>US market hours</span><b>ET · 9:30–16:00</b><small>IST shifts with daylight saving</small></div></div></section>
       <section id="overview-ratios" class="panel ratios-panel overview-ratios">
         <div class="panel-head"><div><h2>Financial ratio explorer</h2><p>Filter the latest trailing-twelve-month valuation, quality and efficiency metrics</p></div></div>
         <div id="company-ratios"><p class="data-empty">Loading ratios…</p></div>
@@ -2376,12 +2424,16 @@ dashboardView = function() {
     .replace('<b>Live</b><small>Quotes & charts</small>', '<b>Live data</b><small>Quotes & charts</small>')
     .replace('<b>SEC</b><small>Official filings</small>', '<b>SEC filings</b><small>Official disclosures</small>');
   const panel = '<aside class="market-leaders-panel" id="market-leaders-panel"><div class="market-leaders-head"><div><p class="crumb">GLOBAL MARKET PULSE</p><h2>Best-performing markets</h2><small class="market-leaders-subtitle">Compare country benchmarks across every available region.</small></div><small id="market-leaders-updated">Updating...</small></div><div class="market-periods" role="tablist" aria-label="Market performance period"><button type="button" class="selected" data-market-period="day">Day</button><button type="button" data-market-period="week">1W</button><button type="button" data-market-period="month">1M</button><button type="button" data-market-period="ytd">YTD</button><button type="button" data-market-period="3m">3M</button><button type="button" data-market-period="6m">6M</button><button type="button" data-market-period="year">1Y</button><button type="button" data-market-period="3y">3Y</button><button type="button" data-market-period="5y">5Y</button><button type="button" data-market-period="10y">10Y</button></div><div class="market-leader-toolbar"><div class="market-leader-mode"><button type="button" class="selected" data-market-direction="leaders">Leaders</button><button type="button" data-market-direction="laggards">Laggards</button></div><div class="market-filter-group"><select id="market-region-filter" aria-label="Filter by region"><option value="all">All regions</option><option>US</option><option>Europe</option><option>Asia</option><option>India</option><option>Americas</option><option>Asia-Pacific</option><option>Africa</option></select><select id="market-move-filter" aria-label="Filter by minimum move"><option value="0">Any move</option><option value="1">Move 1%+</option><option value="3">Move 3%+</option><option value="5">Move 5%+</option><option value="10">Move 10%+</option></select></div></div><div class="market-leaders-content"><div id="market-leaders-list" class="market-leaders-list"><div class="market-leader-loading">Loading regional performance...</div></div><div id="market-benchmark-details" class="market-benchmark-details"><p class="crumb">SELECT A REGION</p><strong>Benchmark details</strong><small>Click a market to see the country, exchange and benchmark behind the ranking.</small></div></div><button class="link-button market-leaders-link" data-page="markets">View market pulse →</button></aside>';
-  const match = polishedHtml.match(/<section class="panel dashboard-hero">([\s\S]*?)<\/section><div class="section-header">/);
-  if (!match) return polishedHtml;
+  const heroStart = polishedHtml.indexOf('<section class="panel dashboard-hero">');
+  const heroEndMarker = '</section><div class="section-header">';
+  const heroEnd = polishedHtml.indexOf(heroEndMarker, heroStart);
+  if (heroStart < 0 || heroEnd < 0) return polishedHtml;
   const insights = dashboardInsightCards();
   const researchStart = baseDashboardView().match(/<section class="home-intro"[\s\S]*?<\/section>/)?.[0] || '';
-  const hero = `${researchStart}<div class="home-screen-action"><button class="solid-btn" type="button" data-page="screener">Screen US stocks →</button></div><section class="panel dashboard-hero"><div class="dashboard-hero-layout">${dashboardQuickAccess()}${panel}</div></section><div class="section-header">`;
-  return polishedHtml.replace(match[0], hero).replace('<section class="dashboard-grid">', `${insights}<section class="dashboard-grid">`);
+  const marketStrip = baseDashboardView().match(/<section class="home-index-strip"[\s\S]*?<\/section>/)?.[0] || '';
+  const hero = `${researchStart}${marketStrip}<div class="home-screen-action"><button class="solid-btn" type="button" data-page="screener">Screen US stocks →</button></div><section class="panel dashboard-hero"><div class="dashboard-hero-layout">${dashboardQuickAccess()}${panel}</div></section><div class="section-header">`;
+  const replaced = `${polishedHtml.slice(0, heroStart)}${hero}${polishedHtml.slice(heroEnd + heroEndMarker.length)}`;
+  return replaced.replace('<section class="dashboard-grid">', `${insights}<section class="dashboard-grid">`);
 };
 
 let marketLeadersDirection = 'leaders';

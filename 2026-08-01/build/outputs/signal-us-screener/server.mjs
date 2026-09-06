@@ -1806,6 +1806,21 @@ createServer(async (req, res) => {
       const quotes = await Promise.all(indices.map(([, ticker]) => liveIndex(ticker).catch(() => normalizeQuote(ticker))));
       return send(res, 200, indices.map(([name], index) => ({ name, symbol: indices[index][1], ...quotes[index] })));
     }
+    if (url.pathname === '/data/home-market') {
+      const indices = [
+        ['S&P 500', '^GSPC'], ['Nasdaq Composite', '^IXIC'], ['Dow Jones Industrial Average', '^DJI'], ['VIX', '^VIX']
+      ];
+      const [indexQuotes, fxQuote] = await Promise.all([
+        Promise.all(indices.map(([, ticker]) => liveIndex(ticker).catch(() => normalizeQuote(ticker)))),
+        combinedQuote({ symbol:'USDINR', twelveSymbol:'USD/INR', fmpSymbol:'USDINR', exchange:'FOREX', quiet:true }).catch(async () => {
+          try { return normalizeQuote('USDINR', await yahooQuote('INR=X')); } catch { return null; }
+        })
+      ]);
+      const fxRate = finiteValue(fxQuote?.price);
+      const rows = indices.map(([name, symbol], index) => ({ name, symbol, ...indexQuotes[index] }));
+      rows.push({ name:'USD / INR', symbol:'USDINR', price:fxRate, changesPercentage:finiteValue(fxQuote?.changesPercentage, fxQuote?.changePercentage), provider:fxQuote?.provider || null });
+      return send(res, 200, { rows, updatedAt:new Date().toISOString(), fxProvider:fxQuote?.provider || null });
+    }
     if (url.pathname === '/data/global-markets') {
       return send(res, 200, await globalMarketPulse());
     }
