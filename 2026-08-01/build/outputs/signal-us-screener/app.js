@@ -582,7 +582,7 @@ function portfolioView() {
 
 function statusView() {
   return `<div class="page status-page">${pageHeader('LIVE OPERATIONS', 'Data & System Status', 'See which market-data services are connected, when data was last checked and whether the research tools are operating normally.')}
-  <section class="status-hero panel"><div><span class="status-dot"></span><div><b id="system-overall">Checking DollarDisha services…</b><small id="system-checked">Connecting to the live server</small></div></div><button id="status-refresh" class="solid-btn" type="button">Run live check</button></section>
+  <section class="status-hero panel"><div><span class="status-dot"></span><div><b id="system-overall">Checking DollarDisha services…</b><small id="system-checked">Connecting to the live server</small></div></div><div class="status-actions"><button id="status-refresh" class="solid-btn" type="button">Run live check</button><button id="status-copy" class="link-button" type="button">Copy diagnostic summary</button></div></section>
   <section class="status-grid"><article class="panel"><span>WEBSITE</span><b id="status-website">Checking</b><small>Application server and secure connection</small></article><article class="panel"><span>FMP</span><b id="status-fmp">Checking</b><small>Quotes, fundamentals and calendars</small></article><article class="panel"><span>TWELVE DATA</span><b id="status-twelve">Checking</b><small>Independent live-quote confirmation</small></article><article class="panel"><span>GLOBAL MARKETS</span><b id="status-global">Checking</b><small>Indices, commodities and crypto pulse</small></article><article class="panel"><span>DATABASE</span><b id="status-database">Checking</b><small>Signed-in research workspace</small></article><article class="panel"><span>AUTOMATIC UPDATE</span><b>Every 60 seconds</b><small>Server snapshots refresh even without an open browser tab</small></article></section>
   <section class="panel status-details"><div class="panel-head"><div><h2>Data policy</h2><p>How DollarDisha handles provider gaps</p></div></div><div class="status-policy"><div><b>Dual-provider validation</b><p>FMP and Twelve Data are combined where coverage overlaps. Official Nasdaq and public market sources are used only as resilient fallbacks.</p></div><div><b>No invented values</b><p>A dash or “not reported” means a provider did not return a reliable figure. DollarDisha never fills financial data with estimates.</p></div><div><b>Official documents</b><p>Company filings link directly to SEC EDGAR. Third-party documents are not mixed into issuer disclosures.</p></div></div></section></div>`;
 }
@@ -4215,7 +4215,31 @@ async function hydrateSystemStatus() {
     document.querySelector('.status-hero')?.classList.toggle('degraded', status.status !== 'ok');
   } catch { $('#system-overall').textContent = 'Live status check failed'; $('#system-checked').textContent = 'The website is open, but the operations endpoint did not respond.'; }
 }
-function setupSystemStatus() { $('#status-refresh').onclick = () => { jsonRequestCache.clear(); hydrateSystemStatus(); }; hydrateSystemStatus(); }
+function setupSystemStatus() {
+  $('#status-refresh').onclick = () => { jsonRequestCache.clear(); hydrateSystemStatus(); };
+  $('#status-copy').onclick = async () => {
+    const values = {
+      page: window.location.href,
+      checked: $('#system-checked')?.textContent || 'Not checked',
+      overall: $('#system-overall')?.textContent || 'Unknown',
+      website: $('#status-website')?.textContent || 'Unknown',
+      fmp: $('#status-fmp')?.textContent || 'Unknown',
+      twelveData: $('#status-twelve')?.textContent || 'Unknown',
+      globalMarkets: $('#status-global')?.textContent || 'Unknown',
+      database: $('#status-database')?.textContent || 'Unknown',
+      userAgent: navigator.userAgent
+    };
+    const summary = `DollarDisha diagnostic summary\n${Object.entries(values).map(([key, value]) => `${key}: ${value}`).join('\n')}`;
+    try {
+      await navigator.clipboard.writeText(summary);
+      $('#status-copy').textContent = 'Copied diagnostic summary';
+      setTimeout(() => { if ($('#status-copy')) $('#status-copy').textContent = 'Copy diagnostic summary'; }, 2400);
+    } catch {
+      window.location.href = `mailto:support@dollardisha.in?subject=DollarDisha%20diagnostic&body=${encodeURIComponent(summary)}`;
+    }
+  };
+  hydrateSystemStatus();
+}
 
 // Keep the core renderer independent from optional integrations. A failure in
 // theme/search/auth or a provider-backed widget must never leave the static
