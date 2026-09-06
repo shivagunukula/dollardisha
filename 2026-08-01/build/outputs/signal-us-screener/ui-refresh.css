@@ -1012,6 +1012,7 @@ html[data-theme="light"] .data-freshness,html[data-theme="light"] .workspace-sum
   box-shadow: 0 28px 80px rgba(0, 0, 0, .52);
   animation: auth-rise-in .28s cubic-bezier(.2,.8,.2,1) both;
 }
+.auth-local-note{display:grid;gap:6px;margin:16px 0;padding:13px 14px;border:1px solid rgba(91,205,173,.28);border-radius:10px;background:rgba(36,106,87,.12);color:#c8e9df;font-size:11px;line-height:1.5}.auth-local-note b{color:#e5fff7;font-size:12px}.auth-local-note span{color:#9dc1b7}.auth-local-note button{justify-self:start;border:0;background:transparent;color:#6ee0bd;padding:0;font:700 11px Inter,Arial,sans-serif;cursor:pointer;text-decoration:underline;text-underline-offset:3px}.auth-local-note button:hover{color:#b8ffea}
 .auth-close {
   position: absolute;
   top: 15px;

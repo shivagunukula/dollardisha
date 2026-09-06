@@ -2931,6 +2931,7 @@ async function setupAuth() {
 
   accountButton.onclick = () => openAuth('login');
   $('#auth-close').onclick = closeAuth;
+  $('#auth-continue').onclick = closeAuth;
   modal.onclick = event => { if (event.target === modal) closeAuth(); };
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && !modal.hidden) closeAuth(); });
   document.querySelectorAll('[data-auth-view]').forEach(button => button.onclick = () => setAuthMode('login'));
@@ -2943,9 +2944,17 @@ async function setupAuth() {
       ? 'The sign-in library did not load. Refresh the page and try again.'
       : config?.reason || `Sign-in is not connected on this deployment. Add SUPABASE_URL and the Supabase publishable key (sb_publishable_…) in Render, then redeploy. Current site: ${window.location.origin}`;
     accountButton.onclick = () => { openAuth('login'); setAuthMessage(reason, 'error'); setAuthBusy(false); };
+    const localNote = $('#auth-local-note');
+    if (localNote) localNote.hidden = false;
+    const googleButton = $('#auth-google');
+    if (googleButton) { googleButton.hidden = true; googleButton.disabled = true; }
+    const authDescription = $('#auth-description');
+    if (authDescription) authDescription.textContent = 'Account sign-in is not connected on this deployment.';
     setAuthBusy(false);
     return;
   }
+  const localNote = $('#auth-local-note');
+  if (localNote) localNote.hidden = true;
 
   authClient = window.supabase.createClient(config.url, config.publishableKey, {
     auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:false, flowType:'pkce' }
