@@ -18,6 +18,24 @@ function readLocalJson(key, fallback) {
     return fallback;
   }
 }
+function analyticsConsent() { try { return localStorage.getItem('dd-analytics-consent') || ''; } catch { return ''; } }
+function trackUsage(event) {
+  if (analyticsConsent() !== 'yes' || window.__ddLastTrackedPage === page) return;
+  window.__ddLastTrackedPage = page;
+  const payload = JSON.stringify({ event, route: page === 'dashboard' ? '/' : `/${String(page).toLowerCase()}` });
+  try {
+    if (navigator.sendBeacon) navigator.sendBeacon('/data/telemetry', new Blob([payload], { type:'application/json' }));
+    else fetch('/data/telemetry', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:payload, keepalive:true }).catch(() => {});
+  } catch {}
+}
+function setupAnalyticsConsent() {
+  const banner = $('#analytics-consent');
+  if (!banner) return;
+  const consent = analyticsConsent();
+  banner.hidden = Boolean(consent);
+  $('#analytics-accept')?.addEventListener('click', () => { try { localStorage.setItem('dd-analytics-consent', 'yes'); } catch {} banner.hidden = true; trackUsage('consent'); });
+  $('#analytics-decline')?.addEventListener('click', () => { try { localStorage.setItem('dd-analytics-consent', 'no'); } catch {} banner.hidden = true; });
+}
 const escapeHtml = (value) => String(value ?? '—').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const money = (value) => {
   const number = Number(value);
@@ -670,6 +688,7 @@ function render() {
     hydrateCompanyExtras(page);
   }
   requestAnimationFrame(() => activatePageMotion(content));
+  trackUsage('page_view');
 }
 
 // Refresh only the live regions on the current screen once per minute. This
@@ -4271,3 +4290,4 @@ runStartupStep('theme', setupTheme);
 runStartupStep('search', setupSearch);
 runStartupStep('auth', setupAuth);
 runStartupStep('live refresh', startLiveRefresh);
+runStartupStep('analytics consent', setupAnalyticsConsent);

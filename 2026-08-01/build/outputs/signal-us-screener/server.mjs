@@ -49,6 +49,7 @@ const mime = {
   ,'.xml':'application/xml; charset=utf-8'
 };
 const startedAt = Date.now();
+const telemetryCounts = new Map();
 const securityHeaders = {
   'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; manifest-src 'self'; upgrade-insecure-requests",
   'Cross-Origin-Opener-Policy':'same-origin',
@@ -75,6 +76,14 @@ function isRateLimited(req, pathname) {
     for (const [entry, value] of rateLimits) if (value.resetAt <= now) rateLimits.delete(entry);
   }
   return next.count > maximum;
+}
+async function readRequestBody(req, maxBytes = 4096) {
+  let body = '';
+  for await (const chunk of req) {
+    body += chunk;
+    if (body.length > maxBytes) throw new Error('Request body is too large.');
+  }
+  return body;
 }
 // Tickers are not US-only: global listings can contain digits, dots, slashes
 // and hyphens (for example 000001 or RY.TO). Keep the allow-list tight while
@@ -1359,6 +1368,19 @@ createServer(async (req, res) => {
           ? 'The deployment has a Supabase secret key in the browser-key setting. Replace it with the project publishable key (sb_publishable_…).'
           : null
       });
+    }
+    if (url.pathname === '/data/telemetry') {
+      if (req.method !== 'POST') return send(res, 405, { error:'Use POST to record an event.' }, 'application/json; charset=utf-8', { Allow:'POST' });
+      let payload;
+      try { payload = JSON.parse(await readRequestBody(req)); } catch { return send(res, 400, { error:'Invalid telemetry payload.' }); }
+      const event = String(payload?.event || '').trim().slice(0, 40);
+      const route = String(payload?.route || '').trim().slice(0, 60);
+      if (!/^[a-z0-9_.-]+$/i.test(event) || !route || /https?:\/\//i.test(route)) return send(res, 400, { error:'Invalid telemetry event.' });
+      const key = `${event}:${route}`;
+      telemetryCounts.set(key, (telemetryCounts.get(key) || 0) + 1);
+      if (telemetryCounts.size > 250) telemetryCounts.delete(telemetryCounts.keys().next().value);
+      res.writeHead(204, { ...securityHeaders, 'Cache-Control':'no-store' });
+      return res.end();
     }
     if (url.pathname === '/data/provider-status') {
       const fmpConfigured = Boolean(key);
