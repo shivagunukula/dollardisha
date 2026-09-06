@@ -788,8 +788,14 @@ function markDataFreshness(value = new Date()) {
   if (!label) return;
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return;
-  label.textContent = date.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
-  label.closest('.data-freshness')?.classList.add('is-live');
+  const formatted = date.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+  label.textContent = formatted;
+  const indicator = label.closest('.data-freshness');
+  indicator?.classList.add('is-live');
+  if (indicator) {
+    indicator.title = `Live-data response received at ${formatted}. Open status for provider coverage.`;
+    indicator.setAttribute('aria-label', `Live data updated at ${formatted}. Open status for provider coverage.`);
+  }
 }
 async function getJson(url, timeout = 9000) {
   const cacheable = url.startsWith('/data/company?') || url.startsWith('/data/company-intel?') || url.startsWith('/data/filings?') || url.startsWith('/data/market') || url.startsWith('/data/indices') || url.startsWith('/data/global-markets') || url.startsWith('/data/watchlist?');
