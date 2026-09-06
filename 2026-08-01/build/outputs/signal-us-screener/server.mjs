@@ -1897,7 +1897,8 @@ createServer(async (req, res) => {
       return send(res, 200, await addCachedScreenerMetrics(rows));
     }
     const stockRoute = url.pathname.match(/^\/stocks\/([A-Z0-9][A-Z0-9._-]{0,14})\/?$/i);
-    const requested = url.pathname === '/' || stockRoute ? 'index.html' : normalize(url.pathname).replace(/^([.][.][\\/])+/, '');
+    const toolRoute = url.pathname.match(/^\/(markets|screener|compare|research|portfolio|watchlist|toolkit|latest-results|tools|status|pricing)\/?$/i);
+    const requested = url.pathname === '/' || stockRoute || toolRoute ? 'index.html' : normalize(url.pathname).replace(/^([.][.][\\/])+/, '');
     if (requested.startsWith('.') || requested.includes('..')) return send(res, 403, 'Forbidden', 'text/plain; charset=utf-8');
     const file = join(root, requested);
     let data = await readFile(file);
@@ -1907,6 +1908,23 @@ createServer(async (req, res) => {
       const canonical = `https://dollardisha.in/stocks/${encodeURIComponent(ticker)}`;
       const title = `${ticker} Stock Research, Financials & SEC Filings | DollarDisha`;
       const description = `Research ${ticker} stock price, financial statements, valuation ratios, peers, charts and official SEC filings on DollarDisha.`;
+      data = Buffer.from(data.toString('utf8')
+        .replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`)
+        .replace(/<link rel="canonical" href="[^"]*">/, `<link rel="canonical" href="${canonical}">`)
+        .replace(/<meta property="og:url" content="[^"]*">/, `<meta property="og:url" content="${canonical}">`)
+        .replace(/<meta property="og:title" content="[^"]*">/, `<meta property="og:title" content="${title}">`)
+        .replace(/<meta property="og:description" content="[^"]*">/, `<meta property="og:description" content="${description}">`)
+        .replace(/<meta name="twitter:title" content="[^"]*">/, `<meta name="twitter:title" content="${title}">`)
+        .replace(/<meta name="twitter:description" content="[^"]*">/, `<meta name="twitter:description" content="${description}">`)
+        .replace(/<meta name="description" content="[^"]*">/, `<meta name="description" content="${description}">`));
+    }
+    if (toolRoute && assetName === 'index.html') {
+      const route = toolRoute[1].toLowerCase();
+      const labels = { markets:'Market Scans', screener:'US Stock Screener', compare:'Compare US Stocks', research:'SEC Research Hub', portfolio:'Research Portfolio', watchlist:'US Stock Watchlist', toolkit:'Research Toolkit', 'latest-results':'Latest US Quarterly Results', tools:'Research Tools', status:'Data Status', pricing:'DollarDisha Pro' };
+      const label = labels[route] || 'US Equity Research';
+      const canonical = `https://dollardisha.in/${route}`;
+      const title = `${label} | DollarDisha`;
+      const description = `${label} for US equity research, fundamentals, valuation and SEC data on DollarDisha.`;
       data = Buffer.from(data.toString('utf8')
         .replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`)
         .replace(/<link rel="canonical" href="[^"]*">/, `<link rel="canonical" href="${canonical}">`)

@@ -711,7 +711,9 @@ const routeFromHash = () => {
 };
 const routeFromPath = () => {
   const match = window.location.pathname.match(/^\/stocks\/([A-Z0-9][A-Z0-9._-]{0,14})\/?$/i);
-  return match ? match[1].toUpperCase() : null;
+  if (match) return match[1].toUpperCase();
+  const tool = window.location.pathname.match(/^\/(markets|screener|compare|research|portfolio|watchlist|toolkit|latest-results|tools|status|pricing)\/?$/i);
+  return tool ? tool[1].toLowerCase() : null;
 };
 // A hash route is an app-level destination even when the current URL is a
 // company path.  Without this precedence, clicking Home/Market/Screens from
@@ -721,7 +723,8 @@ const routeFromPath = () => {
 const routeFromLocation = () => routeFromHash() || routeFromPath();
 const routeHref = target => {
   const next = String(target || 'dashboard');
-  return isCompanyRoute(next) ? `/stocks/${encodeURIComponent(next.toUpperCase())}` : `/#${encodeURIComponent(next)}`;
+  const publicRoute = new Set(['markets','screener','compare','research','portfolio','watchlist','toolkit','latest-results','tools','status','pricing']);
+  return isCompanyRoute(next) ? `/stocks/${encodeURIComponent(next.toUpperCase())}` : publicRoute.has(next) ? `/${encodeURIComponent(next)}` : '/';
 };
 function navigateTo(target, { replace = false } = {}) {
   const next = String(target || 'dashboard');
