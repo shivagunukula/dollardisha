@@ -327,17 +327,34 @@ function setupDashboard() {
     input.setAttribute('aria-expanded', 'true');
     results.querySelectorAll('[data-home-find]').forEach(button => button.onclick = () => { input.value = button.dataset.homeFind; results.hidden = true; input.setAttribute('aria-expanded', 'false'); navigateTo(button.dataset.homeFind); });
   };
-  form.onsubmit = event => {
+  form.onsubmit = async event => {
     event.preventDefault();
     const query = input.value.trim();
     const match = stocks.find(stock => stock.ticker === query.toUpperCase() || stock.name.toLowerCase() === query.toLowerCase());
-    if (!match) {
+    if (match) {
+      input.setCustomValidity('');
+      navigateTo(match.ticker);
+      return;
+    }
+    const symbol = query.toUpperCase();
+    if (!/^[A-Z][A-Z0-9.-]{0,9}$/.test(symbol)) {
       input.setCustomValidity('Enter a ticker, such as NVDA, MSFT or AAPL.');
       input.reportValidity();
       return;
     }
     input.setCustomValidity('');
-    navigateTo(match.ticker);
+    const submit = form.querySelector('button[type="submit"]');
+    if (submit) { submit.disabled = true; submit.textContent = 'Checking directory…'; }
+    try {
+      const found = await getJson(`/data/search?q=${encodeURIComponent(symbol)}`, 15000);
+      const exact = (Array.isArray(found) ? found : []).find(stock => String(stock.symbol || stock.ticker || '').toUpperCase() === symbol);
+      if (exact) navigateTo(symbol);
+      else { input.setCustomValidity('That ticker was not found in the connected US directories.'); input.reportValidity(); }
+    } catch {
+      navigateTo(symbol);
+    } finally {
+      if (submit) { submit.disabled = false; submit.textContent = 'Research company'; }
+    }
   };
   input.oninput = () => {
     input.setCustomValidity('');
