@@ -639,7 +639,12 @@ function render() {
   content.classList.remove('route-ready');
   content.innerHTML = view;
   document.body.classList.toggle('company-route', Boolean(content.querySelector('.company-page')));
-  document.querySelectorAll('.nav').forEach((button) => button.classList.toggle('active', button.dataset.page === page));
+  document.querySelectorAll('.nav').forEach((button) => {
+    const active = button.dataset.page === page;
+    button.classList.toggle('active', active);
+    if (active) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  });
   $('#watch-count').textContent = watchlist.length;
   wireCommon();
   if (page === 'dashboard') { setupDashboard(); hydrateDashboard(); }
