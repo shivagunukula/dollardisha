@@ -3437,7 +3437,7 @@ function openEarningsDocument(ticker, year, quarter, mode) {
 function renderCompanyDocuments(ticker) {
   const safe = value => escapeHtml(value ?? '—');
   const list = (rows, empty, render) => rows.length ? rows.map(render).join('') : `<p class="data-empty">${empty}</p>`;
-  const filingLink = filing => `<a class="issuer-doc-item" href="${escapeHtml(filing.url || '#')}" target="_blank" rel="noreferrer"><b>${safe(filing.description || filing.form || 'Company filing')}</b><span>${safe(filing.filedAt || filing.reportDate)} · ${safe(filing.form)}</span></a>`;
+  const filingLink = filing => `<a class="issuer-doc-item" href="${escapeHtml(filing.url || '#')}" target="_blank" rel="noreferrer"><b>${safe(filing.description || filing.form || 'Company filing')}</b><span>${safe(filing.filedAt || filing.reportDate)} · ${safe(filing.form)} · SEC EDGAR</span></a>`;
   Promise.all([getJson(`/data/filings?symbol=${encodeURIComponent(ticker)}`), getJson(`/data/company-intel?symbol=${encodeURIComponent(ticker)}`)])
     .then(([filingData, intel]) => {
       const filings = filingData.filings || [];
@@ -3473,7 +3473,7 @@ function renderCompanyDocuments(ticker) {
         : `<p class="issuer-call-notice">The provider has not returned call transcripts for this company. These official earnings filings remain available:</p>${list(earningsFilings, 'No company earnings-call transcript or earnings filing was returned.', filingLink)}`;
       document.querySelectorAll('[data-call-mode]').forEach(button => { button.onclick = () => openEarningsDocument(ticker, Number(button.dataset.callYear), Number(button.dataset.callQuarter), button.dataset.callMode); });
       const updated = $('#doc-updated');
-      if (updated) updated.textContent = `Updated ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}`;
+      if (updated) updated.textContent = `Updated ${new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })} · SEC EDGAR links`;
     })
     .catch(() => ['doc-announcements','doc-annual','doc-quarterly','doc-concalls'].forEach(id => { const holder = $(`#${id}`); if (holder) holder.innerHTML = '<p class="data-empty">Document data is temporarily unavailable.</p>'; }));
 }
