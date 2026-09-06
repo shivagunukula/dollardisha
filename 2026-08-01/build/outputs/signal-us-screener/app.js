@@ -10,6 +10,14 @@ const stocks = [
 ];
 
 const $ = (selector) => document.querySelector(selector);
+function readLocalJson(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
 const escapeHtml = (value) => String(value ?? '—').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const money = (value) => {
   const number = Number(value);
@@ -59,19 +67,19 @@ async function hydrateProviderStatus() {
   }
 }
 let page = 'dashboard';
-let watchlist = JSON.parse(localStorage.getItem('dd-watchlist') || '[]');
+let watchlist = (() => { const value = readLocalJson('dd-watchlist', []); return Array.isArray(value) ? value : []; })();
 let watchlistRefreshTimer;
-let basket = JSON.parse(localStorage.getItem('dd-custom-index') || '{"name":"DollarDisha Research 10","symbols":[]}');
+let basket = (() => { const value = readLocalJson('dd-custom-index', { name:'DollarDisha Research 10', symbols:[] }); return value && typeof value === 'object' && !Array.isArray(value) ? { name:String(value.name || 'DollarDisha Research 10'), symbols:Array.isArray(value.symbols) ? value.symbols : [] } : { name:'DollarDisha Research 10', symbols:[] }; })();
 const legacyIndexNames = new Set(['DollarDisha Research 10', 'DollarDisha', 'Shiva']);
 let indexNameConfirmed = (() => {
   try { return localStorage.getItem('dd-custom-index-name-set') === '1'; } catch { return false; }
 })();
-let notes = JSON.parse(localStorage.getItem('dd-research-notes') || '[]');
-let alerts = JSON.parse(localStorage.getItem('dd-price-alerts') || '[]');
-let savedScreens = JSON.parse(localStorage.getItem('dd-saved-screens') || '[]');
-let valuationCases = JSON.parse(localStorage.getItem('dd-valuation-cases') || '[]');
-let portfolio = JSON.parse(localStorage.getItem('dd-portfolio') || '{"name":"My US portfolio","holdings":[],"updatedAt":null}');
-let researchActivity = JSON.parse(localStorage.getItem('dd-research-activity') || '[]');
+let notes = (() => { const value = readLocalJson('dd-research-notes', []); return Array.isArray(value) ? value : []; })();
+let alerts = (() => { const value = readLocalJson('dd-price-alerts', []); return Array.isArray(value) ? value : []; })();
+let savedScreens = (() => { const value = readLocalJson('dd-saved-screens', []); return Array.isArray(value) ? value : []; })();
+let valuationCases = (() => { const value = readLocalJson('dd-valuation-cases', []); return Array.isArray(value) ? value : []; })();
+let portfolio = (() => { const value = readLocalJson('dd-portfolio', { name:'My US portfolio', holdings:[], updatedAt:null }); return value && typeof value === 'object' && !Array.isArray(value) ? value : { name:'My US portfolio', holdings:[], updatedAt:null }; })();
+let researchActivity = (() => { const value = readLocalJson('dd-research-activity', []); return Array.isArray(value) ? value : []; })();
 let authClient = null;
 let authSession = null;
 let authMode = 'login';
