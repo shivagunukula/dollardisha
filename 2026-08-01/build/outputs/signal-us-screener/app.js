@@ -2344,11 +2344,11 @@ function dashboardInsightCards() {
 
 function dashboardQuickAccess() {
   return `<aside class="dashboard-quick-access" aria-label="Market updates">
-    <div class="dashboard-quick-head"><p class="crumb">TODAY ON DOLLARDISHA</p><h2>Market updates</h2><p>Jump directly to the live research view you need.</p></div>
+    <div class="dashboard-quick-head"><h2>Market updates</h2></div>
     <div class="dashboard-quick-list">
-      <button type="button" data-page="markets"><span class="dashboard-quick-icon" aria-hidden="true">⌁</span><span><b>Market pulse</b><small>Leaders, laggards and global benchmarks</small></span><em>Live</em><i aria-hidden="true">›</i></button>
-      <button type="button" data-page="latest-results"><span class="dashboard-quick-icon" aria-hidden="true">▥</span><span><b>Quarterly results</b><small>Latest reported sales, profit and EPS</small></span><em id="dashboard-results-count">Latest</em><i aria-hidden="true">›</i></button>
-      <button type="button" data-page="toolkit" data-section="ipo-calendar"><span class="dashboard-quick-icon" aria-hidden="true">↗</span><span><b>Upcoming IPOs</b><small>Provider-reported US listing calendar</small></span><em id="dashboard-ipo-count">Loading</em><i aria-hidden="true">›</i></button>
+      <button type="button" data-page="markets"><span class="dashboard-quick-icon" aria-hidden="true">⌁</span><b>Market pulse</b><em>Live</em><i aria-hidden="true">›</i></button>
+      <button type="button" data-page="latest-results"><span class="dashboard-quick-icon" aria-hidden="true">▥</span><b>Quarterly results</b><em id="dashboard-results-count">Loading</em><i aria-hidden="true">›</i></button>
+      <button type="button" data-page="toolkit" data-section="ipo-calendar"><span class="dashboard-quick-icon" aria-hidden="true">↗</span><b>Upcoming IPOs</b><em id="dashboard-ipo-count">Loading</em><i aria-hidden="true">›</i></button>
     </div>
     <small class="dashboard-quick-note" id="dashboard-calendar-note">Calendar dates are provider reported and may change.</small>
   </aside>`;
@@ -2477,6 +2477,18 @@ function setupMarketLeaders() {
 async function hydrateDashboard() {
   setupMarketLeaders();
   hydrateProviderStatus();
+  const resultsTask = getJson('/data/results/latest', 5 * 60 * 1000).then(data => {
+    const badge = $('#dashboard-results-count');
+    if (!badge) return;
+    const rows = Array.isArray(data.rows) ? data.rows : [];
+    const latestDate = rows.map(row => String(row.reportDate || '').slice(0, 10)).filter(Boolean).sort().at(-1);
+    const latestCount = latestDate ? rows.filter(row => String(row.reportDate || '').slice(0, 10) === latestDate).length : 0;
+    badge.textContent = latestCount ? `${latestCount} new` : 'View results';
+    if (latestDate) badge.title = `Most recent reported results: ${latestDate}`;
+  }).catch(() => {
+    const badge = $('#dashboard-results-count');
+    if (badge) badge.textContent = 'View results';
+  });
   const calendarTask = getJson('/data/calendar', 45000).then(data => {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() + 30);
@@ -2542,7 +2554,7 @@ async function hydrateDashboard() {
       value.className = change === null ? '' : Number(change) >= 0 ? 'positive' : 'down';
     });
   }).catch(() => document.querySelectorAll('[data-dashboard-watch] strong').forEach(value => { value.textContent = 'Retry'; })) : Promise.resolve();
-  await Promise.allSettled([calendarTask, insightTask, quoteTask, watchTask]);
+  await Promise.allSettled([resultsTask, calendarTask, insightTask, quoteTask, watchTask]);
 }
 
 function legacyIndexView() {
