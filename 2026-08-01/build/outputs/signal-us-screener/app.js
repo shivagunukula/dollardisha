@@ -4083,7 +4083,25 @@ function runStartupStep(label, callback) {
   try { callback(); }
   catch (error) { console.warn(`DollarDisha ${label} startup step failed:`, error); }
 }
-runStartupStep('render', render);
+function bootRender() {
+  try {
+    render();
+  } catch (error) {
+    console.warn('DollarDisha enhanced renderer failed; mounting safe dashboard fallback:', error);
+    const content = $('#content');
+    if (!content) return;
+    try {
+      content.innerHTML = legacyDashboardView();
+      wireCommon();
+      setupDashboard();
+      hydrateDashboard();
+    } catch (fallbackError) {
+      console.warn('DollarDisha dashboard fallback failed:', fallbackError);
+      content.innerHTML = '<div class="page"><section class="panel"><h1 class="page-title">DollarDisha is loading</h1><p class="sub">Refresh the page to reconnect the research workspace.</p></section></div>';
+    }
+  }
+}
+runStartupStep('render', bootRender);
 runStartupStep('theme', setupTheme);
 runStartupStep('search', setupSearch);
 runStartupStep('auth', setupAuth);
