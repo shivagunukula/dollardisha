@@ -368,7 +368,7 @@ function setupDashboard() {
     const freshness = $('#home-market-freshness');
     if (freshness) freshness.textContent = data?.updatedAt ? `Updated ${new Date(data.updatedAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}` : 'Latest available data';
   }).catch(() => {
-    document.querySelectorAll('.home-index-card').forEach(card => { card.querySelector('strong').textContent = 'Unavailable'; card.querySelector('b').textContent = 'Provider unavailable'; });
+    document.querySelectorAll('.home-index-card,.home-market-row').forEach(card => { card.querySelector('strong').textContent = 'Unavailable'; card.querySelector('b').textContent = 'Provider unavailable'; card.querySelector('b').className = ''; });
     const freshness = $('#home-market-freshness');
     if (freshness) freshness.textContent = 'Market snapshot unavailable';
   });
@@ -2112,6 +2112,10 @@ async function hydrateCompany(ticker) {
   } catch {
     const description = $('#company-description');
     if (description) description.textContent = 'Live company data is temporarily unavailable.';
+    ['company-cap','company-price','company-pe','company-pb','company-ps','company-book','company-eps','company-dividend','company-roe','company-roa','company-margin','company-current','company-quick','company-debt','company-interest','company-volume','company-sector','company-range'].forEach(id => { const element = $(`#${id}`); if (element) element.textContent = 'Unavailable'; });
+    const change = $('#company-change');
+    if (change) { change.textContent = 'Provider unavailable'; change.className = ''; }
+    ['company-chart','financials'].forEach(id => { const holder = $(`#${id}`); if (holder) holder.innerHTML = '<p class="data-empty">Company data is temporarily unavailable. Please retry.</p>'; });
   }
 }
 
