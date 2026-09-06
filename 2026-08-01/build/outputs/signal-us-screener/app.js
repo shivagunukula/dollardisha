@@ -4076,8 +4076,15 @@ async function hydrateSystemStatus() {
 }
 function setupSystemStatus() { $('#status-refresh').onclick = () => { jsonRequestCache.clear(); hydrateSystemStatus(); }; hydrateSystemStatus(); }
 
-setupTheme();
-setupSearch();
-render();
-setupAuth();
-startLiveRefresh();
+// Keep the core renderer independent from optional integrations. A failure in
+// theme/search/auth or a provider-backed widget must never leave the static
+// fallback shell on screen with no interactive application mounted.
+function runStartupStep(label, callback) {
+  try { callback(); }
+  catch (error) { console.warn(`DollarDisha ${label} startup step failed:`, error); }
+}
+runStartupStep('render', render);
+runStartupStep('theme', setupTheme);
+runStartupStep('search', setupSearch);
+runStartupStep('auth', setupAuth);
+runStartupStep('live refresh', startLiveRefresh);
