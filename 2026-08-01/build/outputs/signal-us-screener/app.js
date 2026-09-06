@@ -2919,8 +2919,8 @@ function setAuthMode(mode = 'login') {
   document.querySelector('.auth-divider').hidden = true;
   $('#auth-form').hidden = !recovery;
   document.querySelectorAll('[data-auth-view]').forEach(button => button.classList.toggle('active', button.dataset.authView === mode));
-  $('#auth-title').textContent = recovery ? 'Choose a new password' : 'Sign in to DollarDisha';
-  $('#auth-description').textContent = recovery ? 'Enter a secure new password for your DollarDisha account.' : signup ? 'Save your research identity and access personalised features.' : 'Use Google to create or access your DollarDisha research account.';
+  $('#auth-title').textContent = recovery ? 'Choose a new password' : 'Sign in or create an account';
+  $('#auth-description').textContent = recovery ? 'Enter a secure new password for your DollarDisha account.' : signup ? 'Save your research identity and access personalised features.' : 'Use Google to create a new account or access your DollarDisha research account.';
   $('#auth-submit').textContent = recovery ? 'Update password' : signup ? 'Create account' : 'Log in';
   $('#auth-password').autocomplete = recovery ? 'new-password' : signup ? 'new-password' : 'current-password';
   setAuthMessage();
