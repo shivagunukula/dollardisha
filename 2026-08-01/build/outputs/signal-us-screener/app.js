@@ -383,11 +383,11 @@ function setupDashboard() {
       note.className = change === null ? '' : Number(change) >= 0 ? 'positive' : 'down';
     });
     const freshness = $('#home-market-freshness');
-    if (freshness) freshness.textContent = data?.updatedAt ? `Updated ${new Date(data.updatedAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}` : 'Latest available data';
+    if (freshness) { freshness.setAttribute('role', 'status'); freshness.setAttribute('aria-live', 'polite'); freshness.textContent = data?.updatedAt ? `Updated ${new Date(data.updatedAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}` : 'Latest available data'; }
   }).catch(() => {
     document.querySelectorAll('.home-index-card,.home-market-row').forEach(card => { card.querySelector('strong').textContent = 'Unavailable'; card.querySelector('b').textContent = 'Provider unavailable'; card.querySelector('b').className = ''; });
     const freshness = $('#home-market-freshness');
-    if (freshness) freshness.textContent = 'Market snapshot unavailable';
+    if (freshness) { freshness.setAttribute('role', 'status'); freshness.setAttribute('aria-live', 'polite'); freshness.textContent = 'Market snapshot unavailable'; }
   });
 }
 
