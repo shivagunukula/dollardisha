@@ -3011,7 +3011,17 @@ async function setupAuth() {
   $('#auth-close').onclick = closeAuth;
   $('#auth-continue').onclick = closeAuth;
   modal.onclick = event => { if (event.target === modal) closeAuth(); };
-  document.addEventListener('keydown', event => { if (event.key === 'Escape' && !modal.hidden) closeAuth(); });
+  document.addEventListener('keydown', event => {
+    if (modal.hidden) return;
+    if (event.key === 'Escape') { closeAuth(); return; }
+    if (event.key !== 'Tab') return;
+    const focusable = [...modal.querySelectorAll('button:not([disabled]), input:not([disabled]), [href], select, textarea, [tabindex]:not([tabindex="-1"])')].filter(element => !element.hidden && element.offsetParent !== null);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  });
   document.querySelectorAll('[data-auth-view]').forEach(button => button.onclick = () => setAuthMode('login'));
 
   let config;
