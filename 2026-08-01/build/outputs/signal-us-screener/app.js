@@ -2046,6 +2046,12 @@ function setupSearch() {
     input.value = '';
     navigateTo(local?.ticker || query.toUpperCase());
   };
+  document.addEventListener('keydown', event => {
+    const target = event.target;
+    if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey || target?.matches?.('input,textarea,select,[contenteditable="true"]')) return;
+    event.preventDefault();
+    input.focus();
+  });
   input.oninput = () => {
     clearTimeout(timer);
     const query = input.value.trim();
