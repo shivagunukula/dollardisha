@@ -1908,6 +1908,7 @@ createServer(async (req, res) => {
       const canonical = `https://dollardisha.in/stocks/${encodeURIComponent(ticker)}`;
       const title = `${ticker} Stock Research, Financials & SEC Filings | DollarDisha`;
       const description = `Research ${ticker} stock price, financial statements, valuation ratios, peers, charts and official SEC filings on DollarDisha.`;
+      const crawlableIntro = `<section class="seo-stock-fallback" aria-label="${ticker} stock research"><p>DollarDisha US equity research</p><h1>${ticker} stock research</h1><p>Review ${ticker} price data, financial statements, valuation ratios, company filings and market context for Indian investors.</p></section>`;
       data = Buffer.from(data.toString('utf8')
         .replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`)
         .replace(/<link rel="canonical" href="[^"]*">/, `<link rel="canonical" href="${canonical}">`)
@@ -1916,7 +1917,8 @@ createServer(async (req, res) => {
         .replace(/<meta property="og:description" content="[^"]*">/, `<meta property="og:description" content="${description}">`)
         .replace(/<meta name="twitter:title" content="[^"]*">/, `<meta name="twitter:title" content="${title}">`)
         .replace(/<meta name="twitter:description" content="[^"]*">/, `<meta name="twitter:description" content="${description}">`)
-        .replace(/<meta name="description" content="[^"]*">/, `<meta name="description" content="${description}">`));
+        .replace(/<meta name="description" content="[^"]*">/, `<meta name="description" content="${description}">`)
+        .replace('</main>', `${crawlableIntro}</main>`));
     }
     if (toolRoute && assetName === 'index.html') {
       const route = toolRoute[1].toLowerCase();
