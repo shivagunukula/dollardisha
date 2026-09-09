@@ -3,9 +3,47 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const read = file => readFile(resolve(root, file), 'utf8');
+
+test('homepage search ignores out-of-order responses and cleared searches', async () => {
+  const source = await read('app.js');
+  const setup = source.split('function setupDashboard() {')[1].split("  getJson('/data/home-market'")[0];
+  const input = { value: '', isConnected: true, setAttribute() {}, setCustomValidity() {} };
+  let renders = 0;
+  const results = { hidden: true, querySelectorAll: () => [], set innerHTML(value) { renders++; } };
+  const form = { querySelector: () => ({}) };
+  const tasks = [], requests = [];
+  runInNewContext(`(function(){${setup}})()`, {
+    $: selector => ({ '#home-company-form': form, '#home-company-search': input, '#home-company-results': results })[selector],
+    setTimeout: fn => tasks.push(fn), clearTimeout() {}, stocks: [],
+    getJson: () => new Promise(resolve => requests.push(resolve))
+  });
+  input.value = 'a'; input.oninput(); const first = tasks.shift()();
+  input.value = 'apple'; input.oninput(); const second = tasks.shift()();
+  requests[1]([]); await second;
+  const latestRenders = renders;
+  requests[0]([]); await first;
+  assert.equal(renders, latestRenders, 'older response must not replace current results');
+  input.value = 'msft'; input.oninput(); const third = tasks.shift()();
+  input.value = ''; input.oninput();
+  requests[2]([]); await third;
+  assert.equal(results.hidden, true, 'clearing input must keep results closed');
+});
+
+test('company shortcuts remove misleading duplicate destinations', async () => {
+  const source = await read('app.js');
+  const start = source.indexOf('  const tabTargets =');
+  const end = source.indexOf('  previousCompanyExtras(ticker)', start);
+  const links = ['Analysis', 'Outlook', 'Investors', 'Earnings'].map(textContent => ({ textContent, remove() { this.removed = true; } }));
+  runInNewContext(source.slice(start, end), { document: { querySelectorAll: () => links } });
+  assert.equal(links[0].href, '#strengths');
+  assert.equal(links[1].removed, true);
+  assert.equal(links[2].removed, true);
+  assert.equal(links[3].removed, undefined);
+});
 
 test('homepage exposes canonical, structured search and large social preview metadata', async () => {
   const html = await read('index.html');

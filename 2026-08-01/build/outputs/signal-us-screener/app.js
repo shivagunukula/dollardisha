@@ -334,6 +334,9 @@ function setupDashboard() {
   const results = $('#home-company-results');
   if (!form || !input) return;
   let timer;
+  let searchRevision = 0;
+  input.placeholder = 'Search by company name or ticker';
+  form.querySelector('label').textContent = 'Company name or ticker';
   const showMatches = (found = []) => {
     results.innerHTML = found.slice(0, 8).map(stock => {
       const ticker = String(stock.symbol || stock.ticker || '').toUpperCase();
@@ -375,16 +378,21 @@ function setupDashboard() {
     }
   };
   input.oninput = () => {
+    const revision = ++searchRevision;
     input.setCustomValidity('');
     clearTimeout(timer);
     const query = input.value.trim();
     if (!query) { results.hidden = true; input.setAttribute('aria-expanded', 'false'); return; }
     timer = setTimeout(async () => {
-      results.innerHTML = '<button type="button" disabled>Searching Nasdaq companies…</button>';
+      results.innerHTML = '<button type="button" disabled>Searching US companies…</button>';
       results.hidden = false;
       input.setAttribute('aria-expanded', 'true');
-      try { showMatches(await getJson(`/data/search?q=${encodeURIComponent(query)}`, 15000)); }
-      catch { showMatches(stocks.filter(stock => stock.ticker.includes(query.toUpperCase()) || stock.name.toLowerCase().includes(query.toLowerCase()))); }
+      try {
+        const found = await getJson(`/data/search?q=${encodeURIComponent(query)}`, 15000);
+        if (revision === searchRevision && input.isConnected) showMatches(found);
+      } catch {
+        if (revision === searchRevision && input.isConnected) showMatches(stocks.filter(stock => stock.ticker.includes(query.toUpperCase()) || stock.name.toLowerCase().includes(query.toLowerCase())));
+      }
     }, 180);
   };
   getJson('/data/home-market', 45000).then(data => {
@@ -3521,8 +3529,12 @@ function renderCompanyDocuments(ticker) {
 const previousCompanyExtras = hydrateCompanyExtras;
 hydrateCompanyExtras = function(ticker) {
   $('#intelligence')?.remove();
-  const tabTargets = { Analysis:'#strengths', Outlook:'#earnings', Investors:'#overview-ratios' };
-  document.querySelectorAll('.company-tabs a').forEach(link => { const target = tabTargets[link.textContent.trim()]; if (target) link.href = target; });
+  const tabTargets = { Analysis:'#strengths' };
+  document.querySelectorAll('.company-tabs a').forEach(link => {
+    if (['Outlook', 'Investors'].includes(link.textContent.trim())) { link.remove(); return; }
+    const target = tabTargets[link.textContent.trim()];
+    if (target) link.href = target;
+  });
   previousCompanyExtras(ticker); renderCompanyDocuments(ticker);
 };
 
