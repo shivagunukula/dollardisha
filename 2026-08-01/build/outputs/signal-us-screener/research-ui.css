@@ -1,0 +1,103 @@
+/* Research interface: shared rhythm, readable data and restrained motion. */
+:root{--ui-radius:10px;--ui-ease:cubic-bezier(.2,.7,.2,1);--ui-header:112px}
+html{scroll-padding-top:calc(var(--ui-header) + 56px)}
+body{font-size:16px;line-height:1.55}
+*,*::before,*::after{box-sizing:border-box}
+.page,.company-page{max-width:1240px!important;padding:32px 28px 64px!important}
+.header-inner,.secondary-nav{max-width:1280px!important;padding-inline:28px!important}
+.header-inner{height:auto!important;min-height:72px;display:flex;flex-wrap:wrap;gap:16px!important;padding-block:12px!important}
+.brand{min-width:176px!important;flex-shrink:0}
+.brand-word small{font-size:9px!important;letter-spacing:.12em!important}
+.universal-search{flex:1 1 220px;width:auto!important;max-width:360px;height:42px!important;border-radius:8px!important}
+.universal-search input{font-size:14px!important;min-width:0}
+.primary-nav{flex:0 1 auto;gap:2px;min-width:0}
+.nav{font-size:14px!important;min-height:40px;display:inline-flex;align-items:center;padding:9px 10px!important}
+.secondary-nav{height:auto!important;min-height:40px;gap:12px}
+.secondary-nav>div{min-width:0;overflow-x:auto;white-space:nowrap;scrollbar-width:thin}
+.secondary-nav .nav{font-size:13px!important}
+.site-header{border-bottom:1px solid var(--dd-line)!important}
+.page-title{font-size:clamp(28px,3vw,40px)!important;line-height:1.2!important}
+.sub,.home-intro>p:not(.crumb){font-size:16px!important;line-height:1.7}
+.crumb{font-size:12px!important}
+.panel,.market-card,.index-card,.company-research-card{border-radius:var(--ui-radius)!important}
+.panel-head{padding:20px 22px!important;gap:14px;flex-wrap:wrap}
+.panel-head h2,.company-page .panel-head h2{font-size:22px!important;line-height:1.3!important}
+.panel-head p,.data-empty,.result-meta,.screen-data-note{font-size:13px!important;line-height:1.6}
+.section-header{margin-bottom:18px!important}
+.solid-btn{min-height:42px;padding:10px 18px!important;border-radius:7px!important;font-size:14px!important;font-weight:600;transition:background-color 180ms ease,transform 180ms var(--ui-ease),box-shadow 180ms ease!important}
+.link-button{font-size:14px!important;min-height:36px;display:inline-flex;align-items:center}
+button,input,select,textarea{font-family:Inter,Arial,sans-serif}
+input,select,textarea{max-width:100%}
+:is(button,a,input,select,textarea,summary):focus-visible{outline:2px solid var(--dd-aqua);outline-offset:4px}
+.home-intro{max-width:none;padding:12px 0 28px;display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,.8fr);column-gap:48px;align-items:center}
+.home-intro>.crumb,.home-intro>h1,.home-intro>p{grid-column:1}
+.home-intro h1{font-size:clamp(32px,3.5vw,48px);letter-spacing:-.045em;line-height:1.16;max-width:650px}
+.home-company-search{grid-column:2;grid-row:2/4;width:100%;max-width:none;margin:0;padding:8px 10px;border-radius:10px;grid-template-columns:22px minmax(0,1fr);transition:border-color 180ms,box-shadow 180ms}
+.home-company-search input{height:46px;font-size:16px;font-weight:500}
+.home-company-search .solid-btn{grid-column:1/-1;width:100%;height:44px}
+.home-company-search:focus-within{border-color:var(--dd-aqua);box-shadow:0 0 0 4px var(--dd-accent-soft)}
+.home-ideas{grid-column:2;margin-top:10px;flex-wrap:wrap;font-size:13px}
+.home-ideas button{font-size:13px;min-height:30px;padding:4px 8px;border-radius:5px;background:var(--dd-surface)}
+.home-index-strip{border-radius:10px;overflow:hidden;margin-bottom:24px}
+.home-index-grid{grid-template-columns:repeat(5,minmax(0,1fr))}
+.home-index-card{min-width:0;padding:16px 18px}
+.home-index-card span,.home-index-card b{font-size:13px!important}
+.home-index-card strong{font-size:22px!important;font-variant-numeric:tabular-nums}
+.dashboard-hero-layout{grid-template-columns:minmax(210px,.36fr) minmax(0,1fr);gap:28px}
+.market-grid,.dashboard-grid{gap:18px}
+.market-card strong{font-size:26px!important;font-variant-numeric:tabular-nums}
+.market-card span,.market-card b{font-size:14px!important}
+.company-tabs{top:var(--ui-header)!important;min-height:48px;z-index:15}
+.company-tabs a{font-size:13px!important;padding:13px 14px!important;min-height:46px}
+.company-heading .sub{font-size:14px!important}
+.ratio-board{align-content:start!important;align-items:start!important}
+.ratio-cell,.ratio-cell.emphasis{min-height:72px!important;padding:14px 16px!important}
+.ratio-cell span{font-size:13px!important;line-height:1.4}
+.ratio-cell b{font-size:17px!important;font-variant-numeric:tabular-nums}
+.company-about{font-size:14px!important;line-height:1.7}
+.company-about p{font-size:14px!important}
+.table-wrap{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:thin}
+.page table td,.page table th,.company-page table td,.company-page table th{font-size:13px!important;padding:13px 16px!important;font-variant-numeric:tabular-nums}
+.page table th{font-weight:600;white-space:nowrap}
+.financial-panel table tr>:first-child{position:sticky;left:0;background:var(--dd-surface)!important;z-index:1;min-width:160px}
+.company-row td{transition:background-color 160ms ease}
+.screen-query-builder,.screen-ratio-gallery{width:100%;max-width:none!important;padding:22px!important;border-radius:10px!important}
+.screen-query-composer{grid-template-columns:minmax(0,1fr) 230px;gap:16px}
+.screen-query-composer textarea{font-size:16px!important;line-height:1.7;min-height:132px;padding:14px;border-radius:6px!important}
+.screen-query-label{font-size:14px;margin-bottom:10px}
+.screen-query-help,.screen-query-help b,.screen-query-help button,.screen-query-status{font-size:13px!important;line-height:1.6}
+.screen-query-help{padding:14px;border-radius:6px}
+.screen-query-suggestion{font-size:14px;padding:12px}
+.screen-query-suggestion small{font-size:12px}
+.ratio-gallery-tabs button,.ratio-gallery-list button{font-size:13px!important;min-height:38px;padding:9px 12px!important}
+.ratio-gallery-column h3,.ratio-gallery-search,.ratio-gallery-search input,.ratio-gallery-note{font-size:13px!important}
+.ratio-gallery-list{gap:24px}
+.ratio-gallery-tabs{overflow-x:auto;flex-wrap:nowrap}
+.ratio-gallery-tabs button{white-space:nowrap}
+.event-filter-bar button,.chart-controls button{font-size:13px!important;min-height:38px}
+.company-event-item h3{font-size:16px!important}
+.company-event-item p,.company-event-item time b{font-size:13px!important}
+.earnings-summary-grid span,.earnings-summary-grid small{font-size:12px!important}
+.footer-links a{font-size:13px;min-height:36px;display:inline-flex;align-items:center}
+/* Visible by default: animation never gates access to research data. */
+.motion-enabled .motion-reveal{opacity:1!important;transform:none!important}
+.motion-enabled .motion-reveal.is-visible{animation:dd-reveal 420ms var(--ui-ease) var(--motion-delay,0ms) both}
+@keyframes dd-reveal{from{opacity:.6;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.content-arrived,.data-settled{animation:none!important}
+@media(hover:hover) and (prefers-reduced-motion:no-preference){
+  .solid-btn:hover{transform:translateY(-2px)!important;box-shadow:0 5px 16px #0002!important}
+  .solid-btn:active{transform:translateY(0)!important}
+  .home-ideas button:hover{background:var(--dd-accent-soft)}
+}
+@media(max-width:1100px){.primary-nav{order:5;width:100%;overflow-x:auto;flex-wrap:nowrap}.universal-search{max-width:none}.home-intro{column-gap:28px}.dashboard-hero-layout{grid-template-columns:1fr}}
+@media(max-width:760px){
+ .page,.company-page{padding:24px 16px 44px!important}.header-inner,.secondary-nav{padding-inline:16px!important}
+ .home-intro{display:block}.home-intro h1{font-size:34px}.home-company-search{margin-top:20px}
+ .home-index-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.home-index-card:last-child{grid-column:1/-1}
+ .screen-query-composer{grid-template-columns:1fr}.screen-query-help{border-left:0}.screen-query-builder,.screen-ratio-gallery{padding:16px!important}
+ .ratio-gallery-list{grid-template-columns:1fr}.panel-head{padding:16px!important}
+ .company-top{flex-wrap:wrap}.ratio-cell,.ratio-cell.emphasis{min-height:66px!important;padding:12px!important}
+ .universal-search{flex-basis:100%;order:4}.company-tabs a{padding-inline:12px!important}
+ input,select,textarea{font-size:16px!important}.page table td,.page table th{padding:12px!important}
+}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto!important}*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.motion-enabled .motion-reveal{opacity:1!important;transform:none!important}}

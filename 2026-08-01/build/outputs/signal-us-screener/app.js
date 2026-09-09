@@ -3563,10 +3563,10 @@ function activatePageMotion(content = $('#content')) {
   if (pageRoot.classList.contains('company-page')) {
     targets.push(...Array.from(pageRoot.querySelectorAll('.ratio-board .ratio-cell')));
   }
-  const uniqueTargets = [...new Set(targets)].filter(element => element && !element.closest('[hidden]'));
+  const uniqueTargets = [...new Set(targets)].filter(element => element && !element.closest('[hidden]') && !element.classList.contains('company-tabs'));
   uniqueTargets.forEach((element, index) => {
     element.classList.add('motion-reveal');
-    element.style.setProperty('--motion-delay', `${Math.min(index % 7, 6) * 42}ms`);
+    element.style.setProperty('--motion-delay', `${Math.min(index, 4) * 35}ms`);
     element.addEventListener('animationend', event => {
       if (event.animationName !== 'dd-reveal') return;
       element.classList.remove('motion-reveal', 'is-visible');
@@ -3581,28 +3581,16 @@ function activatePageMotion(content = $('#content')) {
   }
   requestAnimationFrame(() => content.classList.add('route-ready'));
 
-  if ('MutationObserver' in window && !reduceMotion()) {
-    const pendingPanels = new Set();
-    let frame = 0;
-    contentMotionObserver = new MutationObserver(records => {
-      records.forEach(record => {
-        if (!record.addedNodes.length) return;
-        const panel = record.target.nodeType === 1 ? record.target.closest?.('.panel, .market-card, .financial-panel') : null;
-        if (panel) pendingPanels.add(panel);
-      });
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        pendingPanels.forEach(panel => {
-          panel.classList.remove('content-arrived');
-          void panel.offsetWidth;
-          panel.classList.add('content-arrived');
-          setTimeout(() => panel.classList.remove('content-arrived'), 620);
-        });
-        pendingPanels.clear();
-      });
-    });
-    contentMotionObserver.observe(pageRoot, { childList:true, subtree:true });
-  }
+  // Provider refreshes should not replay entrance animations or force layout.
+}
+
+function setupHeaderLayout() {
+  const header = document.querySelector('.site-header');
+  if (!header) return;
+  const update = () => document.documentElement.style.setProperty('--ui-header', `${Math.ceil(header.getBoundingClientRect().height)}px`);
+  update();
+  if ('ResizeObserver' in window) new ResizeObserver(update).observe(header);
+  else window.addEventListener('resize', update, { passive:true });
 }
 
 function pulseCompanyFacts() {
@@ -4287,6 +4275,7 @@ function bootRender() {
 }
 runStartupStep('render', bootRender);
 runStartupStep('theme', setupTheme);
+runStartupStep('header layout', setupHeaderLayout);
 runStartupStep('search', setupSearch);
 runStartupStep('auth', setupAuth);
 runStartupStep('live refresh', startLiveRefresh);
