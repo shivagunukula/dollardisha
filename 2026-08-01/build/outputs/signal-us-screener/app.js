@@ -660,7 +660,7 @@ function setupQuarterlyDetails(holder) {
   });
 }
 function render() {
-  const view = page === 'dashboard' ? dashboardView() : page === 'markets' ? marketsView() : page === 'screener' ? screenerView() : page === 'indexlab' ? indexView() : page === 'research' ? researchView() : page === 'compare' ? compareView() : page === 'watchlist' ? watchlistView() : page === 'toolkit' ? toolkitView() : page === 'latest-results' ? latestResultsView() : page === 'tools' ? toolsView() : page === 'portfolio' ? portfolioView() : page === 'status' ? statusView() : page === 'pricing' ? pricingView() : companyView(page);
+  const view = page === 'dashboard' ? dashboardView() : page === 'markets' ? marketsView() : page === 'screener' ? screenerView() : page === 'indexlab' ? indexView() : page === 'research' ? researchView() : page === 'compare' ? compareView() : page === 'watchlist' ? watchlistView() : page === 'toolkit' ? toolkitView() : page === 'latest-results' ? latestResultsView() : page === 'tools' ? toolsView() : page === 'deep-dive' ? deepDiveView() : page === 'portfolio' ? portfolioView() : page === 'status' ? statusView() : page === 'pricing' ? pricingView() : companyView(page);
   const content = $('#content');
   content.classList.remove('route-ready');
   content.innerHTML = view;
@@ -684,10 +684,11 @@ function render() {
   if (page === 'toolkit') setupToolkit();
   if (page === 'latest-results') setupLatestResults();
   if (page === 'tools') setupTools();
+  if (page === 'deep-dive') setupDeepDive();
   if (page === 'portfolio') setupPortfolio();
   if (page === 'status') setupSystemStatus();
   if (page === 'pricing') setupPricing();
-  if (!['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'latest-results', 'tools', 'portfolio', 'status', 'pricing'].includes(page)) {
+  if (!['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'latest-results', 'tools', 'deep-dive', 'portfolio', 'status', 'pricing'].includes(page)) {
     const companyPage = content.querySelector('.company-page');
     if (companyPage) { companyPage.classList.add('company-loading'); companyPage.setAttribute('aria-busy', 'true'); }
     hydrateCompany(page);
@@ -705,7 +706,7 @@ function render() {
 const LIVE_REFRESH_MS = 60 * 1000;
 let liveRefreshTimer = null;
 let liveRefreshBusy = false;
-const isCompanyRoute = route => !['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'latest-results', 'tools', 'portfolio', 'status', 'pricing'].includes(route);
+const isCompanyRoute = route => !['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'latest-results', 'tools', 'deep-dive', 'portfolio', 'status', 'pricing'].includes(route);
 async function refreshLiveData() {
   if (document.hidden || liveRefreshBusy) return;
   liveRefreshBusy = true;
@@ -744,7 +745,7 @@ const routeFromHash = () => {
 const routeFromPath = () => {
   const match = window.location.pathname.match(/^\/stocks\/([A-Z0-9][A-Z0-9._-]{0,14})\/?$/i);
   if (match) return match[1].toUpperCase();
-  const tool = window.location.pathname.match(/^\/(markets|screener|compare|research|portfolio|watchlist|toolkit|latest-results|tools|status|pricing)\/?$/i);
+  const tool = window.location.pathname.match(/^\/(markets|screener|compare|research|portfolio|watchlist|toolkit|latest-results|tools|deep-dive|status|pricing)\/?$/i);
   return tool ? tool[1].toLowerCase() : null;
 };
 // A hash route is an app-level destination even when the current URL is a
@@ -755,7 +756,7 @@ const routeFromPath = () => {
 const routeFromLocation = () => routeFromHash() || routeFromPath();
 const routeHref = target => {
   const next = String(target || 'dashboard');
-  const publicRoute = new Set(['markets','screener','compare','research','portfolio','watchlist','toolkit','latest-results','tools','status','pricing']);
+  const publicRoute = new Set(['markets','screener','compare','research','portfolio','watchlist','toolkit','latest-results','tools','deep-dive','status','pricing']);
   return isCompanyRoute(next) ? `/stocks/${encodeURIComponent(next.toUpperCase())}` : publicRoute.has(next) ? `/${encodeURIComponent(next)}` : '/';
 };
 function navigateTo(target, { replace = false } = {}) {
@@ -848,6 +849,31 @@ function markDataFreshness(value = new Date()) {
     indicator.title = `Live-data response received at ${formatted}. Open status for provider coverage.`;
     indicator.setAttribute('aria-label', `Live data updated at ${formatted}. Open status for provider coverage.`);
   }
+}
+
+function deepDiveView() {
+  const module = (icon, title, text, state = 'Derived from connected research data') => `<article class="deep-dive-module"><span class="deep-dive-icon" aria-hidden="true">${icon}</span><div><h3>${title}</h3><p>${text}</p><small>${state}</small></div></article>`;
+  return `<div class="page deep-dive-page">${pageHeader('DEEP DIVE WORKSPACE', 'Research signals', 'A focused layer for sector context, event signals and your next research decision.')}
+    <section class="deep-dive-hero panel"><div><p class="crumb">CONNECTED RESEARCH SYSTEM</p><h2>See what is moving, why it matters, and what to review next.</h2><p>Signals are derived from available company, market and filing data. Every module shows its coverage and freshness before you rely on it.</p></div><div class="deep-dive-summary"><div><b id="deep-dive-mood">—</b><span>Market mood</span></div><div><b id="deep-dive-sector-count">—</b><span>Sectors covered</span></div><div><b id="deep-dive-pead-count">—</b><span>Recent earnings</span></div></div></section>
+    <section class="deep-dive-section"><div class="section-header"><div><p class="crumb">SIGNALS</p><h2>Market context</h2></div><span id="deep-dive-updated" class="data-badge">Checking coverage…</span></div><div class="deep-dive-grid">${module('↗','Sector rotation','Compare all covered sectors across multiple time windows, with leaders, laggards and breadth.')} ${module('◉','Market mood','Explainable breadth, volatility and index-trend inputs—not a black-box sentiment score.')} ${module('⚡','PEAD candidates','Rank recent earnings reactions by surprise, gap, volume and follow-through where price history is available.')} ${module('◎','Demerger tracker','Surface likely spin-offs and separations from SEC filings and company-event classifications.','SEC filing classification')}</div><div id="deep-dive-sectors" class="deep-dive-data"><p class="data-empty">Loading sector rotation data…</p></div></section>
+    <section class="deep-dive-section"><div class="section-header"><div><p class="crumb">INDUSTRY INTELLIGENCE</p><h2>Coverage modules</h2></div></div><div class="deep-dive-grid">${module('▤','Banking monitor','Bank-specific metrics such as deposits, loans, NIM, provisions and capital ratios when normalized provider data is available.','Provider coverage required')} ${module('⚓','Shipping monitor','Freight, charter, fleet and port indicators from a licensed maritime-data provider.','Connection required')} ${module('⌁','Public order flow','Track disclosed backlog, bookings and contract wins—not private broker orders.','Public filings only')} ${module('◫','Auto monitor','Saved rules and scheduled checks for prices, earnings, filings and events.','Scheduler connection required')}</div></section>
+    <section class="panel master-tracker-panel"><div class="panel-head"><div><p class="crumb">WORKFLOW</p><h2>Master tracker</h2><p>One review queue for companies, catalysts, events, thesis status and next dates.</p></div><button type="button" class="solid-btn" data-page="research">Open research workspace →</button></div><div class="master-tracker-stats"><div><b>${watchlist.length}</b><span>companies followed</span></div><div><b>${notes.length}</b><span>thesis cards</span></div><div><b>${alerts.length}</b><span>active alerts</span></div><div><b>${researchActivity.length}</b><span>activity items</span></div></div></section>
+  </div>`;
+}
+
+async function setupDeepDive() {
+  const holder = $('#deep-dive-sectors');
+  try {
+    const data = await getJson('/data/market-performance?period=day', 30000);
+    const regions = Array.isArray(data?.regions) ? data.regions : [];
+    const rows = regions.map(region => ({ name:region.region, change:region.change, breadth:region.breadth, total:region.total })).filter(row => row.name);
+    const rising = rows.filter(row => Number.isFinite(row.change) && row.change >= 0).length;
+    const mood = rows.length ? Math.round((rising / rows.length) * 100) : null;
+    if ($('#deep-dive-mood')) $('#deep-dive-mood').textContent = mood === null ? '—' : `${mood}/100`;
+    if ($('#deep-dive-sector-count')) $('#deep-dive-sector-count').textContent = rows.length || '—';
+    if ($('#deep-dive-updated')) $('#deep-dive-updated').textContent = data.updatedAt ? `Updated ${new Date(data.updatedAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}` : 'Latest available';
+    if (holder) holder.innerHTML = rows.length ? `<div class="deep-dive-table-wrap"><table><thead><tr><th>Region</th><th>Day move</th><th>Breadth</th><th>Signal</th></tr></thead><tbody>${rows.sort((a,b)=>(Number(b.change)||-Infinity)-(Number(a.change)||-Infinity)).map(row => `<tr><td>${escapeHtml(row.name)}</td><td class="${Number(row.change) >= 0 ? 'positive' : 'down'}">${percent(row.change)}</td><td>${Number.isFinite(Number(row.breadth)) ? `${row.breadth}/${row.total}` : '—'}</td><td>${Number(row.change) >= 0 ? 'Leading' : 'Lagging'}</td></tr>`).join('')}</tbody></table></div>` : '<p class="data-empty">Sector coverage is temporarily unavailable.</p>';
+  } catch { if (holder) holder.innerHTML = '<p class="data-empty">Sector rotation data is temporarily unavailable. Check provider status for coverage.</p>'; }
 }
 async function getJson(url, timeout = 9000) {
   const cacheable = url.startsWith('/data/company?') || url.startsWith('/data/company-intel?') || url.startsWith('/data/filings?') || url.startsWith('/data/market') || url.startsWith('/data/indices') || url.startsWith('/data/global-markets') || url.startsWith('/data/watchlist?');
