@@ -1919,7 +1919,7 @@ createServer(async (req, res) => {
       return send(res, 200, await addCachedScreenerMetrics(rows));
     }
     const stockRoute = url.pathname.match(/^\/stocks\/([A-Z0-9][A-Z0-9._-]{0,14})\/?$/i);
-    const toolRoute = url.pathname.match(/^\/(markets|screener|compare|research|portfolio|watchlist|toolkit|latest-results|tools|status|pricing)\/?$/i);
+    const toolRoute = url.pathname.match(/^\/(markets|screener|compare|research|portfolio|watchlist|toolkit|latest-results|tools|deep-dive|status|pricing)\/?$/i);
     const requested = url.pathname === '/' || stockRoute || toolRoute ? 'index.html' : normalize(url.pathname).replace(/^([.][.][\\/])+/, '');
     if (requested.startsWith('.') || requested.includes('..')) return send(res, 403, 'Forbidden', 'text/plain; charset=utf-8');
     const file = join(root, requested);
@@ -1944,7 +1944,7 @@ createServer(async (req, res) => {
     }
     if (toolRoute && assetName === 'index.html') {
       const route = toolRoute[1].toLowerCase();
-      const labels = { markets:'Market Scans', screener:'US Stock Screener', compare:'Compare US Stocks', research:'SEC Research Hub', portfolio:'Research Portfolio', watchlist:'US Stock Watchlist', toolkit:'Research Toolkit', 'latest-results':'Latest US Quarterly Results', tools:'Research Tools', status:'Data Status', pricing:'DollarDisha Pro' };
+      const labels = { markets:'Market Scans', screener:'US Stock Screener', compare:'Compare US Stocks', research:'SEC Research Hub', portfolio:'Research Portfolio', watchlist:'US Stock Watchlist', toolkit:'Research Toolkit', 'latest-results':'Latest US Quarterly Results', tools:'Research Tools', 'deep-dive':'Deep Dive Research Signals', status:'Data Status', pricing:'DollarDisha Pro' };
       const label = labels[route] || 'US Equity Research';
       const canonical = `https://dollardisha.in/${route}`;
       const title = `${label} | DollarDisha`;
