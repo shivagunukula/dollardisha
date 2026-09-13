@@ -97,7 +97,7 @@ export function createDeepDiveService({ fmp, fmpConfigured = false, directoryLoa
     const allowed = new Set(DIRECTORY_SECTORS[sectorSymbol] || []);
     const candidates = (directory || []).filter(row => allowed.has(String(row?.sector || '')))
       .filter(row => /^[A-Z][A-Z0-9.-]{0,9}$/.test(String(row?.symbol || '').toUpperCase()))
-      .filter(row => !/(WARRANT|RIGHTS?|PREFERRED|DEPOSITARY SHARES|UNITS?|ETF|ETN)\b/i.test(String(row?.name || '')))
+      .filter(row => !/(WARRANTS?|RIGHTS?|PREFERRED|DEPOSITARY SHARES|UNITS?|ETF|ETN)\b/i.test(String(row?.name || '')))
       .map(row => ({row,ticker:String(row.symbol).toUpperCase(),marketCap:numeric(String(row.marketCap || '').replace(/,/g,''))}))
       .filter(item => item.marketCap === null || item.marketCap > 0)
       .sort((a,b) => (b.marketCap ?? -Infinity) - (a.marketCap ?? -Infinity) || a.ticker.localeCompare(b.ticker));
@@ -105,13 +105,14 @@ export function createDeepDiveService({ fmp, fmpConfigured = false, directoryLoa
     // were eligible. This is a top-by-market-cap NASDAQ directory sample, not
     // a claim that it is the complete ETF holdings file.
     const selected = candidates.slice(0,24);
-    const rows = (await pooled(selected,3,async item => {
+    const [sectorHistory, rawStockRows] = await Promise.all([history(sectorSymbol).catch(() => []), pooled(selected,3,async item => {
       try {
         const historyRows = await history(item.ticker);
         return stockMomentum({symbol:item.ticker,name:String(item.row.name || item.ticker).replace(/\s+(Common Stock|Common Shares?|Class [A-Z] Common Stock)\s*$/i,'').trim(),sector:sector.name,marketCap:item.marketCap,provider:'Yahoo Finance fallback'}, historyRows);
       } catch { return null; }
-    })).filter(Boolean);
-    return {sector:sectorSymbol,sectorName:sector.name,rows,scanned:candidates.length,matched:rows.length,checkedAt:checkedAt(),status:rows.length ? rows.length === selected.length ? 'available' : 'partial' : 'unavailable',sourceUrl:'https://api.nasdaq.com/api/screener/stocks',methodology:'Stocks are ranked from completed Yahoo Finance daily closes. Candidates are the top 24 positive-market-cap NASDAQ directory listings mapped to the selected sector label; this is not a complete ETF holdings file and excludes non-operating security types. Momentum score = 3-month return + 0.5 × 1-month return + 2 points each when price is above its 50- and 200-session averages. It is descriptive, not a recommendation.'};
+    })]);
+    const stockRows = rawStockRows.filter(Boolean);
+    return {sector:sectorSymbol,sectorName:sector.name,sectorHistory:sectorHistory.slice(-90).map(r => ({date:r.date,close:r.close})),rows:stockRows,scanned:candidates.length,matched:stockRows.length,checkedAt:checkedAt(),status:stockRows.length ? stockRows.length === selected.length ? 'available' : 'partial' : 'unavailable',sourceUrl:'https://api.nasdaq.com/api/screener/stocks',methodology:'Stocks are ranked from completed Yahoo Finance daily closes. Candidates are the top 24 positive-market-cap NASDAQ directory listings mapped to the selected sector label; this is not a complete ETF holdings file and excludes non-operating security types. Momentum score = 3-month return + 0.5 × 1-month return + 2 points each when price is above its 50- and 200-session averages. It is descriptive, not a recommendation.'};
   });
   const monthly = category => cached(`monthly:${category}`,3600000,async () => {
     const rows = await pooled(MONTHLY[category],2,async meta => {
