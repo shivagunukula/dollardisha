@@ -124,8 +124,8 @@ export function mountDeepDive(root,hooks) {
         root.querySelectorAll('[data-save-filing]').forEach(b=>b.onclick=()=>{const r=data.rows[Number(b.dataset.saveFiling)];openRecord({ticker,kind:isOrders?'Order / backlog':'Demerger',title:`${r.evidence.matched} · ${r.date}`,detail:`Unverified keyword candidate: ${r.evidence.excerpt}`,source:r.url,status:'Needs review',eventDate:r.date});});
       }catch(error){if(alive(token))q('#dd-filing-results').innerHTML=note(`${error.message}. You can add a source-linked record manually.`);}finally{if(button.isConnected)button.disabled=false;}
     };
+    if(filingInputs[kind]) { q('#dd-filing-form input').value=filingInputs[kind]; q('#dd-filing-form').requestSubmit(); }
   }
-    if(filingInputs[kind]) {q('#dd-filing-form input').value=filingInputs[kind];q('#dd-filing-form').requestSubmit();}
   function drawTracker() {
     const state=hooks.getState();
     q('#dd-content').innerHTML=`<div class="dd-context"><strong>One research queue</strong><span>${state.signedIn ? 'Uses your existing account research storage' : 'Guest mode: saved on this browser. Sign in for account sync.'}</span></div><div class="dd-controls"><label>Show<select id="dd-tracker-filter">${['all','due','Demerger','Order / backlog','Earnings','Research','Closed'].map(v=>`<option value="${v}" ${v===trackerFilter?'selected':''}>${v==='all'?'All records':v==='due'?'Due for review':v}</option>`).join('')}</select></label><button type="button" id="dd-new-record">Add research record</button><button type="button" id="dd-tracker-export">Export records</button></div><div id="dd-records"></div><details><summary>Existing research: followed companies, thesis cards and alerts</summary><div id="dd-existing"></div><a href="/research">Manage existing research →</a></details><div id="dd-editor"></div><p id="dd-save-status" role="status"></p>`;
