@@ -404,6 +404,14 @@ test('stock screener falls back to the full Nasdaq directory without an FMP key'
   assert.match(server, /reported fundamentals remain explicitly unavailable/);
 });
 
+test('financial screener metrics use transparent SEC annual fallback when FMP is absent', async () => {
+  const server = await read('server.mjs');
+  assert.match(server, /financialsLoaded:Boolean\(year\.length \|\| quarter\.length \|\| balanceRows\.length \|\| cash\.length\)/);
+  assert.match(server, /if \(!income\.length && !balance\.length && !cashflow\.length\) \{/);
+  assert.match(server, /const secData = await secFactsForTicker\(ticker\)\.catch\(\(\) => null\);/);
+  assert.match(server, /financialProvider = 'SEC company facts'/);
+});
+
 test('ratio gallery separates live US metrics from history still being synced', async () => {
   const [client, styles] = await Promise.all([read('app.js'), read('ui-refresh.css')]);
   for (const category of [/['"]most-used['"]\s*:/, /annual\s*:/, /quarterly\s*:/, /balance\s*:/, /['"]cash-flow['"]\s*:/, /ratios\s*:/, /price\s*:/]) {

@@ -558,17 +558,31 @@ function screenerFinancialValues(ticker, income, quarterlyIncome, balance, cashf
     // Annual quality and valuation context (provider annual ratios when reported).
     bookValue:annualBookValue(0), bookValuePrev:annualBookValue(1), bookValue3y:annualBookValue(3), bookValue5y:annualBookValue(5), bookValue10y:annualBookValue(10), annualRoe:annualRoe(0), annualRoePrev:annualRoe(1), annualRoa:annualRoa(0), annualRoaPrev:annualRoa(1), annualRoce:annualRoce(0), annualRocePrev:annualRoce(1), averageRoe3y:rowAverage(annualRoe, 3), averageRoe5y:rowAverage(annualRoe, 5), averageRoe7y:rowAverage(annualRoe, 7), averageRoe10y:rowAverage(annualRoe, 10), averageRoa3y:rowAverage(annualRoa, 3), averageRoa5y:rowAverage(annualRoa, 5), averageRoce3y:rowAverage(annualRoce, 3), averageRoce5y:rowAverage(annualRoce, 5), averageRoce7y:rowAverage(annualRoce, 7), averageRoce10y:rowAverage(annualRoce, 10),
     historicalPe3y:ratioValue(3, 'peRatio', 'priceEarningsRatio'), historicalPe5y:ratioValue(5, 'peRatio', 'priceEarningsRatio'), historicalPb3y:ratioValue(3, 'priceToBookRatio', 'priceBookValueRatio'), historicalPb5y:ratioValue(5, 'priceToBookRatio', 'priceBookValueRatio'), marketCap3y,
-    financialsLoaded:true
+    financialsLoaded:Boolean(year.length || quarter.length || balanceRows.length || cash.length)
   };
 }
 async function screenerFinancialMetrics(ticker) {
   const cached = screenerFinancialMetricCache.get(ticker);
   if (cached && Date.now() < cached.expiresAt) return cached.value;
   const [income, quarterlyIncome, balance, cashflow, annualRatios, marketCap3y] = await Promise.all([
-    fmp('income-statement', { symbol:ticker, limit:12 }).catch(() => []), fmp('income-statement', { symbol:ticker, period:'quarter', limit:12 }).catch(() => []),
-    fmp('balance-sheet-statement', { symbol:ticker, limit:12 }).catch(() => []), fmp('cash-flow-statement', { symbol:ticker, limit:12 }).catch(() => []), fmp('ratios', { symbol:ticker, limit:12 }).catch(() => []), historicalMarketCap(ticker, 3)
+    key ? fmp('income-statement', { symbol:ticker, limit:12 }).catch(() => []) : Promise.resolve([]), key ? fmp('income-statement', { symbol:ticker, period:'quarter', limit:12 }).catch(() => []) : Promise.resolve([]),
+    key ? fmp('balance-sheet-statement', { symbol:ticker, limit:12 }).catch(() => []) : Promise.resolve([]), key ? fmp('cash-flow-statement', { symbol:ticker, limit:12 }).catch(() => []) : Promise.resolve([]), key ? fmp('ratios', { symbol:ticker, limit:12 }).catch(() => []) : Promise.resolve([]), key ? historicalMarketCap(ticker, 3) : Promise.resolve(null)
   ]);
-  const value = screenerFinancialValues(ticker, income, quarterlyIncome, balance, cashflow, annualRatios, marketCap3y);
+  let finalIncome = income, finalBalance = balance, finalCashflow = cashflow, financialProvider = key ? 'FMP' : null;
+  // SEC company facts are a provider-independent annual fallback. They do not
+  // contain consensus estimates or every quarterly line, so those remain null.
+  if (!income.length && !balance.length && !cashflow.length) {
+    const secData = await secFactsForTicker(ticker).catch(() => null);
+    if (secData) {
+      const secValues = secFinancials(secData.facts);
+      finalIncome = secValues.income;
+      finalBalance = secValues.balance;
+      finalCashflow = secValues.cashflow;
+      financialProvider = 'SEC company facts';
+    }
+  }
+  const value = screenerFinancialValues(ticker, finalIncome, quarterlyIncome, finalBalance, finalCashflow, annualRatios, marketCap3y);
+  value.financialProvider = financialProvider;
   screenerFinancialMetricCache.set(ticker, { value, expiresAt:Date.now() + 6 * 60 * 60 * 1000 });
   return value;
 }
