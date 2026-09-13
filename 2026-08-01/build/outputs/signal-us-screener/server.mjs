@@ -1925,7 +1925,7 @@ createServer(async (req, res) => {
       return send(res, 200, await addCachedScreenerMetrics(rows));
     }
     const stockRoute = url.pathname.match(/^\/stocks\/([A-Z0-9][A-Z0-9._-]{0,14})\/?$/i);
-    const toolRoute = url.pathname.match(/^\/(markets|scans|screener|compare|research|portfolio|watchlist|toolkit|latest-results|tools|deep-dive|status|pricing)\/?$/i);
+    const toolRoute = url.pathname.match(/^\/(markets|scans|screener|compare|research|portfolio|watchlist|toolkit|latest-results|tools|deep-dive|status|pricing|market-scans|result-scans|announcement-scans|shareholding-scans|concall-scans|ipo-scans|custom-index|peer-comparison|returns-benchmark|calculators|scan-match|watchlists|research-ai)\/?$/i);
     const requested = url.pathname === '/' || stockRoute || toolRoute ? 'index.html' : normalize(url.pathname).replace(/^([.][.][\\/])+/, '');
     if (requested.startsWith('.') || requested.includes('..')) return send(res, 403, 'Forbidden', 'text/plain; charset=utf-8');
     const file = join(root, requested);
@@ -1950,7 +1950,7 @@ createServer(async (req, res) => {
     }
     if (toolRoute && assetName === 'index.html') {
       const route = toolRoute[1].toLowerCase();
-      const labels = { markets:'Market Scans', scans:'Scan Library', screener:'US Stock Screener', compare:'Compare US Stocks', research:'SEC Research Hub', portfolio:'Research Portfolio', watchlist:'US Stock Watchlist', toolkit:'Research Toolkit', 'latest-results':'Latest US Quarterly Results', tools:'Research Tools', 'deep-dive':'Deep Dive Research Signals', status:'Data Status', pricing:'DollarDisha Pro' };
+      const labels = { markets:'Market Scans', scans:'Scan Library', screener:'US Stock Screener', compare:'Compare US Stocks', research:'SEC Research Hub', portfolio:'Research Portfolio', watchlist:'US Stock Watchlist', toolkit:'Research Toolkit', 'latest-results':'Latest US Quarterly Results', tools:'Research Tools', 'deep-dive':'Deep Dive Research Signals', status:'Data Status', pricing:'DollarDisha Pro', 'market-scans':'Market Scans', 'result-scans':'Latest US Quarterly Results', 'announcement-scans':'SEC Announcement Scans', 'shareholding-scans':'Ownership Scans', 'concall-scans':'Earnings Call Research', 'ipo-scans':'US IPO Calendar', 'custom-index':'Custom US Index', 'peer-comparison':'US Peer Comparison', 'returns-benchmark':'INR Returns Benchmark', calculators:'Research Calculators', 'scan-match':'Scan Match', watchlists:'US Stock Watchlist', 'research-ai':'Research Workspace' };
       const label = labels[route] || 'US Equity Research';
       const canonical = `https://dollardisha.in/${route}`;
       const title = `${label} | DollarDisha`;

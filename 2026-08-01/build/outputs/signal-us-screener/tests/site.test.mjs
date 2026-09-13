@@ -241,6 +241,19 @@ test('scan library mirrors the StockScans workflow with searchable categories', 
   assert.match(styles, /\.scan-library-search-row/);
 });
 
+test('StockScans-style public route aliases resolve to DollarDisha research surfaces', async () => {
+  const [client, server] = await Promise.all([read('app.js'), read('server.mjs')]);
+  assert.match(client, /const routeAliases = \{/);
+  for (const alias of ['market-scans', 'result-scans', 'announcement-scans', 'shareholding-scans', 'concall-scans', 'ipo-scans', 'custom-index', 'peer-comparison', 'returns-benchmark', 'calculators', 'scan-match', 'watchlists', 'research-ai']) {
+    assert.match(client, new RegExp(`(?:'${alias}'|${alias}:)`));
+    assert.match(server, new RegExp(alias));
+  }
+  assert.match(client, /DEEP DIVE SIGNALS/);
+  assert.match(client, /Sector rotation/);
+  assert.match(client, /Company orders/);
+  assert.match(client, /Master tracker/);
+});
+
 test('homepage calendar shortcuts open real earnings and IPO data views', async () => {
   const [client, server, styles] = await Promise.all([read('app.js'), read('server.mjs'), read('ui-refresh.css')]);
   assert.match(client, /function revealRouteSection\(sectionId\)/);
