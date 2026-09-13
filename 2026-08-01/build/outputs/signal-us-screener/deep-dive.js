@@ -1,0 +1,158 @@
+import { numeric, safeLink, toCsv, mergeTrackerRecords } from './deep-dive-core.js';
+
+const tabs = [['sectors','Sector rotation'],['mood','Market mood'],['pead','PEAD candidates'],['banking','Banking'],['shipping','Shipping'],['auto','Monthly auto'],['demergers','Demergers'],['orders','Company orders'],['tracker','Master tracker']];
+const escape = value => String(value ?? '').replace(/[&<>"']/g,c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const format = (value, digits=2) => numeric(value) === null ? '—' : Number(value).toLocaleString('en-US',{maximumFractionDigits:digits,minimumFractionDigits:digits});
+const percent = (value, suffix='%') => numeric(value) === null ? '—' : `${value > 0 ? '+' : ''}${format(value)}${suffix}`;
+const tone = value => numeric(value) === null || value === 0 ? '' : value > 0 ? 'dd-up' : 'dd-down';
+const pct = (value, suffix='%') => `<span class="${tone(value)}">${percent(value,suffix)}</span>`;
+const dollars = value => numeric(value) === null ? '—' : `$${format(value / 1e6,1)}B`;
+const link = (url,title) => safeLink(url) ? `<a href="${escape(safeLink(url))}" target="_blank" rel="noopener noreferrer">${escape(title)} ↗</a>` : escape(title);
+const table = (headers,rows,caption='') => `<div class="dd-table-scroll" tabindex="0" role="region" aria-label="${escape(caption || 'Research data')}"><table>${caption ? `<caption>${escape(caption)}</caption>` : ''}<thead><tr>${headers.map(h => `<th scope="col">${h}</th>`).join('')}</tr></thead><tbody>${rows.length ? rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('') : `<tr><td colspan="${headers.length}">No matching results.</td></tr>`}</tbody></table></div>`;
+const note = text => `<p class="dd-note">${escape(text)}</p>`;
+const field = (name,label,type='text',value='',attrs='') => `<label>${label}<input name="${name}" type="${type}" value="${escape(value)}" ${attrs}></label>`;
+function exportCsv(name,rows) {
+  const blob = new Blob(['\uFEFF',toCsv(rows)],{type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = `${name}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(url),1000);
+}
+function trendChart(points,title) {
+  const values = points.filter(r => numeric(r.value) !== null);
+  if(values.length < 2) return note('Not enough published observations for a chart.');
+  const low = Math.min(...values.map(r => r.value)), high = Math.max(...values.map(r => r.value));
+  const range = high - low || 1;
+  // Missing months break the line rather than implying an observed value.
+  let path = '', connected = false;
+  points.forEach((r,i) => {if(numeric(r.value) === null) {connected = false; return;} path += `${connected ? 'L' : 'M'}${(i/(points.length-1)*550+20).toFixed(1)},${(115-(r.value-low)/range*90).toFixed(1)} `; connected = true;});
+  return `<figure class="dd-trend"><svg viewBox="0 0 600 150" role="img" aria-label="${escape(title)}; ${escape(values[0].date)} to ${escape(values.at(-1).date)}. Values are in the table below."><path d="${path}" fill="none" stroke="currentColor" stroke-width="2.5"/><text x="20" y="145">${escape(values[0].date.slice(0,7))}</text><text x="570" y="145" text-anchor="end">${escape(values.at(-1).date.slice(0,7))}</text></svg><figcaption>${escape(title)} · ${format(low)}–${format(high)} · axis does not start at zero</figcaption></figure>`;
+}
+export function mountDeepDive(root,hooks) {
+  const q = selector => root.querySelector(selector);
+  const params = new URLSearchParams(location.search);
+  let active = tabs.some(([id]) => id === params.get('tool')) ? params.get('tool') : 'sectors';
+  let revision = 0, requests = new Map(), cache = new Map(), selection = null;
+  let period='month', relative=false, sectorFilter='', peadFilter='all', trackerFilter='all';
+  let bankingCert='', analyses=[];
+  const filingInputs={demergers:'',orders:''};
+  root.innerHTML = `<header class="dd-heading"><div><p class="crumb">US EQUITY RESEARCH</p><h1>Deep Dive</h1><p>Explore the data. Keep the evidence. Track your next review.</p></div><a href="/research">Research workspace →</a></header><nav class="dd-tools" aria-label="Deep Dive tools">${tabs.map(([id,name]) => `<button type="button" data-tool="${id}" ${active === id ? 'aria-current="page"' : ''}>${name}</button>`).join('')}</nav><section class="dd-surface"><div class="dd-toolbar"><h2 id="dd-title"></h2><div><span id="dd-status" role="status"></span><button type="button" id="dd-refresh">Refresh</button></div></div><div id="dd-content"></div></section><p class="dd-disclaimer">Research tools, not investment recommendations. Price history is not a real-time quote. Missing values stay blank; always review source documents.</p>`;
+  const alive = token => root.isConnected && token === revision;
+  const status = data => {
+    const label = {available:'Data available',partial:'Partial coverage',unavailable:'Source unavailable'}[data.status] || 'Ready';
+    q('#dd-status').textContent = `${label}${data.checkedAt ? ` · checked ${new Date(data.checkedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}` : ''}`;
+  };
+  async function fetchData(path) {
+    if(cache.has(path)) return cache.get(path);
+    if(requests.has(path)) return requests.get(path);
+    const controller = new AbortController(), timer = setTimeout(() => controller.abort(),90000);
+    const promise = (async () => {const response = await fetch(`/data/deep-dive/${path}`,{signal:controller.signal,cache:'no-store'}); const data = await response.json(); if(!response.ok) throw new Error(data.error || 'Data source unavailable'); cache.set(path,data); return data;})();
+    requests.set(path,promise);
+    try {return await promise;} finally {clearTimeout(timer); requests.delete(path);}
+  }
+  function failure(error) {q('#dd-status').textContent='Could not load';q('#dd-content').innerHTML=`<div class="dd-empty" role="alert"><h3>This source did not respond</h3><p>${escape(error.name === 'AbortError' ? 'The request timed out. Please try again.' : error.message)}</p><button type="button" id="dd-retry">Try again</button></div>`;q('#dd-retry').onclick=() => show(active,true);}
+  async function show(tool,refresh=false) {
+    active=tool; const token=++revision;
+    root.querySelectorAll('[data-tool]').forEach(b => {if(b.dataset.tool === tool)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+    const url = new URL(location.href); url.searchParams.set('tool',tool); history.replaceState(history.state,'',url);
+    q('#dd-title').textContent=tabs.find(([id]) => id === tool)[1];
+    q('#dd-status').textContent='';
+    if(refresh) cache.clear();
+    if(tool === 'tracker') {drawTracker();return;}
+    if(tool === 'demergers' || tool === 'orders') {drawFilings(tool);return;}
+    q('#dd-content').innerHTML='<p class="dd-loading" role="status">Loading source data…</p>';
+    try {
+      const data=await fetchData(tool === 'mood' ? 'sectors' : tool === 'banking' && bankingCert ? `banking?cert=${bankingCert}` : tool);
+      if(!alive(token))return; status(data);
+      if(tool === 'sectors') drawSectors(data);
+      else if(tool === 'mood') drawMood(data);
+      else if(tool === 'banking') drawBanking(data);
+      else if(tool === 'shipping' || tool === 'auto') drawMonthly(data,tool);
+      else if(tool === 'pead') drawPead(data);
+    }catch(error){if(alive(token))failure(error);}
+  }
+  root.querySelectorAll('[data-tool]').forEach(b => b.onclick=() => show(b.dataset.tool));
+  q('#dd-refresh').onclick=() => show(active,true);
+  function drawSectors(data) {
+    q('#dd-content').innerHTML=`<div class="dd-context"><strong>${data.covered}/11 sectors covered</strong><span>Common close: ${escape(data.asOf || 'unavailable')}</span><span>S&P 500 sector ETF proxies · benchmark SPY</span></div><div class="dd-controls"><label>Return window<select id="dd-period">${[['day','1 day'],['week','1 week'],['month','1 month'],['quarter','3 months'],['half','6 months'],['year','1 year']].map(([v,t]) => `<option value="${v}" ${v === period ? 'selected' : ''}>${t}</option>`).join('')}</select></label><label>Measure<select id="dd-relative"><option value="price" ${!relative ? 'selected' : ''}>Price return (%)</option><option value="excess" ${relative ? 'selected' : ''}>Excess vs SPY (pp)</option></select></label><label>Find a sector<input id="dd-sector-filter" type="search" value="${escape(sectorFilter)}" placeholder="Technology, XLF…"></label><button type="button" id="dd-export">Export table</button></div><div id="dd-sector-table"></div><details class="dd-method"><summary>Method, sources and coverage</summary>${note(data.methodology)}<p>${link(data.sourceUrl,'Sector ETF mapping')} · Price provider shown per row.</p><p>“Leading” means positive 3-month excess with improving 1-month excess. “Weakening”, “Improving”, and “Lagging” describe the other combinations. These are descriptive labels, not buy/sell signals.</p></details>`;
+    const draw = () => {
+      const metric=r => (relative ? r.relative : r.returns)[period];
+      const rows=data.rows.filter(r => `${r.name} ${r.symbol}`.toLowerCase().includes(sectorFilter.toLowerCase())).sort((a,b) => (metric(b) ?? -Infinity) - (metric(a) ?? -Infinity));
+      q('#dd-sector-table').innerHTML=table(['Sector / ETF',relative ? 'Excess vs SPY' : 'Price return','1M','3M','Rotation','Price source'],rows.map(r => [`<strong>${escape(r.name)}</strong><small>${escape(r.symbol)} · ${r.asOf ? escape(r.asOf) : `Missing common close${r.latestAvailable ? `; latest ${escape(r.latestAvailable)}` : ''}`}</small>`,pct(metric(r),relative ? ' pp' : '%'),pct(r.returns.month),pct(r.returns.quarter),`<span class="dd-regime">${escape(r.regime)}</span>`,escape(r.provider || 'Unavailable')]),'All 11 US sectors; sorted by selected return');
+      q('#dd-export').onclick=() => exportCsv('sector-rotation',[['Sector','ETF','As of',relative?'Excess pp':'Return %','Window','Rotation','Provider'],...rows.map(r=>[r.name,r.symbol,r.asOf,metric(r),period,r.regime,r.provider])]);
+    };
+    q('#dd-period').onchange=e => {period=e.target.value;draw();};q('#dd-relative').onchange=e => {relative=e.target.value==='excess';draw();};q('#dd-sector-filter').oninput=e => {sectorFilter=e.target.value;draw();};draw();
+  }
+  function drawMood(data) {
+    const mood=data.mood;
+    q('#dd-content').innerHTML=`<div class="dd-context"><strong>${escape(mood.trend)}</strong><span>Completed close: ${escape(data.asOf || 'unavailable')}</span></div><div class="dd-metrics"><article><h3>SPY trend</h3><strong>${format(mood.spy)}</strong><p>50-session average: ${format(mood.ma50)}<br>200-session average: ${format(mood.ma200)}</p></article><article><h3>Sector participation</h3><strong>${mood.above50} / ${mood.covered}</strong><p>Covered sector ETFs above their 50-session averages. Not all-stock market breadth.</p></article><article><h3>VIX closing level</h3><strong>${format(mood.vix)}</strong><p>${mood.vix === null ? 'No volatility observation matching the benchmark date.' : 'Options-implied S&P 500 volatility; not a forecast of direction.'}</p></article></div>${table(['Sector ETF','Above 50-session average'],data.rows.map(r => [`${escape(r.symbol)} · ${escape(r.name)}`,r.above50 === null ? 'Unavailable' : r.above50 ? 'Yes' : 'No']),'Sector trend coverage')}${note('No composite fear/greed score is invented. Trend, ETF participation and volatility are shown separately. VIX is a level, not a daily percentage return.')}`;
+  }
+  function drawMonthly(data,category) {
+    const rows=data.rows.filter(Boolean);
+    q('#dd-content').innerHTML=`${note(category==='auto' ? 'US monthly automobile sales and production. The sales rate is annualized—it is not vehicles sold during one month. Individual manufacturers may report only quarterly.' : 'US shipping and freight context: an ocean-freight price index and a broad freight-activity index. Not vessel positions, charter quotes, port congestion or container tracking.')}<div class="dd-monthly-grid">${rows.map((r,i) => `<article class="dd-monthly"><h3>${escape(r.name)}</h3><p>${escape(r.unit)}</p><div class="dd-big">${format(r.latest?.value,3)}</div><p>Observation month: <strong>${escape(r.latest?.date?.slice(0,7) || 'Unavailable')}</strong></p><div class="dd-context"><span>MoM ${pct(r.latest?.mom)}</span><span>YoY ${pct(r.latest?.yoy)}</span></div>${trendChart(r.observations.slice(-24),r.name)}<p>${link(r.sourceUrl,`${r.publisher} via FRED`)}</p><details><summary>Monthly history (${r.observations.length} observations)</summary>${table(['Month','Value','MoM','YoY'],r.observations.slice().reverse().map(o=>[escape(o.date.slice(0,7)),format(o.value,3),pct(o.mom),pct(o.yoy)]),r.name)}<button type="button" data-series-export="${i}">Export history</button></details>${!r.latest ? '<p role="status">Source unavailable. Use the source link or Refresh to retry.</p>' : ''}</article>`).join('')}</div>${note('Monthly releases arrive with a lag and can be revised. Each series retains its own observation month and units; missing months are not filled with zero.')}`;
+    root.querySelectorAll('[data-series-export]').forEach(b => b.onclick=() => {const r=rows[Number(b.dataset.seriesExport)];exportCsv(r.id,[['Month','Value','MoM %','YoY %','Units','Source'],...r.observations.map(o => [o.date,o.value,o.mom,o.yoy,r.unit,r.sourceUrl])]);});
+  }
+  function drawBanking(data) {
+    q('#dd-content').innerHTML=`${note(data.methodology)}<form id="dd-bank-search" class="dd-controls">${field('cert','FDIC certificate','text','','inputmode="numeric" pattern="[0-9]{1,6}" placeholder="e.g. 628" required')}<button type="submit">Load bank</button><button type="button" id="dd-bank-defaults">Four major banks</button><a href="https://banks.data.fdic.gov/bankfind-suite/bankfind" target="_blank" rel="noopener noreferrer">Find a certificate ↗</a></form><div id="dd-banks"></div>`;
+    const draw = result => {
+      const rows=result.rows.filter(Boolean);
+      q('#dd-banks').innerHTML=table(['Bank subsidiary','Reported','Deposits','Net loans','NIM','Deposit YoY','Loans / deposits','Book equity / assets','Details'],rows.map(r => [link(r.sourceUrl,r.name)+`<small>${escape(r.symbol || 'FDIC-insured bank')} · Certificate ${r.cert}</small>`,escape(r.current?.date || 'Unavailable'),dollars(r.current?.deposits),dollars(r.current?.loans),r.current?.nim == null ? '—' : `${format(r.current.nim)}%`,pct(r.current?.depositsGrowth),r.current?.loanDepositRatio == null ? '—' : `${format(r.current.loanDepositRatio)}%`,r.current?.equityAssets == null ? '—' : `${format(r.current.equityAssets)}%`,`<button type="button" data-bank="${r.cert}" ${!r.current ? 'disabled' : ''}>History</button>`]),'FDIC quarterly reports')+'<div id="dd-bank-history"></div>';
+      root.querySelectorAll('[data-bank]').forEach(b => b.onclick=() => {const bank=rows.find(r => String(r.cert)===b.dataset.bank);q('#dd-bank-history').innerHTML=`<h3>${escape(bank.name)} · quarterly history</h3>${table(['Quarter end','Assets','Deposits','Net loans','NIM','ROA','ROE'],bank.history.map(r=>[r.date,dollars(r.assets),dollars(r.deposits),dollars(r.loans),r.nim==null?'—':`${format(r.nim)}%`,r.roa==null?'—':`${format(r.roa)}%`,r.roe==null?'—':`${format(r.roe)}%`]),'USD billions; ratios as reported')}`;});
+    };
+    q('#dd-bank-defaults').onclick=() => {bankingCert='';show('banking');};
+    q('#dd-bank-search input').value=bankingCert;
+    q('#dd-bank-search').onsubmit=async e => {e.preventDefault();const cert=new FormData(e.target).get('cert');bankingCert=cert;const token=++revision;q('#dd-banks').innerHTML='<p role="status">Loading the bank’s quarterly reports…</p>';try{const result=await fetchData(`banking?cert=${encodeURIComponent(cert)}`);if(alive(token)){status(result);draw(result);}}catch(error){if(alive(token))q('#dd-banks').innerHTML=note(error.message);}};draw(data);
+  }
+  function drawPead(data) {
+    q('#dd-content').innerHTML=`${note('Post-earnings announcement drift (PEAD) describes returns after an earnings reaction. This is an event-analysis tool, not a prediction or a buy list. Automatic discovery checks up to 12 recent provider events.')}<p class="dd-coverage">${escape(data.reason || `${data.rows.length} events with data in the provider sample. Verify the EPS estimate basis and release time.`)}</p><details class="dd-event-form" open><summary>Analyse a reported earnings event</summary><form id="dd-pead-form" class="dd-controls">${field('symbol','US ticker','text','','required pattern="[A-Za-z][A-Za-z0-9.\\-]{0,9}" placeholder="NVDA"')}${field('date','Announcement date','date','','required')}${field('actual','Actual EPS (optional)','number','','step="any"')}${field('estimate','Consensus EPS (optional)','number','','step="any"')}<label>Release time<select name="session"><option value="unknown">Unknown (next session)</option><option value="bmo">Before market open</option><option value="amc">After market close</option></select></label><button type="submit">Analyse event</button></form></details><div class="dd-controls"><label>Filter events<select id="dd-pead-filter"><option value="all">All analysed events</option><option value="positive">Positive EPS surprise</option><option value="follow">Positive surprise + 5-session excess</option></select></label></div><p id="dd-pead-message" role="status"></p><div id="dd-pead-results"></div>${note('Reaction = previous close to reaction-session close, not an opening gap. Drift starts at the reaction close. Unknown release times use the next trading session; confirm timing before relying on the result. Excess = stock return minus SPY return (percentage points). Volume = reaction-session volume / mean of the preceding 20 sessions. EPS surprises use (actual − estimate) / |estimate|; estimates below $0.01 in magnitude are suppressed. Unelapsed horizons stay blank.')}`;
+    let events=[...analyses,...data.rows.filter(r=>!analyses.some(a=>a.symbol===r.symbol&&a.date===r.date))];
+    const draw=() => {
+      const shown=events.filter(r => peadFilter==='all' || (r.surprise>0 && (peadFilter==='positive' || r.horizons[5].excess>0))).sort((a,b)=>(b.surprise??-Infinity)-(a.surprise??-Infinity));
+      q('#dd-pead-results').innerHTML=table(['Event','EPS surprise','Reaction','Volume / normal','1-session drift','5-session drift','20-session drift','5-session excess','Save'],shown.map((r,i) => [`<a href="/stocks/${encodeURIComponent(r.symbol)}">${escape(r.symbol)}</a><small>${escape(r.date)} · ${escape(r.session)}<br>Reaction: ${escape(r.reactionDate || 'not available')}<br>${escape(r.source || 'Reported earnings')}</small>`,pct(r.surprise),pct(r.reactionReturn),r.volumeRatio===null?'—':`${format(r.volumeRatio)}×`,pct(r.horizons[1].return),pct(r.horizons[5].return),pct(r.horizons[20].return),pct(r.horizons[5].excess,' pp'),`<button type="button" data-save-event="${i}">Track</button>`]),'Analysed earnings events');
+      root.querySelectorAll('[data-save-event]').forEach(b => b.onclick=()=>{const r=shown[Number(b.dataset.saveEvent)];openRecord({ticker:r.symbol,kind:'Earnings',title:`Earnings ${r.date}`,detail:`${r.source || 'Reported earnings'}. Actual EPS: ${r.actual ?? 'not supplied'}; estimate: ${r.estimate ?? 'not supplied'}. Reaction ${percent(r.reactionReturn)}.`,source:''});});
+    };
+    q('#dd-pead-filter').value=peadFilter;q('#dd-pead-filter').onchange=e=>{peadFilter=e.target.value;draw();};
+    q('#dd-pead-form').onsubmit=async e=>{e.preventDefault();const form=e.target;if(form.querySelector('button').disabled)return;const query=new URLSearchParams(new FormData(form));query.set('symbol',query.get('symbol').trim().toUpperCase());const token=revision;form.querySelector('button').disabled=true;q('#dd-pead-message').textContent='Calculating from completed trading sessions…';try{const result=await fetchData(`pead?${query}`);if(alive(token)){events=[...result.rows,...events.filter(r=>!result.rows.some(n=>n.symbol===r.symbol&&n.date===r.date))];analyses=[...result.rows,...analyses.filter(r=>!result.rows.some(n=>n.symbol===r.symbol&&n.date===r.date))];draw();q('#dd-pead-message').textContent='Analysis ready. Missing or unelapsed periods are shown as —.';}}catch(error){if(alive(token))q('#dd-pead-message').textContent=error.message;}finally{if(form.isConnected)form.querySelector('button').disabled=false;}};draw();
+  }
+  function drawFilings(kind) {
+    const isOrders=kind==='orders';
+    q('#dd-content').innerHTML=`${note(isOrders?'Search public issuer filings for backlog, bookings, remaining performance obligations and contract awards. This does not track private customer orders or broker trades.':'Search recent issuer filings for spin-offs, split-offs and separation agreements. A keyword match is a candidate for review, not a confirmed demerger.')}<form id="dd-filing-form" class="dd-controls">${field('symbol','US company ticker','text','','required pattern="[A-Za-z][A-Za-z0-9.\\-]{0,9}" placeholder="e.g. HON"')}<button type="submit">Search SEC filings</button><button type="button" id="dd-add-filing">Add verified ${isOrders?'order disclosure':'event'}</button></form><div id="dd-filing-results">${note('Enter a ticker to scan up to six recent primary filings. Saved records appear in Master tracker.')}</div>`;
+    q('#dd-add-filing').onclick=()=>openRecord({kind:isOrders?'Order / backlog':'Demerger'});
+    q('#dd-filing-form').onsubmit=async e=>{
+      e.preventDefault();const ticker=String(new FormData(e.target).get('symbol')).trim().toUpperCase(),token=revision,button=e.target.querySelector('button');if(button.disabled)return;filingInputs[kind]=ticker;button.disabled=true;q('#dd-filing-results').innerHTML='<p role="status">Reading recent issuer filings. This can take up to a minute…</p>';
+      try {
+        const data=await fetchData(`${kind}?symbol=${encodeURIComponent(ticker)}`);if(!alive(token))return;status(data);
+        q('#dd-filing-results').innerHTML=`<div class="dd-context"><strong>${escape(data.name)}</strong><span>${data.examined}/${data.attempted} documents read · ${data.rows.length} keyword matches</span></div>${note(data.methodology)}${data.rows.length ? table(['Filed / form','Evidence excerpt','Source','Track'],data.rows.map((r,i)=>[`${escape(r.date)}<small>${escape(r.form)}</small>`,`<strong>${escape(r.evidence.matched)}</strong><p>${escape(r.evidence.excerpt)}</p><small>Unverified keyword candidate</small>`,link(r.url,'SEC filing'),`<button type="button" data-save-filing="${i}">Track candidate</button>`]),'Filing candidates—not confirmed events') : note(data.examined ? 'No keyword matches in the documents successfully read. This is not proof that no event or order exists.' : 'SEC documents could not be read. No conclusion can be drawn; open the source links or retry.')}<details><summary>Documents checked and skipped</summary>${table(['Date','Form','Read status','Source'],data.documents.filter(Boolean).map(r=>[escape(r.date),escape(r.form),r.examined?'Read':'Unavailable / exceeds limit',link(r.url,'Open filing')]),'Scan coverage')}</details>`;
+        if(isOrders) q('#dd-filing-results').insertAdjacentHTML('afterbegin',`<h3>Reported remaining performance obligations</h3>${note('Transaction price not yet recognized as revenue. RPO is not equivalent to all bookings, backlog, or newly won contracts. Standard US-GAAP company-wide disclosures only.')} ${data.obligations?.length ? table(['Period end','RPO (USD billions)','Filed'],data.obligations.map(r=>[escape(r.date),format(r.value/1e9,2),escape(r.filed)]),'SEC XBRL reported obligations') : note(data.obligationsStatus==='not-reported'?'This issuer does not report a supported company-wide RPO tag. No estimate is substituted.':'The structured RPO source is unavailable.')}<p>${link(data.obligationsSource,'SEC company facts')}</p>`);
+        root.querySelectorAll('[data-save-filing]').forEach(b=>b.onclick=()=>{const r=data.rows[Number(b.dataset.saveFiling)];openRecord({ticker,kind:isOrders?'Order / backlog':'Demerger',title:`${r.evidence.matched} · ${r.date}`,detail:`Unverified keyword candidate: ${r.evidence.excerpt}`,source:r.url,status:'Needs review',eventDate:r.date});});
+      }catch(error){if(alive(token))q('#dd-filing-results').innerHTML=note(`${error.message}. You can add a source-linked record manually.`);}finally{if(button.isConnected)button.disabled=false;}
+    };
+  }
+    if(filingInputs[kind]) {q('#dd-filing-form input').value=filingInputs[kind];q('#dd-filing-form').requestSubmit();}
+  function drawTracker() {
+    const state=hooks.getState();
+    q('#dd-content').innerHTML=`<div class="dd-context"><strong>One research queue</strong><span>${state.signedIn ? 'Uses your existing account research storage' : 'Guest mode: saved on this browser. Sign in for account sync.'}</span></div><div class="dd-controls"><label>Show<select id="dd-tracker-filter">${['all','due','Demerger','Order / backlog','Earnings','Research','Closed'].map(v=>`<option value="${v}" ${v===trackerFilter?'selected':''}>${v==='all'?'All records':v==='due'?'Due for review':v}</option>`).join('')}</select></label><button type="button" id="dd-new-record">Add research record</button><button type="button" id="dd-tracker-export">Export records</button></div><div id="dd-records"></div><details><summary>Existing research: followed companies, thesis cards and alerts</summary><div id="dd-existing"></div><a href="/research">Manage existing research →</a></details><div id="dd-editor"></div><p id="dd-save-status" role="status"></p>`;
+    const all=mergeTrackerRecords(state.records).filter(r=>!r.deleted),today=new Date().toISOString().slice(0,10);
+    const rows=all.filter(r=>trackerFilter==='all'||(trackerFilter==='due'?r.reviewDate&&r.reviewDate<=today&&r.status!=='Closed':trackerFilter==='Closed'?r.status==='Closed':r.kind===trackerFilter)).sort((a,b)=>(a.reviewDate||'9999').localeCompare(b.reviewDate||'9999'));
+    q('#dd-records').innerHTML=table(['Company / record','Type','Status','Review','Source','Actions'],rows.map(r=>[`<strong>${escape(r.ticker || 'Research')}</strong><p>${escape(r.title)}</p><small>${escape(r.detail || '')}</small>`,escape(r.kind),escape(r.status),`${escape(r.reviewDate || 'Not scheduled')}${r.reviewDate&&r.reviewDate<=today&&r.status!=='Closed'?'<small>Due for review</small>':''}`,r.source?link(r.source,'Evidence'):'No source saved',`<button type="button" data-edit-record="${escape(r.id)}">Edit</button>`]),'Saved research records');
+    const existing=[...(state.watchlist||[]).map(t=>[escape(t),'Followed company','—']),...(state.notes||[]).map(r=>[escape(r.ticker),'Thesis',escape(r.reviewDate||r.status||'—')]),...(state.alerts||[]).map(r=>[escape(r.ticker),'Alert',escape(r.type==='earnings'?r.date:`${r.direction||'above'} $${r.price}`)])];
+    q('#dd-existing').innerHTML=table(['Company','Existing tool','Review / condition'],existing,'Existing records; not duplicated');
+    q('#dd-tracker-filter').onchange=e=>{trackerFilter=e.target.value;drawTracker();};q('#dd-new-record').onclick=()=>editRecord({kind:'Research'});
+    q('#dd-tracker-export').onclick=()=>exportCsv('deep-dive-tracker',[['Ticker','Title','Type','Status','Review date','Notes','Source'],...rows.map(r=>[r.ticker,r.title,r.kind,r.status,r.reviewDate,r.detail,r.source])]);
+    root.querySelectorAll('[data-edit-record]').forEach(b=>b.onclick=()=>editRecord(all.find(r=>r.id===b.dataset.editRecord)));
+    if(selection){const value=selection;selection=null;editRecord(value);}
+  }
+  function openRecord(record){selection=record;show('tracker');}
+  function editRecord(record={}) {
+    const kinds=['Research','Demerger','Order / backlog','Earnings'];
+    const statuses=['Needs review','Verified','Watching','Closed'];
+    q('#dd-editor').innerHTML=`<form id="dd-record-form" class="dd-record-form"><h3>${record.id?'Edit':'Add'} research record</h3><div class="dd-controls">${field('ticker','Ticker (optional)','text',record.ticker||'','pattern="[A-Za-z][A-Za-z0-9.\\-]{0,9}" maxlength="10"')}${field('title','Title','text',record.title||'','required maxlength="140"')}<label>Type<select name="kind">${kinds.map(v=>`<option ${v===record.kind?'selected':''}>${v}</option>`).join('')}</select></label><label>Status<select name="status">${statuses.map(v=>`<option ${v===record.status?'selected':''}>${v}</option>`).join('')}</select></label>${field('reviewDate','Next review','date',record.reviewDate||'')}</div><label>Evidence / notes<textarea name="detail" maxlength="2000" rows="3">${escape(record.detail||'')}</textarea></label>${field('source','Source link (required to mark Verified)','url',record.source||'','maxlength="1500" placeholder="https://…"')}<div class="dd-controls"><button type="submit">Save record</button><button type="button" id="dd-cancel-record">Cancel</button>${record.id?'<button type="button" id="dd-delete-record">Delete record</button>':''}</div></form>`;
+    q('#dd-editor').scrollIntoView({block:'nearest',behavior:'auto'});q('#dd-record-form input[name="title"]').focus();
+    q('#dd-cancel-record').onclick=()=>{q('#dd-editor').innerHTML='';};
+    q('#dd-record-form').querySelector('textarea').closest('label').insertAdjacentHTML('beforebegin',`<details><summary>Event / order details (optional)</summary><div class="dd-controls">${field('eventDate','Event / disclosure date','date',record.eventDate||'')}${field('relatedTicker','Spin-off / related ticker','text',record.relatedTicker||'','maxlength="10" pattern="[A-Za-z][A-Za-z0-9.\\-]{0,9}"')}${field('amount','Disclosed amount (USD millions)','number',record.amount??'','min="0" step="any"')}${field('terms','Distribution ratio / order terms','text',record.terms||'','maxlength="300"')}</div></details>`);
+    const save = async update => {
+      const records=mergeTrackerRecords(hooks.getState().records,[update]);
+      try{await hooks.saveRecords(records);drawTracker();q('#dd-save-status').textContent=update.deleted?'Record deleted.':'Record saved.';}catch(error){q('#dd-save-status').textContent=error.message || 'Could not complete saving. Check browser storage and account connection, then retry.';}
+    };
+    if(record.id)q('#dd-delete-record').onclick=()=>{if(window.confirm('Delete this research record?'))save({...record,deleted:true,updatedAt:new Date().toISOString()});};
+    q('#dd-record-form').onsubmit=e=>{e.preventDefault();const value=Object.fromEntries(new FormData(e.target)),source=safeLink(value.source);if(value.source&&!source){q('#dd-save-status').textContent='Use a complete http or https source link.';return;}if(value.status==='Verified'&&!source){q('#dd-save-status').textContent='Add a source link before marking the record Verified.';return;}if(!value.title.trim()){q('#dd-save-status').textContent='Enter a title.';return;}save({...value,title:value.title.trim(),ticker:value.ticker.trim().toUpperCase(),source,id:record.id||crypto.randomUUID(),createdAt:record.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString(),deleted:false});};
+  }
+  show(active);
+}

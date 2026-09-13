@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
+import { createDeepDiveService } from './deep-dive-data.mjs';
 
 const root = process.cwd();
 const configPath = join(root, '..', '..', 'work', 'dollardisha.env');
@@ -1337,6 +1338,7 @@ function send(res, status, data, type = 'application/json; charset=utf-8', extra
   res.end(typeof data === 'string' ? data : JSON.stringify(data));
 }
 
+const deepDiveData = createDeepDiveService({ fmp, fmpConfigured:Boolean(key) });
 createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {
@@ -1358,6 +1360,10 @@ createServer(async (req, res) => {
     }
     if (isRateLimited(req, url.pathname)) {
       return send(res, 429, { error:'Too many requests. Please retry shortly.' }, 'application/json; charset=utf-8', { 'Retry-After':'60' });
+    }
+    if (url.pathname.startsWith('/data/deep-dive/')) {
+      const data = await deepDiveData(url);
+      return send(res, data.httpStatus || 200, data);
     }
     if (url.pathname === '/data/auth-config') {
       return send(res, 200, {
@@ -1962,7 +1968,7 @@ createServer(async (req, res) => {
     res.writeHead(200, {
       ...securityHeaders,
       'Content-Type': mime[extname(file).toLowerCase()] || 'application/octet-stream',
-      'Cache-Control': ['index.html', 'app.js', 'styles.css', 'ui-refresh.css'].includes(assetName) ? 'no-cache, no-store, must-revalidate' : 'public, max-age=3600'
+      'Cache-Control': ['index.html', 'app.js', 'styles.css', 'ui-refresh.css'].includes(assetName) || assetName.startsWith('deep-dive') ? 'no-cache, no-store, must-revalidate' : 'public, max-age=3600'
     });
     return res.end(data);
   } catch (error) {

@@ -98,6 +98,7 @@ let savedScreens = (() => { const value = readLocalJson('dd-saved-screens', []);
 let valuationCases = (() => { const value = readLocalJson('dd-valuation-cases', []); return Array.isArray(value) ? value : []; })();
 let portfolio = (() => { const value = readLocalJson('dd-portfolio', { name:'My US portfolio', holdings:[], updatedAt:null }); return value && typeof value === 'object' && !Array.isArray(value) ? value : { name:'My US portfolio', holdings:[], updatedAt:null }; })();
 let researchActivity = (() => { const value = readLocalJson('dd-research-activity', []); return Array.isArray(value) ? value : []; })();
+let deepDiveRecords = (() => { const value = readLocalJson('dd-deep-dive-records', []); return Array.isArray(value) ? value : []; })();
 let authClient = null;
 let authSession = null;
 let authMode = 'login';
@@ -112,6 +113,7 @@ function localResearchState() {
       ...(Array.isArray(notes) ? notes : []),
       ...(Array.isArray(savedScreens) ? savedScreens : []).map(item => ({ kind:'saved-screen', payload:item })),
       ...(Array.isArray(valuationCases) ? valuationCases : []).map(item => ({ kind:'valuation-case', payload:item })),
+      ...deepDiveRecords.map(item => ({ kind:'deep-dive-record', payload:item })),
       { kind:'portfolio', payload:portfolio },
       { kind:'activity-log', payload:{ items:researchActivity, updatedAt:new Date().toISOString() } }
     ],
@@ -134,6 +136,13 @@ function saveResearchStateLocally(state) {
   notes = syncedItems.filter(item => !item?.kind);
   savedScreens = syncedItems.filter(item => item?.kind === 'saved-screen' && item.payload).map(item => item.payload);
   valuationCases = syncedItems.filter(item => item?.kind === 'valuation-case' && item.payload).map(item => item.payload);
+  const trackerVersions = syncedItems.filter(item => item?.kind === 'deep-dive-record' && item.payload?.id).map(item => item.payload);
+  const trackerById = new Map();
+  trackerVersions.forEach(item => {
+    const prior = trackerById.get(item.id);
+    if (!prior || String(item.updatedAt) > String(prior.updatedAt) || (item.updatedAt === prior.updatedAt && item.deleted)) trackerById.set(item.id, item);
+  });
+  deepDiveRecords = [...trackerById.values()];
   const portfolioItems = syncedItems.filter(item => item?.kind === 'portfolio' && item.payload).map(item => item.payload);
   const activityItems = syncedItems.filter(item => item?.kind === 'activity-log' && item.payload).map(item => item.payload);
   portfolio = portfolioItems.sort((a, b) => String(a.updatedAt || '').localeCompare(String(b.updatedAt || ''))).at(-1) || portfolio;
@@ -148,6 +157,7 @@ function saveResearchStateLocally(state) {
     localStorage.setItem('dd-valuation-cases', JSON.stringify(valuationCases));
     localStorage.setItem('dd-portfolio', JSON.stringify(portfolio));
     localStorage.setItem('dd-research-activity', JSON.stringify(researchActivity));
+    localStorage.setItem('dd-deep-dive-records', JSON.stringify(deepDiveRecords));
     if (basket.name && !legacyIndexNames.has(basket.name)) localStorage.setItem('dd-custom-index-name-set', '1');
   } catch {}
 }
@@ -162,7 +172,8 @@ async function persistResearchState() {
   if (!authClient || !user) return;
   const state = localResearchState();
   const { error } = await authClient.from('research_state').upsert({ owner_id:user.id, ...state, updated_at:new Date().toISOString() }, { onConflict:'owner_id' });
-  if (error) console.warn(`Could not sync DollarDisha research state: ${error.message}`);
+  if (error) { console.warn(`Could not sync DollarDisha research state: ${error.message}`); return false; }
+  return true;
 }
 function queueResearchStateSync() {
   if (!authClient || !authSession?.user) return;
@@ -189,7 +200,7 @@ async function syncResearchState(user) {
     };
     saveResearchStateLocally(merged);
     await persistResearchState();
-    if (['watchlist', 'indexlab', 'research', 'screener', 'toolkit', 'portfolio'].includes(page)) render();
+    if (['watchlist', 'indexlab', 'research', 'screener', 'toolkit', 'portfolio', 'deep-dive'].includes(page)) render();
   } catch (error) {
     syncedResearchUser = null;
     console.warn(`DollarDisha account sync is unavailable: ${error.message}`);
@@ -852,36 +863,24 @@ function markDataFreshness(value = new Date()) {
 }
 
 function deepDiveView() {
-  const module = (icon, title, text, state = 'Derived from connected research data') => `<article class="deep-dive-module"><span class="deep-dive-icon" aria-hidden="true">${icon}</span><div><h3>${title}</h3><p>${text}</p><small>${state}</small></div></article>`;
-  return `<div class="page deep-dive-page">${pageHeader('DEEP DIVE WORKSPACE', 'Research signals', 'A focused layer for sector context, event signals and your next research decision.')}
-    <section class="deep-dive-hero panel"><div><p class="crumb">CONNECTED RESEARCH SYSTEM</p><h2>See what is moving, why it matters, and what to review next.</h2><p>Signals are derived from available company, market and filing data. Every module shows its coverage and freshness before you rely on it.</p></div><div class="deep-dive-summary"><div><b id="deep-dive-mood">—</b><span>Market mood</span></div><div><b id="deep-dive-sector-count">—</b><span>US sectors covered</span></div><div><b id="deep-dive-pead-count">—</b><span>Recent earnings</span></div></div></section>
-    <section class="deep-dive-section"><div class="section-header"><div><p class="crumb">SIGNALS</p><h2>US sector rotation</h2></div><span id="deep-dive-updated" class="data-badge">Checking coverage…</span></div><div class="deep-dive-grid">${module('↗','Sector rotation','Compare US sectors using covered equity returns, breadth and leadership across the market.','Large-cap equity scan')} ${module('◉','Market mood','Explainable breadth, volatility and index-trend inputs—not a black-box sentiment score.')} ${module('⚡','PEAD candidates','Rank recent earnings reactions by surprise, gap, volume and follow-through where price history is available.')} ${module('◎','Demerger tracker','Surface likely spin-offs and separations from SEC filings and company-event classifications.','SEC filing classification')}</div><div id="deep-dive-sectors" class="deep-dive-data"><p class="data-empty">Loading US sector rotation…</p></div></section>
-    <section class="deep-dive-section"><div class="section-header"><div><p class="crumb">INDUSTRY INTELLIGENCE</p><h2>Coverage modules</h2></div></div><div class="deep-dive-grid">${module('▤','Banking monitor','Bank-specific metrics such as deposits, loans, NIM, provisions and capital ratios when normalized provider data is available.','Provider coverage required')} ${module('⚓','Shipping monitor','Freight, charter, fleet and port indicators from a licensed maritime-data provider.','Connection required')} ${module('⌁','Public order flow','Track disclosed backlog, bookings and contract wins—not private broker orders.','Public filings only')} ${module('◫','Auto monitor','Saved rules and scheduled checks for prices, earnings, filings and events.','Scheduler connection required')}</div></section>
-    <section class="panel master-tracker-panel"><div class="panel-head"><div><p class="crumb">WORKFLOW</p><h2>Master tracker</h2><p>One review queue for companies, catalysts, events, thesis status and next dates.</p></div><button type="button" class="solid-btn" data-page="research">Open research workspace →</button></div><div class="master-tracker-stats"><div><b>${watchlist.length}</b><span>companies followed</span></div><div><b>${notes.length}</b><span>thesis cards</span></div><div><b>${alerts.length}</b><span>active alerts</span></div><div><b>${researchActivity.length}</b><span>activity items</span></div></div></section>
-  </div>`;
+  return '<div class="page dd-workspace" id="deep-dive-root"><p role="status">Opening Deep Dive…</p></div>';
 }
-
 async function setupDeepDive() {
-  const holder = $('#deep-dive-sectors');
+  const root = $('#deep-dive-root');
   try {
-    const data = await getJson('/data/market-scan?mode=largest', 60000);
-    const stocksBySector = new Map();
-    (Array.isArray(data) ? data : []).forEach(stock => {
-      const sector = String(stock.sector || '').trim();
-      const change = Number(stock.change ?? stock.changesPercentage);
-      if (!sector || !Number.isFinite(change)) return;
-      const row = stocksBySector.get(sector) || { name:sector, changeTotal:0, count:0, rising:0 };
-      row.changeTotal += change; row.count += 1; if (change >= 0) row.rising += 1;
-      stocksBySector.set(sector, row);
+    const module = await import('/deep-dive.js?v=20260912');
+    if (!root?.isConnected) return;
+    module.mountDeepDive(root, {
+      getState: () => ({ watchlist, notes, alerts, records:deepDiveRecords, signedIn:Boolean(authSession?.user) }),
+      saveRecords: async records => {
+        // Use the existing account-backed research store; no new account system.
+        localStorage.setItem('dd-deep-dive-records', JSON.stringify(records));
+        deepDiveRecords = records;
+        const saved = await persistResearchState();
+        if (authSession?.user && saved === false) throw new Error('Saved on this browser, but account sync failed.');
+      }
     });
-    const rows = [...stocksBySector.values()].map(row => ({ ...row, change:row.changeTotal / row.count, breadth:row.rising, total:row.count })).sort((a,b) => b.change - a.change);
-    const rising = rows.filter(row => row.change >= 0).length;
-    const mood = rows.length ? Math.round((rising / rows.length) * 100) : null;
-    if ($('#deep-dive-mood')) $('#deep-dive-mood').textContent = mood === null ? '—' : `${mood}/100`;
-    if ($('#deep-dive-sector-count')) $('#deep-dive-sector-count').textContent = rows.length || '—';
-    if ($('#deep-dive-updated')) $('#deep-dive-updated').textContent = data.updatedAt ? `Updated ${new Date(data.updatedAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}` : 'Latest available';
-    if (holder) holder.innerHTML = rows.length ? `<div class="deep-dive-table-wrap"><table><thead><tr><th>US sector</th><th>Avg day move</th><th>Breadth</th><th>Rotation</th></tr></thead><tbody>${rows.map(row => `<tr><td>${escapeHtml(row.name)}</td><td class="${Number(row.change) >= 0 ? 'positive' : 'down'}">${percent(row.change)}</td><td>${row.breadth}/${row.total}</td><td>${Number(row.change) >= 0 ? 'Leading' : 'Lagging'}</td></tr>`).join('')}</tbody></table></div><p class="screen-data-note">US sector averages derived from the connected large-cap equity scan; breadth is advancing stocks divided by covered stocks. ETF-level rotation is not included.</p>` : '<p class="data-empty">US sector data is temporarily unavailable.</p>';
-  } catch { if (holder) holder.innerHTML = '<p class="data-empty">Sector rotation data is temporarily unavailable. Check provider status for coverage.</p>'; }
+  } catch { if (root?.isConnected) root.innerHTML = '<p role="alert">Deep Dive could not open. Reload this page to retry.</p>'; }
 }
 async function getJson(url, timeout = 9000) {
   const cacheable = url.startsWith('/data/company?') || url.startsWith('/data/company-intel?') || url.startsWith('/data/filings?') || url.startsWith('/data/market') || url.startsWith('/data/indices') || url.startsWith('/data/global-markets') || url.startsWith('/data/watchlist?');
