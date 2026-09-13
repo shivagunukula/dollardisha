@@ -396,6 +396,14 @@ test('stock screener supports an additional formula-style rule', async () => {
   assert.match(styles, /\.advanced-screen-builder/);
 });
 
+test('stock screener falls back to the full Nasdaq directory without an FMP key', async () => {
+  const server = await read('server.mjs');
+  assert.match(server, /const results = key \? await Promise\.all\(exchanges\.map\(exchange => fmp\('company-screener'/);
+  assert.match(server, /if \(!results\.flat\(\)\.length\) \{\s*const directory = await nasdaqDirectory\(\)\.catch\(\(\) => \[\]\);/);
+  assert.match(server, /results\.push\(directory\.map\(nasdaqDirectoryItem\)\);/);
+  assert.match(server, /reported fundamentals remain explicitly unavailable/);
+});
+
 test('ratio gallery separates live US metrics from history still being synced', async () => {
   const [client, styles] = await Promise.all([read('app.js'), read('ui-refresh.css')]);
   for (const category of [/['"]most-used['"]\s*:/, /annual\s*:/, /quarterly\s*:/, /balance\s*:/, /['"]cash-flow['"]\s*:/, /ratios\s*:/, /price\s*:/]) {

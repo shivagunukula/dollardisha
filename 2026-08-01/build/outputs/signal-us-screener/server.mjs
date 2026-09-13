@@ -1911,7 +1911,14 @@ createServer(async (req, res) => {
     if (url.pathname === '/data/screener' || url.pathname === '/api/screener') {
       const parameters = { limit: 3000, isEtf: false, isFund: false, isActivelyTrading: true };
       const exchanges = ['NASDAQ', 'NYSE', 'AMEX'];
-      const results = await Promise.all(exchanges.map(exchange => fmp('company-screener', { ...parameters, exchange })));
+      const results = key ? await Promise.all(exchanges.map(exchange => fmp('company-screener', { ...parameters, exchange }).catch(() => []))) : [];
+      // Keep the full screener usable when the optional FMP key is absent.
+      // Nasdaq's public directory supplies the listing, price, volume and
+      // sector fields; reported fundamentals remain explicitly unavailable.
+      if (!results.flat().length) {
+        const directory = await nasdaqDirectory().catch(() => []);
+        results.push(directory.map(nasdaqDirectoryItem));
+      }
       const seen = new Set();
       const rows = results.flat().filter(item => {
         const ticker = symbol(item.symbol);
