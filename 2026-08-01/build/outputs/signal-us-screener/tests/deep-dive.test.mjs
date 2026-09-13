@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { numeric, validDate, cleanHistory, sectorSnapshot, monthlySeries, parseFredCsv, peadAnalysis, mergeTrackerRecords, safeLink, toCsv } from '../deep-dive-core.js';
+import { numeric, validDate, cleanHistory, sectorSnapshot, stockMomentum, rankSectorStocks, monthlySeries, parseFredCsv, peadAnalysis, mergeTrackerRecords, safeLink, toCsv } from '../deep-dive-core.js';
 import { createDeepDiveService, completeThrough, cacheLoader, pooled, filingEvidence } from '../deep-dive-data.mjs';
 const days = (n=270, price=i=>100+i) => Array.from({length:n},(_,i)=>({date:new Date(Date.UTC(2025,0,1+i)).toISOString().slice(0,10),close:price(i),volume:100}));
 const approximately = (actual,expected) => assert.ok(Math.abs(actual-expected)<1e-8,`${actual} != ${expected}`);
@@ -30,6 +30,13 @@ test('sector returns align to SPY dates rather than a shorter sector array',()=>
 test('stale sector close is not silently compared with a newer benchmark',()=>{
   const s=sectorSnapshot({SPY:days(),XLK:days(269)});
   assert.equal(s.rows[0].returns.day,null);assert.equal(s.rows[0].above50,null);
+});
+test('stock momentum ranks medium-term leaders and preserves missing horizons',()=>{
+  const leader=stockMomentum({symbol:'AAA'},days(270,i=>100+i));
+  const laggard=stockMomentum({symbol:'BBB'},days(270,i=>400-i));
+  const ranked=rankSectorStocks([{symbol:'BBB',history:days(270,i=>400-i)},{symbol:'AAA',history:days(270,i=>100+i)}]);
+  assert.equal(ranked[0].symbol,'AAA'); assert.equal(leader.label,'Strong momentum'); assert.equal(laggard.label,'Weak momentum');
+  assert.equal(stockMomentum({symbol:'SHORT'},days(40)).returns.year,null);
 });
 test('flat prices do not count as above moving average; stale VIX is missing',()=>{
   const s=sectorSnapshot({SPY:days(),XLK:days(270,()=>100),VIX:days(269,()=>20)});

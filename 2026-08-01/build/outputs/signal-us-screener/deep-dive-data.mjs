@@ -1,4 +1,4 @@
-import { SECTORS, numeric, validDate, cleanHistory, sectorSnapshot, parseFredCsv, monthlySeries, peadAnalysis, change } from './deep-dive-core.js';
+import { SECTORS, numeric, validDate, cleanHistory, sectorSnapshot, stockMomentum, parseFredCsv, monthlySeries, peadAnalysis, change } from './deep-dive-core.js';
 
 const UA = 'DollarDisha research contact@dollardisha.in';
 const MONTHLY = {
@@ -12,6 +12,11 @@ const MONTHLY = {
   ]
 };
 const BANKS = [{symbol:'JPM',cert:628},{symbol:'BAC',cert:3510},{symbol:'WFC',cert:3511},{symbol:'C',cert:7213}];
+const DIRECTORY_SECTORS = {
+  XLK:['Technology'], XLF:['Finance'], XLV:['Health Care'], XLY:['Consumer Discretionary'],
+  XLP:['Consumer Staples'], XLE:['Energy'], XLI:['Industrials'], XLB:['Basic Materials'],
+  XLU:['Utilities'], XLRE:['Real Estate'], XLC:['Telecommunications']
+};
 export async function pooled(items, limit, work) {
   const results = new Array(items.length); let index = 0;
   await Promise.all(Array.from({length:Math.min(limit,items.length)},async () => {
@@ -46,7 +51,7 @@ export function filingEvidence(html, kind) {
   const words = text.slice(Math.max(0,match.index - 35),match.index + 180).trim().split(/\s+/).slice(0,23);
   return { matched:match[0], excerpt:words.join(' ') + '…' };
 }
-export function createDeepDiveService({ fmp, fmpConfigured = false, fetcher = fetch, clock = () => new Date() } = {}) {
+export function createDeepDiveService({ fmp, fmpConfigured = false, directoryLoader = null, fetcher = fetch, clock = () => new Date() } = {}) {
   const cached = cacheLoader(() => clock().getTime());
   const checkedAt = () => clock().toISOString();
   async function request(url, type = 'json', maxBytes = 8_000_000) {
@@ -82,6 +87,31 @@ export function createDeepDiveService({ fmp, fmpConfigured = false, fetcher = fe
     const data = Object.fromEntries(symbols.map((s,i) => [s === '^VIX' ? 'VIX' : s,histories[i] || []]));
     const result = sectorSnapshot(data);
     return { ...result, checkedAt:checkedAt(), status:result.covered === 11 ? 'available' : result.covered ? 'partial' : 'unavailable', sourceUrl:'https://www.ssga.com/us/en/individual/capabilities/equities/sector-investing/select-sector-etfs', methodology:'Completed-session closing-price returns, excluding dividends. 1D/1W/1M/3M/6M/1Y use 1/5/21/63/126/252 SPY sessions. Excess is sector return minus SPY return in percentage points on matching dates. Rotation compares 63-session excess with the change in excess between the latest and preceding 21 sessions. ETF coverage is not constituent breadth.' };
+  });
+  const sectorStocks = sectorSymbol => cached(`sector-stocks:${sectorSymbol}`,300000,async () => {
+    const sector = SECTORS.find(item => item.symbol === sectorSymbol);
+    if (!sector) throw new Error('Unknown sector ETF');
+    if (typeof directoryLoader !== 'function') return {sector:sectorSymbol,sectorName:sector.name,rows:[],scanned:0,matched:0,status:'unavailable',checkedAt:checkedAt(),reason:'The public US equity directory is unavailable in this environment.'};
+    let directory;
+    try { directory = await directoryLoader(); } catch { directory = []; }
+    const allowed = new Set(DIRECTORY_SECTORS[sectorSymbol] || []);
+    const candidates = (directory || []).filter(row => allowed.has(String(row?.sector || '')))
+      .filter(row => /^[A-Z][A-Z0-9.-]{0,9}$/.test(String(row?.symbol || '').toUpperCase()))
+      .filter(row => !/(WARRANT|RIGHTS?|PREFERRED|DEPOSITARY SHARES|UNITS?|ETF|ETN)\b/i.test(String(row?.name || '')))
+      .map(row => ({row,ticker:String(row.symbol).toUpperCase(),marketCap:numeric(String(row.marketCap || '').replace(/,/g,''))}))
+      .filter(item => item.marketCap === null || item.marketCap > 0)
+      .sort((a,b) => (b.marketCap ?? -Infinity) - (a.marketCap ?? -Infinity) || a.ticker.localeCompare(b.ticker));
+    // Keep the drill-down responsive while exposing how many directory names
+    // were eligible. This is a top-by-market-cap NASDAQ directory sample, not
+    // a claim that it is the complete ETF holdings file.
+    const selected = candidates.slice(0,24);
+    const rows = (await pooled(selected,3,async item => {
+      try {
+        const historyRows = await history(item.ticker);
+        return stockMomentum({symbol:item.ticker,name:String(item.row.name || item.ticker).replace(/\s+(Common Stock|Common Shares?|Class [A-Z] Common Stock)\s*$/i,'').trim(),sector:sector.name,marketCap:item.marketCap,provider:'Yahoo Finance fallback'}, historyRows);
+      } catch { return null; }
+    })).filter(Boolean);
+    return {sector:sectorSymbol,sectorName:sector.name,rows,scanned:candidates.length,matched:rows.length,checkedAt:checkedAt(),status:rows.length ? rows.length === selected.length ? 'available' : 'partial' : 'unavailable',sourceUrl:'https://api.nasdaq.com/api/screener/stocks',methodology:'Stocks are ranked from completed Yahoo Finance daily closes. Candidates are the top 24 positive-market-cap NASDAQ directory listings mapped to the selected sector label; this is not a complete ETF holdings file and excludes non-operating security types. Momentum score = 3-month return + 0.5 × 1-month return + 2 points each when price is above its 50- and 200-session averages. It is descriptive, not a recommendation.'};
   });
   const monthly = category => cached(`monthly:${category}`,3600000,async () => {
     const rows = await pooled(MONTHLY[category],2,async meta => {
@@ -176,6 +206,11 @@ export function createDeepDiveService({ fmp, fmpConfigured = false, fetcher = fe
   return async function route(url) {
     const module = url.pathname.replace('/data/deep-dive/','');
     if(module === 'sectors') return sectors();
+    if(module === 'sector-stocks') {
+      const sector = String(url.searchParams.get('sector') || '').toUpperCase();
+      if (!SECTORS.some(item => item.symbol === sector)) return {error:'Enter a valid sector ETF',httpStatus:400};
+      try { return await sectorStocks(sector); } catch(error) { return {error:error.message,httpStatus:502}; }
+    }
     if(module === 'shipping' || module === 'auto') return monthly(module);
     if(module === 'banking') {const cert = url.searchParams.get('cert'); if(cert && !/^\d{1,6}$/.test(cert)) return {error:'Invalid FDIC certificate',httpStatus:400}; return banking(cert);}
     if(module === 'demergers' || module === 'orders') { const ticker = String(url.searchParams.get('symbol') || '').toUpperCase(); if(!/^[A-Z][A-Z0-9.-]{0,9}$/.test(ticker)) return {error:'Enter a valid US ticker',httpStatus:400}; return filings(ticker,module); }

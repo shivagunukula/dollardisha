@@ -1338,7 +1338,7 @@ function send(res, status, data, type = 'application/json; charset=utf-8', extra
   res.end(typeof data === 'string' ? data : JSON.stringify(data));
 }
 
-const deepDiveData = createDeepDiveService({ fmp, fmpConfigured:Boolean(key) });
+const deepDiveData = createDeepDiveService({ fmp, fmpConfigured:Boolean(key), directoryLoader:nasdaqDirectory });
 createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {

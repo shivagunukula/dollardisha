@@ -868,7 +868,7 @@ function deepDiveView() {
 async function setupDeepDive() {
   const root = $('#deep-dive-root');
   try {
-    const module = await import('/deep-dive.js?v=20260912');
+    const module = await import('/deep-dive.js?v=20260913-sector-stocks');
     if (!root?.isConnected) return;
     module.mountDeepDive(root, {
       getState: () => ({ watchlist, notes, alerts, records:deepDiveRecords, signedIn:Boolean(authSession?.user) }),

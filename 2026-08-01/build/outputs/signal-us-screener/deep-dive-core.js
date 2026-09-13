@@ -57,6 +57,34 @@ export function sectorSnapshot(histories) {
   const vix = cleanHistory(histories.VIX || [], asOf || '0000-01-01').at(-1);
   return { asOf, rows, covered:rows.filter(r => r.returns.month !== null).length, mood:{ spy:current?.close || null, ma50, ma200, trend:ma200 === null || ma50 === null ? 'Insufficient history' : current.close > ma50 && current.close > ma200 ? 'Above both averages' : current.close < ma50 && current.close < ma200 ? 'Below both averages' : 'Mixed trend', above50:breadth.filter(r => r.above50).length, covered:breadth.length, vix:vix?.date === asOf ? vix.close : null, vixAsOf:vix?.date || null } };
 }
+// Descriptive stock momentum snapshot. This deliberately keeps each stock's
+// own trading calendar and never treats a missing horizon as zero.
+export function stockMomentum(row, historyRows = []) {
+  const history = cleanHistory(historyRows);
+  const current = history.at(-1);
+  const returns = {};
+  for (const [period, sessions] of Object.entries(WINDOWS)) {
+    returns[period] = current && history.length > sessions ? change(current.close, history.at(-sessions - 1)?.close) : null;
+  }
+  const ma = sessions => history.length >= sessions ? mean(history.slice(-sessions).map(r => r.close)) : null;
+  const ma50 = ma(50), ma200 = ma(200);
+  const above50 = current && ma50 !== null ? current.close > ma50 : null;
+  const above200 = current && ma200 !== null ? current.close > ma200 : null;
+  // The score is a sortable descriptor, not a forecast: medium-term return
+  // leads, short-term confirmation adds weight, and trend flags are shown.
+  const score = returns.quarter !== null
+    ? returns.quarter + (returns.month !== null ? returns.month * 0.5 : 0) + (above50 === true ? 2 : 0) + (above200 === true ? 2 : 0)
+    : null;
+  const label = score === null ? 'Insufficient history' : score >= 15 && above50 !== false ? 'Strong momentum' : score >= 5 ? 'Positive momentum' : score <= -5 ? 'Weak momentum' : 'Mixed momentum';
+  return { ...row, asOf:current?.date || null, price:current?.close || null, returns, ma50, ma200, above50, above200, score, label, history:history.slice(-90).map(r => ({date:r.date,close:r.close})) };
+}
+export function rankSectorStocks(rows) {
+  return (rows || []).map(row => stockMomentum(row, row.history || [])).sort((a,b) =>
+    (b.score ?? -Infinity) - (a.score ?? -Infinity)
+      || (b.returns.quarter ?? -Infinity) - (a.returns.quarter ?? -Infinity)
+      || String(a.symbol || '').localeCompare(String(b.symbol || ''))
+  );
+}
 export function parseFredCsv(text, id) {
   const lines = String(text).trim().replace(/^\uFEFF/,'').split(/\r?\n/);
   const header = lines.shift()?.split(',');

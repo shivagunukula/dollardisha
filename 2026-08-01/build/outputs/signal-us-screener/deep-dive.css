@@ -32,6 +32,17 @@
 .dd-workspace caption { padding:.65rem .75rem; text-align:left; font-size:.8rem; color:var(--muted); }
 .dd-workspace tr:last-child td { border-bottom:0; }
 .dd-regime { display:inline-block; font-size:.8rem; border:1px solid var(--line); border-radius:3px; padding:.2rem .45rem; white-space:nowrap; }
+.dd-sector-pick { padding:.2rem 0 !important; min-height:0 !important; border:0 !important; background:transparent !important; color:var(--green) !important; text-align:left; font-weight:650; }
+.dd-sector-pick[aria-pressed="true"] { text-decoration:underline; text-underline-offset:3px; }
+.dd-stock-analysis { margin-top:1.5rem; border-top:1px solid var(--line); padding-top:1.2rem; }
+.dd-stock-heading { display:flex; align-items:start; justify-content:space-between; gap:1rem; }
+.dd-stock-heading h3 { margin:0; font:400 1.25rem 'Libre Baskerville',Georgia,serif; }
+.dd-stock-heading p { margin:.35rem 0 0; color:var(--muted); font-size:.875rem; }
+.dd-stock-chart { margin:1rem 0; color:var(--green); }
+.dd-stock-chart svg { width:100%; height:auto; display:block; }
+.dd-stock-chart text { fill:var(--muted); font:12px Arial,sans-serif; }
+.dd-stock-chart figcaption { color:var(--muted); font-size:.75rem; }
+.dd-selected-stock { margin-top:1.2rem; border:1px solid var(--line); padding:1rem; border-radius:4px; }
 .dd-up { color:var(--green); }.dd-down { color:var(--red); }
 .dd-context .dd-up { color:var(--green); }.dd-context .dd-down { color:var(--red); }
 .dd-note,.dd-disclaimer { font-size:.875rem; color:var(--muted); line-height:1.65; }
