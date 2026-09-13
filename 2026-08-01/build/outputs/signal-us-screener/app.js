@@ -336,7 +336,8 @@ function dashboardView() {
   <section class="home-intro" aria-labelledby="home-title"><p class="crumb">DOLLARDISHA · US EQUITY RESEARCH</p><h1 id="home-title">US stock research, built for Indian investors.</h1><p>Research US companies with live market data, fundamentals, valuation, charts and SEC filings—with the INR and market-hours context Indian investors need.</p><form id="home-company-form" class="home-company-search"><label class="sr-only" for="home-company-search">Company ticker</label><span aria-hidden="true">⌕</span><input id="home-company-search" autocomplete="off" placeholder="Enter a ticker, e.g. NVDA" aria-controls="home-company-results" aria-expanded="false"><button class="solid-btn" type="submit">Research company</button><div id="home-company-results" class="search-results" role="listbox" aria-label="Company suggestions" hidden></div></form><div class="home-ideas"><span>Try:</span><button type="button" data-page="NVDA">NVDA</button><button type="button" data-page="MSFT">MSFT</button><button type="button" data-page="AAPL">AAPL</button><button type="button" data-page="GOOGL">GOOGL</button></div></section>
   <section class="home-index-strip" aria-label="US market snapshot"><div class="home-index-strip-head"><div><p class="crumb">US MARKET</p><b>Open market context</b></div><span id="home-market-freshness">Checking live data…</span></div><div class="home-index-grid" id="home-index-grid">${[['S&P 500','^GSPC'],['Nasdaq','^IXIC'],['Dow Jones','^DJI'],['VIX','^VIX'],['USD / INR','USDINR']].map(([name, symbol]) => `<article class="home-index-card" data-home-market-symbol="${symbol}"><span>${name}</span><strong>Loading…</strong><b>Latest available</b></article>`).join('')}</div></section>
   <section class="home-market-section" aria-labelledby="home-market-title"><div class="home-section-head"><div><p class="crumb">MARKET SNAPSHOT</p><h2 id="home-market-title">Large US companies</h2></div><button class="link-button" type="button" data-page="markets">View market scans</button></div><section class="home-market-grid" id="market-cards">${['NVDA', 'MSFT', 'AAPL', 'GOOGL'].map((ticker) => `<button type="button" class="home-market-row market-card" data-market-ticker="${ticker}"><span>${ticker}</span><strong>Loading…</strong><b>Latest available quote</b></button>`).join('')}</section></section>
-  <section class="home-research-links" aria-label="Research tools"><article><p class="crumb">01</p><h2>Screen stocks</h2><p>Build a precise list from valuation, quality and price criteria.</p><button class="link-button" type="button" data-page="screener">Open stock screener →</button></article><article><p class="crumb">02</p><h2>Compare companies</h2><p>Put fundamentals and valuation side by side before forming a view.</p><button class="link-button" type="button" data-page="compare">Compare companies →</button></article><article><p class="crumb">03</p><h2>Read filings</h2><p>Follow official SEC disclosures and keep your research in one place.</p><button class="link-button" type="button" data-page="research">Open research hub →</button></article></section>
+  <section class="home-research-links" aria-label="Research tools"><article><p class="crumb">01</p><h2>Screen stocks</h2><p>Build a precise list from valuation, quality and price criteria.</p><button class="link-button" type="button" data-page="screener">Open stock screener →</button></article><article><p class="crumb">02</p><h2>Compare companies</h2><p>Put fundamentals and valuation side by side before forming a view.</p><button class="link-button" type="button" data-page="compare">Compare companies →</button></article><article><p class="crumb">03</p><h2>Read filings</h2><p>Follow official SEC disclosures and keep your research in one place.</p><button class="link-button" type="button" data-page="research">Open research hub →</button></article><article><p class="crumb">04</p><h2>Rotate by sector</h2><p>See leadership, breadth and the strongest stocks in every US sector.</p><button class="link-button" type="button" data-page="deep-dive">Open sector rotation →</button></article></section>
+  <section class="home-discovery panel" aria-label="Research discovery"><div class="home-discovery-head"><div><p class="crumb">RESEARCH DISCOVERY</p><h2>Start with an intent</h2></div><button class="link-button" type="button" data-page="scans">Open scan library →</button></div><div class="home-discovery-grid"><article><span class="discovery-icon" aria-hidden="true">↗</span><div><b>Most searched</b><p>NVDA · MSFT · AAPL · GOOGL</p><button class="link-button" type="button" data-page="NVDA">Research a company →</button></div></article><article><span class="discovery-icon" aria-hidden="true">◷</span><div><b>Upcoming earnings</b><p>Review the next reporting dates and recent results.</p><button class="link-button" type="button" data-page="latest-results">View results →</button></div></article><article><span class="discovery-icon" aria-hidden="true">▦</span><div><b>Event intelligence</b><p>PEAD, ownership, orders, banking and shipping signals.</p><button class="link-button" type="button" data-page="deep-dive">Open Deep Dive →</button></div></article></div></section>
   <section class="home-watchlist"><div class="home-section-head"><div><p class="crumb">YOUR LIST</p><h2>Watchlist</h2></div><button class="link-button" type="button" data-page="watchlist">Open watchlist</button></div>${watchlist.slice(0, 3).map((ticker) => { const stock = stocks.find((item) => item.ticker === ticker) || { ticker, name: ticker, change: 0 }; return `<button type="button" class="home-watch-row" data-page="${ticker}"><span>${ticker}</span><b>${escapeHtml(stock.name)}</b><em class="${stock.change >= 0 ? 'positive' : 'down'}">${percent(stock.change)}</em></button>`; }).join('') || '<p class="home-empty">No companies saved yet. Add them while browsing the screener or market scans.</p>'}</section></div>`;
 }
 function setupDashboard() {
@@ -437,6 +438,66 @@ function marketsView() {
   <section class="market-section"><div class="market-section-heading"><div><p class="crumb">REAL ASSETS</p><h2>Commodities</h2></div><span class="market-freshness">Gold, energy and industrial metals</span></div><section class="cross-market-grid" id="global-commodities"><article class="cross-market-empty">Loading commodities…</article></section></section>
   <section class="market-section"><div class="market-section-heading"><div><p class="crumb">DIGITAL ASSETS</p><h2>Crypto</h2></div><span class="market-freshness">Reference USD pairs</span></div><section class="cross-market-grid" id="global-crypto"><article class="cross-market-empty">Loading crypto…</article></section></section>
   <section class="panel"><div class="panel-head"><div><h2>Discover US companies</h2><p id="market-scan-status" role="status" aria-live="polite">Loading live gainers…</p></div><div><button class="link-button market-mode selected" data-mode="gainers">Top gainers</button><button class="link-button market-mode" data-mode="losers">Top losers</button><button class="link-button market-mode" data-mode="largest">Largest</button></div></div><div class="table-wrap"><table><thead><tr><th>Company</th><th>Price</th><th>Market cap</th><th>P/E</th><th>Today</th><th></th></tr></thead><tbody id="market-table"><tr><td colspan="6">Loading live market scan…</td></tr></tbody></table></div></section></div>`;
+}
+
+const scanLibrary = {
+  Technical: [
+    ['Momentum leaders', 'Stocks outperforming the S&P 500 over 1M and 3M.', 'Return over 3 months > 0 AND Return over 1 month > 0'],
+    ['Breakout watch', 'Names near a fresh 52-week high with supporting volume.', 'Return over 1 year > 0 AND Return over 3 months > 0'],
+    ['Trend continuation', 'Price above medium- and long-term trend measures.', 'Return over 1 month > 0 AND Return over 3 months > 0'],
+    ['Volume acceleration', 'Liquid stocks where current activity is expanding.', 'Volume > 1000000'],
+  ],
+  Fundamental: [
+    ['Profitable value', 'Positive earnings with a disciplined valuation.', 'P/E < 25 AND ROE > 15%'],
+    ['Quality compounders', 'High-return businesses with durable growth.', 'ROE > 20% AND Revenue growth > 10%'],
+    ['Earnings acceleration', 'Companies showing improving revenue and positive EPS.', 'Revenue growth > 15 AND EPS > 0'],
+    ['Balance-sheet strength', 'Lower leverage and strong operating economics.', 'Debt to equity < 1 AND ROE > 12%'],
+  ],
+  Earnings: [
+    ['Latest results', 'Review the newest reported US quarterly results.', 'Sales latest quarter > 0'],
+    ['Upcoming earnings', 'Find the next reporting dates across your universe.', 'EPS latest quarter > 0'],
+    ['PEAD candidates', 'Study post-earnings drift after a reported surprise.', 'Return over 1 month > 0 AND Return over 3 months > 0'],
+    ['Margin expansion', 'Find companies with improving operating margins.', 'Operating margin > 0'],
+  ],
+  Ownership: [
+    ['Institutional activity', 'Track reported institutional ownership changes.', 'Market cap > 0'],
+    ['Insider activity', 'Review issuer-reported insider transactions.', 'Market cap > 0'],
+    ['Filing events', 'Search official SEC documents for material disclosures.', 'Market cap > 0'],
+    ['Order and backlog mentions', 'Find filings that reference orders or backlog.', 'Market cap > 0'],
+  ],
+  'Sector & market': [
+    ['Sector rotation', 'Compare every US sector and rank its strongest constituents.', 'Return over 3 months > 0 AND Return over 1 month > 0'],
+    ['Market mood', 'Read breadth, volatility and index trend in one view.', 'Return over 1 day > 0'],
+    ['Market dashboard', 'See index performance, highs/lows and participation.', 'Market cap > 0'],
+    ['Custom index', 'Build a personal equal-weight basket for research.', 'Market cap > 0'],
+  ],
+};
+
+function scansView() {
+  const categories = Object.keys(scanLibrary);
+  const cards = categories.map((category, index) => `<section class="scan-library-category" data-scan-category="${escapeHtml(category)}" ${index ? 'hidden' : ''}><div class="scan-category-heading"><div><p class="crumb">${String(index + 1).padStart(2, '0')}</p><h2>${escapeHtml(category)}</h2><p>${category === 'Technical' ? 'Price, trend and volume structure.' : category === 'Fundamental' ? 'Quality, growth and valuation.' : category === 'Earnings' ? 'Results, expectations and drift.' : category === 'Ownership' ? 'Filings, institutions and insiders.' : 'Regime, sectors and personal benchmarks.'}</p></div><span>${scanLibrary[category].length} presets</span></div><div class="scan-library-grid">${scanLibrary[category].map(([title, description, query]) => `<article class="scan-library-card"><div class="scan-card-top"><span class="scan-card-mark" aria-hidden="true">${category === 'Technical' ? '↗' : category === 'Fundamental' ? '◈' : category === 'Earnings' ? '◷' : category === 'Ownership' ? '◎' : '▦'}</span><span class="scan-card-category">${escapeHtml(category)}</span></div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(description)}</p><code>${escapeHtml(query)}</code><button class="link-button" type="button" data-scan-query="${escapeHtml(query)}" data-scan-title="${escapeHtml(title)}">Use this scan →</button></article>`).join('')}</div></section>`).join('');
+  return `<div class="page scans-page">${pageHeader('DISCOVER', 'Scan library', 'Start with a transparent research preset, then refine it in the US stock screener.')}
+    <section class="scan-library-hero panel"><div><p class="crumb">A FASTER STARTING POINT</p><h2>Find the signal before you build the screen.</h2><p>Browse by intent, see the rule behind every preset and open the full screener when you are ready to adjust it.</p></div><div class="scan-library-actions"><button class="solid-btn" type="button" data-page="screener">Build a custom screen</button><button class="link-button" type="button" data-page="deep-dive">Open Deep Dive →</button></div></section>
+    <nav class="scan-library-tabs" aria-label="Scan categories" role="tablist">${categories.map((category, index) => `<button type="button" role="tab" aria-selected="${index === 0}" data-scan-tab="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join('')}</nav>
+    <div class="scan-library-panels">${cards}</div>
+    <section class="scan-library-footer panel"><div><b>Every preset is a starting point</b><p>Values can be missing or delayed. Review the metric definition, reporting period and source before acting.</p></div><button class="link-button" type="button" data-page="status">View data status →</button></section>
+  </div>`;
+}
+
+function setupScans() {
+  const panels = document.querySelectorAll('[data-scan-category]');
+  document.querySelectorAll('[data-scan-tab]').forEach(tab => tab.onclick = () => {
+    const category = tab.dataset.scanTab;
+    document.querySelectorAll('[data-scan-tab]').forEach(item => item.setAttribute('aria-selected', String(item === tab)));
+    panels.forEach(panel => { panel.hidden = panel.dataset.scanCategory !== category; });
+  });
+  document.querySelectorAll('[data-scan-query]').forEach(button => button.onclick = () => {
+    const query = button.dataset.scanQuery || '';
+    window.history.pushState({ page: 'screener' }, '', '/screener');
+    page = 'screener';
+    render();
+    requestAnimationFrame(() => { const input = document.querySelector('#screen-query'); if (input) { input.value = query; input.focus(); input.dispatchEvent(new Event('input', { bubbles: true })); } });
+  });
 }
 
 function screenerView() {
@@ -671,7 +732,7 @@ function setupQuarterlyDetails(holder) {
   });
 }
 function render() {
-  const view = page === 'dashboard' ? dashboardView() : page === 'markets' ? marketsView() : page === 'screener' ? screenerView() : page === 'indexlab' ? indexView() : page === 'research' ? researchView() : page === 'compare' ? compareView() : page === 'watchlist' ? watchlistView() : page === 'toolkit' ? toolkitView() : page === 'latest-results' ? latestResultsView() : page === 'tools' ? toolsView() : page === 'deep-dive' ? deepDiveView() : page === 'portfolio' ? portfolioView() : page === 'status' ? statusView() : page === 'pricing' ? pricingView() : companyView(page);
+  const view = page === 'dashboard' ? dashboardView() : page === 'markets' ? marketsView() : page === 'scans' ? scansView() : page === 'screener' ? screenerView() : page === 'indexlab' ? indexView() : page === 'research' ? researchView() : page === 'compare' ? compareView() : page === 'watchlist' ? watchlistView() : page === 'toolkit' ? toolkitView() : page === 'latest-results' ? latestResultsView() : page === 'tools' ? toolsView() : page === 'deep-dive' ? deepDiveView() : page === 'portfolio' ? portfolioView() : page === 'status' ? statusView() : page === 'pricing' ? pricingView() : companyView(page);
   const content = $('#content');
   content.classList.remove('route-ready');
   content.innerHTML = view;
@@ -686,6 +747,7 @@ function render() {
   wireCommon();
   if (page === 'dashboard') { setupDashboard(); hydrateDashboard(); }
   if (page === 'markets') setupMarkets();
+  if (page === 'scans') setupScans();
   if (page === 'screener') setupScreener();
   if (page === 'indexlab') setupIndex();
   if (page === 'research') setupResearch();
@@ -699,7 +761,7 @@ function render() {
   if (page === 'portfolio') setupPortfolio();
   if (page === 'status') setupSystemStatus();
   if (page === 'pricing') setupPricing();
-  if (!['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'latest-results', 'tools', 'deep-dive', 'portfolio', 'status', 'pricing'].includes(page)) {
+  if (!['dashboard', 'markets', 'scans', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'latest-results', 'tools', 'deep-dive', 'portfolio', 'status', 'pricing'].includes(page)) {
     const companyPage = content.querySelector('.company-page');
     if (companyPage) { companyPage.classList.add('company-loading'); companyPage.setAttribute('aria-busy', 'true'); }
     hydrateCompany(page);
@@ -717,7 +779,7 @@ function render() {
 const LIVE_REFRESH_MS = 60 * 1000;
 let liveRefreshTimer = null;
 let liveRefreshBusy = false;
-const isCompanyRoute = route => !['dashboard', 'markets', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'latest-results', 'tools', 'deep-dive', 'portfolio', 'status', 'pricing'].includes(route);
+const isCompanyRoute = route => !['dashboard', 'markets', 'scans', 'screener', 'indexlab', 'research', 'compare', 'watchlist', 'toolkit', 'latest-results', 'tools', 'deep-dive', 'portfolio', 'status', 'pricing'].includes(route);
 async function refreshLiveData() {
   if (document.hidden || liveRefreshBusy) return;
   liveRefreshBusy = true;
@@ -756,7 +818,7 @@ const routeFromHash = () => {
 const routeFromPath = () => {
   const match = window.location.pathname.match(/^\/stocks\/([A-Z0-9][A-Z0-9._-]{0,14})\/?$/i);
   if (match) return match[1].toUpperCase();
-  const tool = window.location.pathname.match(/^\/(markets|screener|compare|research|portfolio|watchlist|toolkit|latest-results|tools|deep-dive|status|pricing)\/?$/i);
+  const tool = window.location.pathname.match(/^\/(markets|scans|screener|compare|research|portfolio|watchlist|toolkit|latest-results|tools|deep-dive|status|pricing)\/?$/i);
   return tool ? tool[1].toLowerCase() : null;
 };
 // A hash route is an app-level destination even when the current URL is a
@@ -767,7 +829,7 @@ const routeFromPath = () => {
 const routeFromLocation = () => routeFromHash() || routeFromPath();
 const routeHref = target => {
   const next = String(target || 'dashboard');
-  const publicRoute = new Set(['markets','screener','compare','research','portfolio','watchlist','toolkit','latest-results','tools','deep-dive','status','pricing']);
+  const publicRoute = new Set(['markets','scans','screener','compare','research','portfolio','watchlist','toolkit','latest-results','tools','deep-dive','status','pricing']);
   return isCompanyRoute(next) ? `/stocks/${encodeURIComponent(next.toUpperCase())}` : publicRoute.has(next) ? `/${encodeURIComponent(next)}` : '/';
 };
 function navigateTo(target, { replace = false } = {}) {
@@ -2629,11 +2691,12 @@ dashboardView = function() {
   const heroEnd = polishedHtml.indexOf(heroEndMarker, heroStart);
   if (heroStart < 0 || heroEnd < 0) return polishedHtml;
   const insights = dashboardInsightCards();
+  const discovery = baseDashboardView().match(/<section class="home-discovery panel"[\s\S]*?<\/section>/)?.[0] || '';
   const researchStart = baseDashboardView().match(/<section class="home-intro"[\s\S]*?<\/section>/)?.[0] || '';
   const marketStrip = baseDashboardView().match(/<section class="home-index-strip"[\s\S]*?<\/section>/)?.[0] || '';
   const hero = `${researchStart}${marketStrip}<div class="home-screen-action"><button class="solid-btn" type="button" data-page="screener">Screen US stocks →</button></div><section class="panel dashboard-hero"><div class="dashboard-hero-layout">${dashboardQuickAccess()}${panel}</div></section><div class="section-header">`;
   const replaced = `${polishedHtml.slice(0, heroStart)}${hero}${polishedHtml.slice(heroEnd + heroEndMarker.length)}`;
-  return replaced.replace('<section class="dashboard-grid">', `${insights}<section class="dashboard-grid">`);
+  return replaced.replace('<section class="dashboard-grid">', `${insights}${discovery}<section class="dashboard-grid">`);
 };
 
 let marketLeadersDirection = 'leaders';

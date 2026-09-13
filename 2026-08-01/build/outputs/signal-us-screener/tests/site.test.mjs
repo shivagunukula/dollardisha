@@ -214,6 +214,21 @@ test('homepage and company pages expose Indian-investor context', async () => {
   assert.match(styles, /\.india-context-grid/);
 });
 
+test('scan library exposes categorized, transparent research presets', async () => {
+  const [html, client, styles, server, sitemap] = await Promise.all([
+    read('index.html'), read('app.js'), read('ui-refresh.css'), read('server.mjs'), read('sitemap.xml')
+  ]);
+  assert.match(html, /data-page="scans">Scans/);
+  assert.match(client, /function scansView\(\)/);
+  assert.match(client, /Technical: \[/);
+  assert.match(client, /Sector & market/);
+  assert.match(client, /data-scan-tab/);
+  assert.match(client, /data-scan-query/);
+  assert.match(styles, /\.scan-library-grid/);
+  assert.match(server, /markets\|scans\|screener/);
+  assert.match(sitemap, /https:\/\/dollardisha\.in\/scans/);
+});
+
 test('homepage calendar shortcuts open real earnings and IPO data views', async () => {
   const [client, server, styles] = await Promise.all([read('app.js'), read('server.mjs'), read('ui-refresh.css')]);
   assert.match(client, /function revealRouteSection\(sectionId\)/);
