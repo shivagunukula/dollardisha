@@ -880,7 +880,7 @@ async function setupDeepDive() {
         if (authSession?.user && saved === false) throw new Error('Saved on this browser, but account sync failed.');
       }
     });
-  } catch { if (root?.isConnected) root.innerHTML = '<p role="alert">Deep Dive could not open. Reload this page to retry.</p>'; }
+  } catch (error) { console.error('Deep Dive module failed to load', error); if (root?.isConnected) root.innerHTML = '<p role="alert">Deep Dive could not open. Reload this page to retry.</p>'; }
 }
 async function getJson(url, timeout = 9000) {
   const cacheable = url.startsWith('/data/company?') || url.startsWith('/data/company-intel?') || url.startsWith('/data/filings?') || url.startsWith('/data/market') || url.startsWith('/data/indices') || url.startsWith('/data/global-markets') || url.startsWith('/data/watchlist?');
