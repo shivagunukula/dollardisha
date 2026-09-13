@@ -42,6 +42,16 @@ test('flat prices do not count as above moving average; stale VIX is missing',()
   const s=sectorSnapshot({SPY:days(),XLK:days(270,()=>100),VIX:days(269,()=>20)});
   assert.equal(s.mood.above50,0);assert.equal(s.mood.vix,null);assert.equal(s.rows[0].returns.day,0);
 });
+test('US market mood exposes an equal-weight component score without inventing missing inputs',()=>{
+  const histories={SPY:days(),VIX:days(270,()=>20)};
+  for(const sector of ['XLK','XLF','XLV','XLY','XLP','XLE','XLI','XLB','XLU','XLRE','XLC']) histories[sector]=days(270,i=>100+i);
+  const s=sectorSnapshot(histories);
+  assert.equal(s.mood.components.length,5);
+  assert.equal(s.mood.componentsCovered,5);
+  assert.ok(Number.isFinite(s.mood.score));
+  assert.match(s.mood.zone,/^(Greed|Extreme greed)$/);
+  assert.match(s.mood.methodology,/Equal-weight descriptive US mood composite/);
+});
 test('year return needs 252 prior benchmark sessions',()=>{
   assert.equal(sectorSnapshot({SPY:days(252),XLK:days(252)}).rows[0].returns.year,null);
   assert.notEqual(sectorSnapshot({SPY:days(253),XLK:days(253)}).rows[0].returns.year,null);

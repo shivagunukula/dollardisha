@@ -55,7 +55,42 @@ export function sectorSnapshot(histories) {
   const ma200 = benchmark.length >= 200 ? mean(benchmark.slice(-200).map(r => r.close)) : null;
   const breadth = rows.filter(r => r.above50 !== null);
   const vix = cleanHistory(histories.VIX || [], asOf || '0000-01-01').at(-1);
-  return { asOf, rows, covered:rows.filter(r => r.returns.month !== null).length, mood:{ spy:current?.close || null, ma50, ma200, trend:ma200 === null || ma50 === null ? 'Insufficient history' : current.close > ma50 && current.close > ma200 ? 'Above both averages' : current.close < ma50 && current.close < ma200 ? 'Below both averages' : 'Mixed trend', above50:breadth.filter(r => r.above50).length, covered:breadth.length, vix:vix?.date === asOf ? vix.close : null, vixAsOf:vix?.date || null } };
+  const boundedScore = (value, low, high) => numeric(value) === null ? null : Math.max(0, Math.min(100, (Number(value) - low) / (high - low) * 100));
+  const trendScore = [
+    current?.close && ma50 ? boundedScore((current.close / ma50 - 1) * 100, -10, 10) : null,
+    current?.close && ma200 ? boundedScore((current.close / ma200 - 1) * 100, -20, 20) : null
+  ].filter(value => value !== null);
+  const breadthScore = breadth.length ? breadth.filter(r => r.above50).length / breadth.length * 100 : null;
+  const matchingVix = vix?.date === asOf ? vix.close : null;
+  // Lower VIX represents calmer risk conditions, so its mood score is inverse.
+  const volatilityScore = matchingVix === null ? null : boundedScore(35 - matchingVix, 0, 25);
+  const strength = rows.map(row => {
+    const history = cleanHistory(histories[row.symbol], asOf).slice(-252);
+    const close = history.at(-1)?.close;
+    if (!history.length || close === undefined) return null;
+    const high = Math.max(...history.map(item => item.close));
+    const low = Math.min(...history.map(item => item.close));
+    return { nearHigh:close >= high * .95, nearLow:close <= low * 1.05 };
+  }).filter(Boolean);
+  const priceStrengthScore = strength.length
+    ? ((strength.filter(row => row.nearHigh).length / strength.length) - (strength.filter(row => row.nearLow).length / strength.length) + 1) * 50
+    : null;
+  const bySymbol = new Map(rows.map(row => [row.symbol, row]));
+  const average = values => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+  const cyclical = average(['XLY','XLI','XLF'].map(symbol => bySymbol.get(symbol)?.returns.month).filter(value => value !== null));
+  const defensive = average(['XLP','XLU','XLV'].map(symbol => bySymbol.get(symbol)?.returns.month).filter(value => value !== null));
+  const riskAppetiteScore = cyclical !== null && defensive !== null ? boundedScore(cyclical - defensive, -10, 10) : null;
+  const componentValues = [
+    { key:'momentum', label:'Index momentum', score:average(trendScore), detail:'SPY versus its 50- and 200-session averages' },
+    { key:'breadth', label:'Market breadth', score:breadthScore, detail:'Sector ETFs above their 50-session averages' },
+    { key:'volatility', label:'Volatility', score:volatilityScore, detail:'Inverse VIX level; lower VIX scores higher' },
+    { key:'price-strength', label:'Price strength', score:priceStrengthScore, detail:'Sectors near 52-week highs less sectors near lows' },
+    { key:'risk-appetite', label:'Risk appetite', score:riskAppetiteScore, detail:'Cyclical versus defensive sector 1-month return spread' }
+  ];
+  const availableScores = componentValues.map(row => row.score).filter(value => value !== null);
+  const moodScore = availableScores.length ? average(availableScores) : null;
+  const zone = moodScore === null ? 'Unavailable' : moodScore < 25 ? 'Extreme fear' : moodScore < 45 ? 'Fear' : moodScore < 60 ? 'Neutral' : moodScore < 75 ? 'Greed' : 'Extreme greed';
+  return { asOf, rows, covered:rows.filter(r => r.returns.month !== null).length, mood:{ spy:current?.close || null, ma50, ma200, trend:ma200 === null || ma50 === null ? 'Insufficient history' : current.close > ma50 && current.close > ma200 ? 'Above both averages' : current.close < ma50 && current.close < ma200 ? 'Below both averages' : 'Mixed trend', above50:breadth.filter(r => r.above50).length, covered:breadth.length, vix:matchingVix, vixAsOf:vix?.date || null, score:moodScore, zone, components:componentValues, componentsCovered:availableScores.length, methodology:'Equal-weight descriptive US mood composite: index momentum, sector breadth, inverse VIX, 52-week sector price strength and cyclical-versus-defensive risk appetite. Score bands are Extreme fear <25, Fear 25–44.9, Neutral 45–59.9, Greed 60–74.9 and Extreme greed ≥75. It is not a forecast or investment recommendation.' } };
 }
 // Descriptive stock momentum snapshot. This deliberately keeps each stock's
 // own trading calendar and never treats a missing horizon as zero.
