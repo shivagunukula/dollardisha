@@ -453,17 +453,23 @@ const scanLibrary = {
     ['Earnings acceleration', 'Companies showing improving revenue and positive EPS.', 'Revenue growth > 15 AND EPS > 0'],
     ['Balance-sheet strength', 'Lower leverage and strong operating economics.', 'Debt to equity < 1 AND ROE > 12%'],
   ],
-  Earnings: [
-    ['Latest results', 'Review the newest reported US quarterly results.', 'Sales latest quarter > 0'],
-    ['Upcoming earnings', 'Find the next reporting dates across your universe.', 'EPS latest quarter > 0'],
-    ['PEAD candidates', 'Study post-earnings drift after a reported surprise.', 'Return over 1 month > 0 AND Return over 3 months > 0'],
-    ['Margin expansion', 'Find companies with improving operating margins.', 'Operating margin > 0'],
-  ],
-  Ownership: [
+  Holdings: [
     ['Institutional activity', 'Track reported institutional ownership changes.', 'Market cap > 0'],
     ['Insider activity', 'Review issuer-reported insider transactions.', 'Market cap > 0'],
     ['Filing events', 'Search official SEC documents for material disclosures.', 'Market cap > 0'],
     ['Order and backlog mentions', 'Find filings that reference orders or backlog.', 'Market cap > 0'],
+  ],
+  'Relative Performance': [
+    ['S&P 500 beaters', 'Companies with positive returns across multiple horizons.', 'Return over 1 month > 0 AND Return over 3 months > 0'],
+    ['Three-month leaders', 'Rank names with a positive quarterly price trend.', 'Return over 3 months > 0'],
+    ['One-year leaders', 'Find companies that have held a positive annual trend.', 'Return over 1 year > 0'],
+    ['Relative strength watch', 'Use price momentum as a starting point for deeper review.', 'Return over 1 month > 0 AND Return over 1 year > 0'],
+  ],
+  'Results Tracker': [
+    ['Latest results', 'Review the newest reported US quarterly results.', 'Sales latest quarter > 0'],
+    ['Quarterly growth', 'Find companies combining positive revenue and EPS.', 'Revenue growth > 10 AND EPS > 0'],
+    ['PEAD candidates', 'Study post-earnings drift after a reported surprise.', 'Return over 1 month > 0 AND Return over 3 months > 0'],
+    ['Margin expansion', 'Find companies with improving operating margins.', 'Operating margin > 0'],
   ],
   'Sector & market': [
     ['Sector rotation', 'Compare every US sector and rank its strongest constituents.', 'Return over 3 months > 0 AND Return over 1 month > 0'],
@@ -475,22 +481,53 @@ const scanLibrary = {
 
 function scansView() {
   const categories = Object.keys(scanLibrary);
-  const cards = categories.map((category, index) => `<section class="scan-library-category" data-scan-category="${escapeHtml(category)}" ${index ? 'hidden' : ''}><div class="scan-category-heading"><div><p class="crumb">${String(index + 1).padStart(2, '0')}</p><h2>${escapeHtml(category)}</h2><p>${category === 'Technical' ? 'Price, trend and volume structure.' : category === 'Fundamental' ? 'Quality, growth and valuation.' : category === 'Earnings' ? 'Results, expectations and drift.' : category === 'Ownership' ? 'Filings, institutions and insiders.' : 'Regime, sectors and personal benchmarks.'}</p></div><span>${scanLibrary[category].length} presets</span></div><div class="scan-library-grid">${scanLibrary[category].map(([title, description, query]) => `<article class="scan-library-card"><div class="scan-card-top"><span class="scan-card-mark" aria-hidden="true">${category === 'Technical' ? '↗' : category === 'Fundamental' ? '◈' : category === 'Earnings' ? '◷' : category === 'Ownership' ? '◎' : '▦'}</span><span class="scan-card-category">${escapeHtml(category)}</span></div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(description)}</p><code>${escapeHtml(query)}</code><button class="link-button" type="button" data-scan-query="${escapeHtml(query)}" data-scan-title="${escapeHtml(title)}">Use this scan →</button></article>`).join('')}</div></section>`).join('');
+  const categoryDescription = category => ({
+    Technical: 'Price, trend and volume structure.',
+    Fundamental: 'Quality, growth and valuation.',
+    Holdings: 'Filings, institutions and insiders.',
+    'Relative Performance': 'Index and sector-relative strength.',
+    'Results Tracker': 'Results, expectations and drift.',
+    'Sector & market': 'Regime, sectors and personal benchmarks.'
+  }[category] || 'Research presets you can refine.');
+  const categoryMark = category => ({ Technical: '↗', Fundamental: '◈', Holdings: '◎', 'Relative Performance': '≈', 'Results Tracker': '◷', 'Sector & market': '▦' }[category] || '•');
+  const cards = categories.map((category, index) => `<section class="scan-library-category" data-scan-category="${escapeHtml(category)}" ${index ? 'hidden' : ''}><div class="scan-category-heading"><div><p class="crumb">${String(index + 1).padStart(2, '0')}</p><h2>${escapeHtml(category)}</h2><p>${categoryDescription(category)}</p></div><span>${scanLibrary[category].length} presets</span></div><div class="scan-library-grid">${scanLibrary[category].map(([title, description, query]) => `<article class="scan-library-card" data-scan-text="${escapeHtml(`${title} ${description} ${query}`.toLowerCase())}"><div class="scan-card-top"><span class="scan-card-mark" aria-hidden="true">${categoryMark(category)}</span><span class="scan-card-category">${escapeHtml(category)}</span></div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(description)}</p><code>${escapeHtml(query)}</code><button class="link-button" type="button" data-scan-query="${escapeHtml(query)}" data-scan-title="${escapeHtml(title)}">Use this scan →</button></article>`).join('')}</div></section>`).join('');
   return `<div class="page scans-page">${pageHeader('DISCOVER', 'Scan library', 'Start with a transparent research preset, then refine it in the US stock screener.')}
     <section class="scan-library-hero panel"><div><p class="crumb">A FASTER STARTING POINT</p><h2>Find the signal before you build the screen.</h2><p>Browse by intent, see the rule behind every preset and open the full screener when you are ready to adjust it.</p></div><div class="scan-library-actions"><button class="solid-btn" type="button" data-page="screener">Build a custom screen</button><button class="link-button" type="button" data-page="deep-dive">Open Deep Dive →</button></div></section>
+    <div class="scan-library-search-row"><label for="scan-library-search">Search scans</label><input id="scan-library-search" type="search" placeholder="Try momentum, earnings, insider or sector" autocomplete="off"><span id="scan-library-search-count" role="status"></span></div>
     <nav class="scan-library-tabs" aria-label="Scan categories" role="tablist">${categories.map((category, index) => `<button type="button" role="tab" aria-selected="${index === 0}" data-scan-tab="${escapeHtml(category)}">${escapeHtml(category)}</button>`).join('')}</nav>
-    <div class="scan-library-panels">${cards}</div>
+    <div class="scan-library-panels">${cards}<p id="scan-library-empty" class="data-empty" hidden>No scans match that search. Try a different term.</p></div>
     <section class="scan-library-footer panel"><div><b>Every preset is a starting point</b><p>Values can be missing or delayed. Review the metric definition, reporting period and source before acting.</p></div><button class="link-button" type="button" data-page="status">View data status →</button></section>
   </div>`;
 }
 
 function setupScans() {
   const panels = document.querySelectorAll('[data-scan-category]');
+  let activeCategory = panels[0]?.dataset.scanCategory || '';
+  const search = document.querySelector('#scan-library-search');
+  const empty = document.querySelector('#scan-library-empty');
+  const count = document.querySelector('#scan-library-search-count');
+  const applySearch = () => {
+    const term = String(search?.value || '').trim().toLowerCase();
+    let matches = 0;
+    panels.forEach(panel => {
+      const cards = panel.querySelectorAll('[data-scan-text]');
+      let panelMatches = 0;
+      cards.forEach(card => { const visible = !term || card.dataset.scanText.includes(term); card.hidden = !visible; if (visible) panelMatches += 1; });
+      panel.hidden = term ? panelMatches === 0 : panel.dataset.scanCategory !== activeCategory;
+      matches += panelMatches;
+    });
+    if (empty) empty.hidden = matches > 0;
+    if (count) count.textContent = term ? `${matches} matching scan${matches === 1 ? '' : 's'}` : '';
+  };
   document.querySelectorAll('[data-scan-tab]').forEach(tab => tab.onclick = () => {
     const category = tab.dataset.scanTab;
+    activeCategory = category;
     document.querySelectorAll('[data-scan-tab]').forEach(item => item.setAttribute('aria-selected', String(item === tab)));
-    panels.forEach(panel => { panel.hidden = panel.dataset.scanCategory !== category; });
+    if (search) search.value = '';
+    applySearch();
   });
+  search?.addEventListener('input', applySearch);
+  applySearch();
   document.querySelectorAll('[data-scan-query]').forEach(button => button.onclick = () => {
     const query = button.dataset.scanQuery || '';
     window.history.pushState({ page: 'screener' }, '', '/screener');

@@ -229,6 +229,18 @@ test('scan library exposes categorized, transparent research presets', async () 
   assert.match(sitemap, /https:\/\/dollardisha\.in\/scans/);
 });
 
+test('scan library mirrors the StockScans workflow with searchable categories', async () => {
+  const [client, styles] = await Promise.all([read('app.js'), read('ui-refresh.css')]);
+  assert.match(client, /Holdings:/);
+  assert.match(client, /Relative Performance/);
+  assert.match(client, /Results Tracker/);
+  assert.match(client, /id="scan-library-search"/);
+  assert.match(client, /id="scan-library-empty"/);
+  assert.match(client, /scan-library-search-count/);
+  assert.match(client, /data-scan-text/);
+  assert.match(styles, /\.scan-library-search-row/);
+});
+
 test('homepage calendar shortcuts open real earnings and IPO data views', async () => {
   const [client, server, styles] = await Promise.all([read('app.js'), read('server.mjs'), read('ui-refresh.css')]);
   assert.match(client, /function revealRouteSection\(sectionId\)/);
