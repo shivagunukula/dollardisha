@@ -72,6 +72,10 @@
 .dd-mood-hero strong small { color:var(--muted); font-size:1rem; font-weight:500; }
 .dd-mood-hero p:last-child { color:var(--muted); margin:.75rem 0 0; }
 .dd-mood-actions { display:flex; flex-wrap:wrap; gap:.5rem; margin-top:1rem; }
+.dd-mood-alert { margin-top:1rem; padding-top:.75rem; border-top:1px solid var(--line); }
+.dd-mood-alert summary { cursor:pointer; color:var(--accent); font-size:.875rem; }
+.dd-mood-alert .dd-controls { margin:.75rem 0 .35rem; }
+.dd-mood-alert p { margin:.35rem 0 0; color:var(--muted); font-size:.78rem; }
 .dd-mood-history { display:grid; grid-template-columns:minmax(0,1fr) minmax(220px,1.6fr); gap:.5rem 1.5rem; align-items:start; margin:1.25rem 0; }
 .dd-mood-history h3 { margin:0 0 .25rem; }
 .dd-mood-history > div:first-child p { margin:.25rem 0; color:var(--muted); font-size:.875rem; }

@@ -986,6 +986,13 @@ async function setupDeepDive() {
         deepDiveRecords = records;
         const saved = await persistResearchState();
         if (authSession?.user && saved === false) throw new Error('Saved on this browser, but account sync failed.');
+      },
+      saveAlerts: async nextAlerts => {
+        alerts = Array.isArray(nextAlerts) ? nextAlerts : [];
+        localStorage.setItem('dd-price-alerts', JSON.stringify(alerts));
+        const saved = await persistResearchState();
+        if (authSession?.user && saved === false) throw new Error('Saved on this browser, but account sync failed.');
+        drawResearchLists();
       }
     });
   } catch (error) { console.error('Deep Dive module failed to load', error); if (root?.isConnected) root.innerHTML = '<p role="alert">Deep Dive could not open. Reload this page to retry.</p>'; }
@@ -1992,9 +1999,11 @@ function drawResearchLists() {
   const alertsHolder = $('#alerts-list');
   if (alertsHolder) alertsHolder.innerHTML = alerts.map((alert, index) => {
     const earnings = alert.type === 'earnings';
+    const mood = alert.type === 'mood';
     const triggered = alert.triggered === true;
-    const detail = earnings ? `${alert.date || 'Date TBA'} · earnings event` : `price ${alert.direction || 'above'} $${Number(alert.price || 0).toFixed(2)}`;
-    return `<div class="alert-item ${triggered ? 'triggered' : ''}"><span><b>${escapeHtml(alert.ticker)}</b> · ${escapeHtml(detail)}<small>${alert.currentPrice ? `Live $${Number(alert.currentPrice).toFixed(2)} · ` : ''}${triggered ? 'Condition reached' : 'Monitoring'}</small></span><button data-delete-alert="${index}">Remove</button></div>`;
+    const detail = earnings ? `${alert.date || 'Date TBA'} · earnings event` : mood ? `mood ${alert.direction || 'above'} ${Number(alert.threshold || 0).toFixed(1)}` : `price ${alert.direction || 'above'} $${Number(alert.price || 0).toFixed(2)}`;
+    const label = mood ? 'US Market Mood' : alert.ticker;
+    return `<div class="alert-item ${triggered ? 'triggered' : ''}"><span><b>${escapeHtml(label)}</b> · ${escapeHtml(detail)}<small>${mood && alert.currentScore !== undefined ? `Current ${Number(alert.currentScore).toFixed(1)} · ` : alert.currentPrice ? `Live $${Number(alert.currentPrice).toFixed(2)} · ` : ''}${triggered ? 'Condition reached' : 'Monitoring'}</small></span><button data-delete-alert="${index}">Remove</button></div>`;
   }).join('') || '<div class="empty-small">No research alerts saved yet.</div>';
   const notesHolder = $('#notes-list');
   if (notesHolder) notesHolder.innerHTML = notes.slice().reverse().map((note, index) => `<article class="note-item thesis-card"><div><span><b>${escapeHtml(note.ticker)}</b><em>${escapeHtml(note.status || 'Researching')}</em></span><small>${escapeHtml(note.date || '')}${note.reviewDate ? ` · review ${escapeHtml(note.reviewDate)}` : ''}</small></div><p><strong>THESIS</strong>${escapeHtml(note.text)}</p>${note.risk ? `<p><strong>RISK</strong>${escapeHtml(note.risk)}</p>` : ''}${note.catalyst ? `<p><strong>CATALYST</strong>${escapeHtml(note.catalyst)}</p>` : ''}<footer><span>Conviction ${escapeHtml(note.conviction || '3')}/5</span><button data-delete-note="${notes.length - 1 - index}">Delete</button></footer></article>`).join('') || '<div class="empty-small">No thesis cards yet.</div>';
@@ -2003,10 +2012,11 @@ function drawResearchLists() {
 }
 async function evaluateResearchAlerts() {
   const priceAlerts = alerts.filter(item => item.type !== 'earnings' && item.ticker);
+  const moodAlerts = alerts.filter(item => item.type === 'mood');
   const symbols = [...new Set(priceAlerts.map(item => item.ticker))];
-  if (!symbols.length) return;
+  if (!symbols.length && !moodAlerts.length) return;
   try {
-    const quotes = await getJson(`/data/watchlist?symbols=${encodeURIComponent(symbols.join(','))}`, 30000);
+    const quotes = symbols.length ? await getJson(`/data/watchlist?symbols=${encodeURIComponent(symbols.join(','))}`, 30000) : [];
     const bySymbol = new Map((quotes || []).map(item => [String(item.symbol || '').toUpperCase(), item]));
     let changed = false;
     priceAlerts.forEach(alert => {
@@ -2016,6 +2026,15 @@ async function evaluateResearchAlerts() {
       if (alert.currentPrice !== price || alert.triggered !== reached) changed = true;
       alert.currentPrice = price; alert.triggered = reached; alert.checkedAt = new Date().toISOString();
     });
+    if (moodAlerts.length) {
+      const moodResult = await getJson('/data/deep-dive/sectors', 30000).catch(() => null);
+      const score = Number(moodResult?.mood?.score);
+      if (Number.isFinite(score)) moodAlerts.forEach(alert => {
+        const reached = alert.direction === 'below' ? score <= Number(alert.threshold) : score >= Number(alert.threshold);
+        if (alert.currentScore !== score || alert.triggered !== reached) changed = true;
+        alert.currentScore = score; alert.triggered = reached; alert.checkedAt = new Date().toISOString();
+      });
+    }
     if (changed) { localStorage.setItem('dd-price-alerts', JSON.stringify(alerts)); queueResearchStateSync(); drawResearchLists(); }
   } catch {}
 }
