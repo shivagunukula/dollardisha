@@ -421,6 +421,8 @@ test('market mood presents a transparent US composite and component breakdown', 
   assert.match(client, /dd-mood-track/);
   assert.match(client, /dd-mood-save-alert/);
   assert.match(client, /type==='mood'/);
+  assert.match(client, /dd-data-status/);
+  assert.match(client, /Source unavailable/);
   assert.match(client, /sector=\$\{encodeURIComponent\(r\.symbol\)\}/);
   assert.match(client, /fetchData\('market-breadth'\)/);
   assert.match(client, /All-stock breadth sample/);
@@ -428,6 +430,7 @@ test('market mood presents a transparent US composite and component breakdown', 
   assert.match(styles, /\.dd-mood-hero/);
   assert.match(styles, /\.dd-mood-components/);
   assert.match(styles, /\.dd-stock-breadth/);
+  assert.match(styles, /\.dd-data-status/);
   assert.match(data, /const moodHistory =/);
   assert.match(data, /moodHistory,/);
   assert.match(data, /const stockBreadthSnapshot =/);

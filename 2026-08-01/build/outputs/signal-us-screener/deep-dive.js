@@ -48,11 +48,20 @@ export function mountDeepDive(root,hooks) {
   let period='month', relative=false, sectorFilter='', peadFilter='all', trackerFilter='all', selectedSector=requestedSector || 'XLK', stockFilter='', stockSort='score', selectedStock='';
   let bankingCert='', analyses=[];
   const filingInputs={demergers:'',orders:''};
-  root.innerHTML = `<header class="dd-heading"><div><p class="crumb">US EQUITY RESEARCH</p><h1>Deep Dive</h1><p>Explore the data. Keep the evidence. Track your next review.</p></div><a href="/research">Research workspace →</a></header><nav class="dd-tools" aria-label="Deep Dive tools">${tabs.map(([id,name]) => `<button type="button" data-tool="${id}" ${active === id ? 'aria-current="page"' : ''}>${name}</button>`).join('')}</nav><section class="dd-surface"><div class="dd-toolbar"><h2 id="dd-title"></h2><div><span id="dd-status" role="status"></span><button type="button" id="dd-refresh">Refresh</button></div></div><div id="dd-content"></div></section><p class="dd-disclaimer">Research tools, not investment recommendations. Price history is not a real-time quote. Missing values stay blank; always review source documents.</p>`;
+  root.innerHTML = `<header class="dd-heading"><div><p class="crumb">US EQUITY RESEARCH</p><h1>Deep Dive</h1><p>Explore the data. Keep the evidence. Track your next review.</p></div><a href="/research">Research workspace →</a></header><nav class="dd-tools" aria-label="Deep Dive tools">${tabs.map(([id,name]) => `<button type="button" data-tool="${id}" ${active === id ? 'aria-current="page"' : ''}>${name}</button>`).join('')}</nav><section class="dd-surface"><div class="dd-toolbar"><h2 id="dd-title"></h2><div><span id="dd-status" role="status"></span><button type="button" id="dd-refresh">Refresh</button></div></div><div id="dd-data-status" class="dd-data-status" role="status" aria-live="polite"></div><div id="dd-content"></div></section><p class="dd-disclaimer">Research tools, not investment recommendations. Price history is not a real-time quote. Missing values stay blank; always review source documents.</p>`;
   const alive = token => root.isConnected && token === revision;
   const status = data => {
     const label = {available:'Data available',partial:'Partial coverage',unavailable:'Source unavailable'}[data.status] || 'Ready';
+    const details=[];
+    if(data.provider) details.push(data.provider);
+    else if(data.sourceUrl) { try { details.push(new URL(data.sourceUrl).hostname.replace(/^www\./,'')); } catch {} }
+    if(data.asOf) details.push(`as of ${data.asOf}`);
+    if(Number.isFinite(Number(data.covered)) && Number.isFinite(Number(data.total))) details.push(`${data.covered}/${data.total} covered`);
+    else if(Number.isFinite(Number(data.sampleSize))) details.push(`${data.sampleSize} sampled`);
+    else if(Number.isFinite(Number(data.examined)) && Number.isFinite(Number(data.attempted))) details.push(`${data.examined}/${data.attempted} documents read`);
+    if(data.checkedAt) details.push(`checked ${new Date(data.checkedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`);
     q('#dd-status').textContent = `${label}${data.checkedAt ? ` · checked ${new Date(data.checkedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}` : ''}`;
+    const holder=q('#dd-data-status'); if(holder) holder.innerHTML=`<span class="dd-data-status-label">${escape(label)}</span>${details.length ? `<span>${escape(details.join(' · '))}</span>` : ''}${data.reason ? `<span class="dd-data-status-reason">${escape(data.reason)}</span>` : ''}`;
   };
   async function fetchData(path) {
     if(cache.has(path)) return cache.get(path);
@@ -62,16 +71,17 @@ export function mountDeepDive(root,hooks) {
     requests.set(path,promise);
     try {return await promise;} finally {clearTimeout(timer); requests.delete(path);}
   }
-  function failure(error) {q('#dd-status').textContent='Could not load';q('#dd-content').innerHTML=`<div class="dd-empty" role="alert"><h3>This source did not respond</h3><p>${escape(error.name === 'AbortError' ? 'The request timed out. Please try again.' : error.message)}</p><button type="button" id="dd-retry">Try again</button></div>`;q('#dd-retry').onclick=() => show(active,true);}
+  function failure(error) {const message=error.name === 'AbortError' ? 'The request timed out. Please try again.' : error.message;q('#dd-status').textContent='Could not load';const holder=q('#dd-data-status');if(holder)holder.innerHTML=`<span class="dd-data-status-label">Source unavailable</span><span>${escape(message)}</span>`;q('#dd-content').innerHTML=`<div class="dd-empty" role="alert"><h3>This source did not respond</h3><p>${escape(message)}</p><button type="button" id="dd-retry">Try again</button></div>`;q('#dd-retry').onclick=() => show(active,true);}
   async function show(tool,refresh=false) {
     active=tool; const token=++revision;
     root.querySelectorAll('[data-tool]').forEach(b => {if(b.dataset.tool === tool)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
     const url = new URL(location.href); url.searchParams.set('tool',tool); history.replaceState(history.state,'',url);
     q('#dd-title').textContent=tabs.find(([id]) => id === tool)[1];
     q('#dd-status').textContent='';
+    q('#dd-data-status').innerHTML='<span class="dd-data-status-label">Checking source…</span>';
     if(refresh) cache.clear();
-    if(tool === 'tracker') {drawTracker();return;}
-    if(tool === 'demergers' || tool === 'orders') {drawFilings(tool);return;}
+    if(tool === 'tracker') {status({status:'available',provider:'Browser/account research storage',checkedAt:new Date().toISOString()});drawTracker();return;}
+    if(tool === 'demergers' || tool === 'orders') {status({status:'available',provider:'SEC EDGAR',checkedAt:new Date().toISOString()});drawFilings(tool);return;}
     q('#dd-content').innerHTML='<p class="dd-loading" role="status">Loading source data…</p>';
     try {
       const data=await fetchData(tool === 'mood' ? 'sectors' : tool === 'banking' && bankingCert ? `banking?cert=${bankingCert}` : tool);
