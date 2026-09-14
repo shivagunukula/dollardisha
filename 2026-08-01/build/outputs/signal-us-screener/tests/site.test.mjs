@@ -413,12 +413,16 @@ test('financial screener metrics use transparent SEC annual fallback when FMP is
 });
 
 test('market mood presents a transparent US composite and component breakdown', async () => {
-  const [client, styles] = await Promise.all([read('deep-dive.js'), read('deep-dive.css')]);
+  const [client, styles, data] = await Promise.all([read('deep-dive.js'), read('deep-dive.css'), read('deep-dive-data.mjs')]);
   assert.match(client, /US MARKET MOOD/);
   assert.match(client, /mood\.components/);
   assert.match(client, /dd-mood-gauge/);
+  assert.match(client, /scoreChart\(history/);
+  assert.match(client, /dd-mood-track/);
   assert.match(styles, /\.dd-mood-hero/);
   assert.match(styles, /\.dd-mood-components/);
+  assert.match(data, /const moodHistory =/);
+  assert.match(data, /moodHistory,/);
 });
 
 test('ratio gallery separates live US metrics from history still being synced', async () => {

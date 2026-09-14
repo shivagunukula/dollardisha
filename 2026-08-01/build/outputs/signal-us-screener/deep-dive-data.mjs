@@ -86,7 +86,12 @@ export function createDeepDiveService({ fmp, fmpConfigured = false, directoryLoa
     const histories = await pooled(symbols,3,history);
     const data = Object.fromEntries(symbols.map((s,i) => [s === '^VIX' ? 'VIX' : s,histories[i] || []]));
     const result = sectorSnapshot(data);
-    return { ...result, checkedAt:checkedAt(), status:result.covered === 11 ? 'available' : result.covered ? 'partial' : 'unavailable', sourceUrl:'https://www.ssga.com/us/en/individual/capabilities/equities/sector-investing/select-sector-etfs', methodology:'Completed-session closing-price returns, excluding dividends. 1D/1W/1M/3M/6M/1Y use 1/5/21/63/126/252 SPY sessions. Excess is sector return minus SPY return in percentage points on matching dates. Rotation compares 63-session excess with the change in excess between the latest and preceding 21 sessions. ETF coverage is not constituent breadth.' };
+    const moodHistory = (data.SPY || []).map(row => row.date).slice(-180).map(date => {
+      const throughDate = Object.fromEntries(symbols.map(symbol => [symbol, (data[symbol] || []).filter(row => row.date <= date)]));
+      const snapshot = sectorSnapshot(throughDate);
+      return { date, score:snapshot.mood.score, zone:snapshot.mood.zone };
+    }).filter(row => row.score !== null);
+    return { ...result, moodHistory, checkedAt:checkedAt(), status:result.covered === 11 ? 'available' : result.covered ? 'partial' : 'unavailable', sourceUrl:'https://www.ssga.com/us/en/individual/capabilities/equities/sector-investing/select-sector-etfs', methodology:'Completed-session closing-price returns, excluding dividends. 1D/1W/1M/3M/6M/1Y use 1/5/21/63/126/252 SPY sessions. Excess is sector return minus SPY return in percentage points on matching dates. Rotation compares 63-session excess with the change in excess between the latest and preceding 21 sessions. ETF coverage is not constituent breadth.' };
   });
   const sectorStocks = sectorSymbol => cached(`sector-stocks:${sectorSymbol}`,300000,async () => {
     const sector = SECTORS.find(item => item.symbol === sectorSymbol);
