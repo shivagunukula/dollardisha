@@ -81,7 +81,30 @@ export function createDeepDiveService({ fmp, fmpConfigured = false, directoryLoa
     if(!clean.length) throw new Error('No completed price history');
     return clean;
   });
-  const sectors = () => cached('sectors',300000,async () => {
+  const stockBreadthSnapshot = () => cached('stock-breadth',900000,async () => {
+    if (typeof directoryLoader !== 'function') return { status:'unavailable', sampleSize:0, reason:'The public US equity directory is unavailable in this environment.' };
+    let directory;
+    try { directory = await directoryLoader(); } catch { directory = []; }
+    const candidates = (directory || []).filter(row => /^[A-Z][A-Z0-9.-]{0,9}$/.test(String(row?.symbol || '').toUpperCase()))
+      .filter(row => !/(WARRANTS?|RIGHTS?|PREFERRED|DEPOSITARY SHARES|UNITS?|ETF|ETN|FUND)\b/i.test(String(row?.name || '')))
+      .map(row => ({ ticker:String(row.symbol).toUpperCase(), name:String(row.name || row.symbol), marketCap:numeric(String(row.marketCap || '').replace(/,/g,'')) }))
+      .filter(row => row.marketCap === null || row.marketCap > 0)
+      .sort((a,b) => (b.marketCap ?? -Infinity) - (a.marketCap ?? -Infinity) || a.ticker.localeCompare(b.ticker));
+    const selected = candidates.slice(0,60);
+    const spy = await history('SPY').catch(() => []), asOf = spy.at(-1)?.date || null;
+    const rows = await pooled(selected,4,async candidate => {
+      const prices = await history(candidate.ticker).catch(() => []);
+      const latest = prices.at(-1);
+      if (!latest || latest.date !== asOf) return null;
+      const average = sessions => prices.length >= sessions ? prices.slice(-sessions).reduce((sum,row) => sum + row.close,0) / sessions : null;
+      const above = sessions => average(sessions) === null ? null : latest.close > average(sessions);
+      return { symbol:candidate.ticker, name:candidate.name, above20:above(20), above50:above(50), above200:above(200) };
+    });
+    const valid = rows.filter(Boolean), count = field => valid.filter(row => row[field] !== null).length;
+    const percentage = field => count(field) ? valid.filter(row => row[field] === true).length / count(field) * 100 : null;
+    return { status:valid.length ? 'available' : 'unavailable', asOf, sampleSize:valid.length, scanned:candidates.length, universe:'Top 60 positive-market-cap common-stock listings by Nasdaq directory market cap', provider:'Nasdaq directory + Yahoo Finance fallback', above20:percentage('above20'), above50:percentage('above50'), above200:percentage('above200'), counts:{ above20:valid.filter(row => row.above20 === true).length, above50:valid.filter(row => row.above50 === true).length, above200:valid.filter(row => row.above200 === true).length }, eligible:{ above20:count('above20'), above50:count('above50'), above200:count('above200') }, reason:valid.length ? null : 'No sampled listings had a completed close matching the SPY benchmark date.' };
+  });
+  const sectors = (includeBreadth = false) => cached(`sectors:${includeBreadth ? 'with-breadth' : 'base'}`,300000,async () => {
     const symbols = [...SECTORS.map(r => r.symbol),'SPY','^VIX'];
     const histories = await pooled(symbols,3,history);
     const data = Object.fromEntries(symbols.map((s,i) => [s === '^VIX' ? 'VIX' : s,histories[i] || []]));
@@ -91,7 +114,8 @@ export function createDeepDiveService({ fmp, fmpConfigured = false, directoryLoa
       const snapshot = sectorSnapshot(throughDate);
       return { date, score:snapshot.mood.score, zone:snapshot.mood.zone };
     }).filter(row => row.score !== null);
-    return { ...result, moodHistory, checkedAt:checkedAt(), status:result.covered === 11 ? 'available' : result.covered ? 'partial' : 'unavailable', sourceUrl:'https://www.ssga.com/us/en/individual/capabilities/equities/sector-investing/select-sector-etfs', methodology:'Completed-session closing-price returns, excluding dividends. 1D/1W/1M/3M/6M/1Y use 1/5/21/63/126/252 SPY sessions. Excess is sector return minus SPY return in percentage points on matching dates. Rotation compares 63-session excess with the change in excess between the latest and preceding 21 sessions. ETF coverage is not constituent breadth.' };
+    const stockBreadth = includeBreadth ? await stockBreadthSnapshot() : null;
+    return { ...result, mood:{...result.mood, stockBreadth}, moodHistory, checkedAt:checkedAt(), status:result.covered === 11 ? 'available' : result.covered ? 'partial' : 'unavailable', sourceUrl:'https://www.ssga.com/us/en/individual/capabilities/equities/sector-investing/select-sector-etfs', methodology:'Completed-session closing-price returns, excluding dividends. 1D/1W/1M/3M/6M/1Y use 1/5/21/63/126/252 SPY sessions. Excess is sector return minus SPY return in percentage points on matching dates. Rotation compares 63-session excess with the change in excess between the latest and preceding 21 sessions. ETF coverage is not constituent breadth. Stock breadth is a transparent top-60 Nasdaq-directory sample using completed Yahoo Finance closes; it is not a full-market breadth feed.' };
   });
   const sectorStocks = sectorSymbol => cached(`sector-stocks:${sectorSymbol}`,300000,async () => {
     const sector = SECTORS.find(item => item.symbol === sectorSymbol);
@@ -211,7 +235,8 @@ export function createDeepDiveService({ fmp, fmpConfigured = false, directoryLoa
   };
   return async function route(url) {
     const module = url.pathname.replace('/data/deep-dive/','');
-    if(module === 'sectors') return sectors();
+    if(module === 'sectors') return sectors(url.searchParams.get('includeBreadth') === '1');
+    if(module === 'market-breadth') return stockBreadthSnapshot();
     if(module === 'sector-stocks') {
       const sector = String(url.searchParams.get('sector') || '').toUpperCase();
       if (!SECTORS.some(item => item.symbol === sector)) return {error:'Enter a valid sector ETF',httpStatus:400};

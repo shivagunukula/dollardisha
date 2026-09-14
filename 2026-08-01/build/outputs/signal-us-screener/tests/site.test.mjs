@@ -419,10 +419,18 @@ test('market mood presents a transparent US composite and component breakdown', 
   assert.match(client, /dd-mood-gauge/);
   assert.match(client, /scoreChart\(history/);
   assert.match(client, /dd-mood-track/);
+  assert.match(client, /fetchData\('market-breadth'\)/);
+  assert.match(client, /All-stock breadth sample/);
+  assert.match(client, /above200/);
   assert.match(styles, /\.dd-mood-hero/);
   assert.match(styles, /\.dd-mood-components/);
+  assert.match(styles, /\.dd-stock-breadth/);
   assert.match(data, /const moodHistory =/);
   assert.match(data, /moodHistory,/);
+  assert.match(data, /const stockBreadthSnapshot =/);
+  assert.match(data, /cached\('stock-breadth',900000/);
+  assert.match(data, /Top 60 positive-market-cap common-stock listings/);
+  assert.match(data, /module === 'market-breadth'/);
 });
 
 test('ratio gallery separates live US metrics from history still being synced', async () => {
